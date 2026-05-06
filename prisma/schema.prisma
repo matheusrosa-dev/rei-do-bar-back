@@ -5,7 +5,7 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../src/database/prisma/generated"
+  output   = "../src/shared/database/prisma/generated"
   moduleFormat  = "cjs"
 }
 
@@ -13,3 +13,171 @@ datasource db {
   provider = "postgresql"
 }
 
+model Customer {
+  id        String   @id @default(uuid())
+  deviceId  String?  @map("device_id")
+  name      String?
+  nickname  String?
+  phone     String?
+  isActive  Boolean  @map("is_active")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  cart      Cart?
+  addresses Address[]
+  orders    Order[]
+
+  @@map("customers")
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  customerId   String   @map("customer_id")
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  zipCode      String   @map("zip_code")
+  createdAt    DateTime @map("created_at")
+  updatedAt    DateTime @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  customer     Customer @relation(fields: [customerId], references: [id])
+  orders       Order[]
+
+  @@map("addresses")
+}
+
+model Cart {
+  id         String     @id @default(uuid())
+  customerId String     @unique @map("customer_id")
+  createdAt  DateTime   @map("created_at")
+  updatedAt  DateTime   @map("updated_at")
+  deletedAt  DateTime?  @map("deleted_at")
+
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  items      CartItem[]
+
+  @@map("cart")
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String   @map("cart_id")
+  productId String   @map("product_id")
+  quantity  Int
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@map("cart_items")
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  isActive  Boolean   @map("is_active")
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String     @id @default(uuid())
+  categoryId  String     @map("category_id")
+  name        String
+  description String?
+  price       Int
+  imageKey    String     @map("image_key")
+  isActive    Boolean    @map("is_active")
+  createdAt   DateTime   @map("created_at")
+  updatedAt   DateTime   @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  category    Category   @relation(fields: [categoryId], references: [id])
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model Deliverer {
+  id        String          @id @default(uuid())
+  name      String
+  createdAt DateTime        @map("created_at")
+  updatedAt DateTime        @map("updated_at")
+  deletedAt DateTime?       @map("deleted_at")
+
+  token     DelivererToken?
+  orders    Order[]
+
+  @@map("deliverers")
+}
+
+model DelivererToken {
+  id          String    @id @default(uuid())
+  delivererId String    @unique @map("deliverer_id")
+  token       String
+  createdAt   DateTime  @map("created_at")
+  updatedAt   DateTime  @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  deliverer   Deliverer @relation(fields: [delivererId], references: [id])
+
+  @@map("deliverer_tokens")
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  customerId   String      @map("customer_id")
+  addressId    String      @map("address_id")
+  delivererId  String?     @map("deliverer_id")
+  status       OrderStatus
+  statusReason String?     @map("status_reason")
+  deliveryFee  Int?        @map("delivery_fee")
+  deliveryCode String      @map("delivery_code")
+  createdAt    DateTime    @map("created_at")
+  updatedAt    DateTime    @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  address      Address     @relation(fields: [addressId], references: [id])
+  deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
+  items        OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String    @id @default(uuid())
+  orderId   String    @map("order_id")
+  productId String    @map("product_id")
+  name      String
+  imageKey  String?   @map("image_key")
+  quantity  Int
+  price     Int
+  createdAt DateTime  @map("created_at")
+  updatedAt DateTime  @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  order     Order     @relation(fields: [orderId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+enum OrderStatus {
+  pending
+  preparing
+  shipped
+  delivered
+  cancelled
+}
