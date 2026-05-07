@@ -11,6 +11,11 @@ export class CategoriesService {
         isActive: true,
         deletedAt: null,
       },
+      select: {
+        id: true,
+        name: true,
+        pluralName: true,
+      },
     });
   }
 }

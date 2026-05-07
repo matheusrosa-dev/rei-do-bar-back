@@ -1,6 +1,6 @@
-import { PrismaClient } from "src/shared/database/prisma/generated/client";
+import { PrismaClient } from "../../src/shared/database/prisma/generated/client";
 
-const categories = [
+export const categories = [
   { name: "Cerveja", pluralName: "Cervejas" },
   { name: "Vinho", pluralName: "Vinhos" },
   { name: "Destilado", pluralName: "Destilados" },
@@ -11,13 +11,11 @@ const categories = [
 export async function seedCategories(prisma: PrismaClient) {
   console.log("Seeding categories...");
 
-  const categoriesFound = await Promise.all(
-    categories.map((category) =>
-      prisma.category.findFirst({
-        where: { name: category.name },
-      }),
-    ),
-  );
+  const categoriesFound = await prisma.category.findMany({
+    where: {
+      OR: categories.map((category) => ({ name: category.name })),
+    },
+  });
 
   const nonExistingCategories = categories.filter(
     (_, index) => !categoriesFound[index],

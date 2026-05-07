@@ -10,11 +10,8 @@ export class AuthService {
   async syncDeviceId(dto: SyncDeviceIdDto) {
     let deviceId = dto?.deviceId;
 
-    let isNewDevice = false;
-
     if (!deviceId) {
       deviceId = randomUUID();
-      isNewDevice = true;
     }
 
     const existingCustomer = await this.prisma.customer.findFirst({
@@ -23,18 +20,29 @@ export class AuthService {
       },
     });
 
+    // TODO: tratar se o customer existir mas estiver inativo (isActive: false)
+
     if (!existingCustomer) {
-      await this.prisma.customer.create({
-        data: {
-          deviceId,
-          isActive: true,
-        },
-      });
+      await this.initCustomerWithDeviceId(deviceId);
     }
 
     return {
-      isNewDevice,
       deviceId,
     };
+  }
+
+  private async initCustomerWithDeviceId(deviceId: string) {
+    const customer = await this.prisma.customer.create({
+      data: {
+        deviceId,
+        isActive: true,
+      },
+    });
+
+    await this.prisma.cart.create({
+      data: {
+        customerId: customer.id,
+      },
+    });
   }
 }
