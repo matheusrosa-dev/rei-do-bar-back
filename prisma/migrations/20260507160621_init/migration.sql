@@ -6,7 +6,6 @@ CREATE TABLE "customers" (
     "id" TEXT NOT NULL,
     "device_id" TEXT,
     "name" TEXT,
-    "nickname" TEXT,
     "phone" TEXT,
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -60,7 +59,7 @@ CREATE TABLE "cart_items" (
 CREATE TABLE "categories" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "pluralName" TEXT NOT NULL,
+    "plural_name" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -76,7 +75,7 @@ CREATE TABLE "products" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "price" INTEGER NOT NULL,
-    "image_key" TEXT NOT NULL,
+    "image_url" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -142,10 +141,31 @@ CREATE TABLE "order_items" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "customers_device_id_key" ON "customers"("device_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "customers_phone_key" ON "customers"("phone");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "cart_customer_id_key" ON "cart"("customer_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "cart_items_cart_id_product_id_key" ON "cart_items"("cart_id", "product_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "deliverer_tokens_deliverer_id_key" ON "deliverer_tokens"("deliverer_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "deliverer_tokens_token_key" ON "deliverer_tokens"("token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "orders_delivery_code_key" ON "orders"("delivery_code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");
 
 -- AddForeignKey
 ALTER TABLE "addresses" ADD CONSTRAINT "addresses_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
