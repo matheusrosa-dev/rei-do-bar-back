@@ -15,7 +15,7 @@ datasource db {
 
 model Customer {
   id        String   @id @default(uuid())
-  deviceId  String?  @map("device_id")
+  deviceId  String   @map("device_id")
   name      String?
   nickname  String?
   phone     String?
