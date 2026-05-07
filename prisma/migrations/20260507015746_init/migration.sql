@@ -9,7 +9,7 @@ CREATE TABLE "customers" (
     "nickname" TEXT,
     "phone" TEXT,
     "is_active" BOOLEAN NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -25,7 +25,7 @@ CREATE TABLE "addresses" (
     "complement" TEXT,
     "neighborhood" TEXT NOT NULL,
     "zip_code" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -36,7 +36,7 @@ CREATE TABLE "addresses" (
 CREATE TABLE "cart" (
     "id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -49,7 +49,7 @@ CREATE TABLE "cart_items" (
     "cart_id" TEXT NOT NULL,
     "product_id" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -60,8 +60,9 @@ CREATE TABLE "cart_items" (
 CREATE TABLE "categories" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "pluralName" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -77,7 +78,7 @@ CREATE TABLE "products" (
     "price" INTEGER NOT NULL,
     "image_key" TEXT NOT NULL,
     "is_active" BOOLEAN NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -88,7 +89,7 @@ CREATE TABLE "products" (
 CREATE TABLE "deliverers" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -100,7 +101,7 @@ CREATE TABLE "deliverer_tokens" (
     "id" TEXT NOT NULL,
     "deliverer_id" TEXT NOT NULL,
     "token" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -117,7 +118,7 @@ CREATE TABLE "orders" (
     "status_reason" TEXT,
     "delivery_fee" INTEGER,
     "delivery_code" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
@@ -133,7 +134,7 @@ CREATE TABLE "order_items" (
     "image_key" TEXT,
     "quantity" INTEGER NOT NULL,
     "price" INTEGER NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "deleted_at" TIMESTAMP(3),
 
