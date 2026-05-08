@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../shared/database/prisma/prisma.service";
+import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
 import { SyncDeviceIdDto } from "./dtos";
-import { AppException } from "../shared/exceptions/app.exception";
+import { AppException } from "@shared/exceptions/app.exception";
 
 @Injectable()
 export class AuthService {

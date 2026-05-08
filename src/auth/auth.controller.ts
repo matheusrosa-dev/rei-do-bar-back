@@ -1,7 +1,7 @@
 import { Body, Controller, Post } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { SyncDeviceIdDto } from "./dtos/sync-device-id.dto";
-import { Public } from "../shared/decorators/public.decorator";
+import { Public } from "@shared/decorators/public.decorator";
 
 @Controller("auth")
 export class AuthController {

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthService } from "../auth.service";
-import { PrismaService } from "../../shared/database/prisma/prisma.service";
-import { AppException } from "../../shared/exceptions/app.exception";
+import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { AppException } from "@shared/exceptions/app.exception";
 
 const prismaMock = {
   customer: {

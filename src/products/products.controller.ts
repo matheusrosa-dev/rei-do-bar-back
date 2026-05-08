@@ -3,8 +3,8 @@ import { ProductsService } from "./products.service";
 import {
   CurrentSession,
   type ICurrentSession,
-} from "../shared/decorators/current-session.decorator";
-import { Serialize } from "../shared/interceptors/serialize.interceptor";
+} from "@shared/decorators/current-session.decorator";
+import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import { ProductsDto } from "./dtos";
 
 @Controller("products")

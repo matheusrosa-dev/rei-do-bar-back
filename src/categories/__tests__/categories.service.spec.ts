@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CategoriesService } from "../categories.service";
-import { PrismaService } from "../../shared/database/prisma/prisma.service";
+import { PrismaService } from "@shared/database/prisma/prisma.service";
 
 const prismaMock = {
   category: {

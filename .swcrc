@@ -8,7 +8,11 @@
       "dynamicImport": true
     },
     "baseUrl": "./",
-    "keepClassNames": true
+    "keepClassNames": true,
+    "paths": {
+      "@shared/*": ["./src/shared/*"]
+    }
   },
+
   "minify": false
 }

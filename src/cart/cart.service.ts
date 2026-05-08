@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../shared/database/prisma/prisma.service";
+import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
-import { CartItem, Product } from "../shared/database/prisma/generated/client";
-import { AppException } from "../shared/exceptions/app.exception";
+import { CartItem, Product } from "@shared/database/prisma/generated/client";
+import { AppException } from "@shared/exceptions/app.exception";
 
 @Injectable()
 export class CartService {
