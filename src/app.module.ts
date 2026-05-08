@@ -22,6 +22,10 @@ import { DeviceIdGuard } from "./shared/guards/device-id.guard";
       provide: APP_GUARD,
       useClass: DeviceIdGuard,
     },
+    // {
+    //   provide: APP_INTERCEPTOR,
+    //   useValue: new DelayInterceptor(1000),
+    // },
   ],
 })
 export class AppModule {}
