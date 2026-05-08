@@ -1,9 +1,8 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
 import { CartItem, Product } from "../shared/database/prisma/generated/client";
 import { AppException } from "../shared/exceptions/app.exception";
-import { ErrorCodes } from "../shared/exceptions/error-codes";
 
 @Injectable()
 export class CartService {
@@ -26,9 +25,9 @@ export class CartService {
 
     if (isProductInCart) {
       throw new AppException(
-        ErrorCodes.cart.PRODUCT_ALREADY_IN_CART,
-        "Produto já está no carrinho",
-        HttpStatus.BAD_REQUEST,
+        AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+        "Produto já existe no carrinho",
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -42,9 +41,9 @@ export class CartService {
 
     if (!product) {
       throw new AppException(
-        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
         "Produto não encontrado",
-        HttpStatus.NOT_FOUND,
+        AppException.HttpStatus.NOT_FOUND,
       );
     }
 
@@ -81,9 +80,9 @@ export class CartService {
 
     if (!cartItem) {
       throw new AppException(
-        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
         "Produto não existe no carrinho",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -120,9 +119,9 @@ export class CartService {
 
     if (!cartItem) {
       throw new AppException(
-        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
         "Produto não existe no carrinho",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -175,9 +174,9 @@ export class CartService {
 
     if (!isProductInCart) {
       throw new AppException(
-        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
         "Produto não existe no carrinho",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -220,17 +219,17 @@ export class CartService {
 
     if (!customer) {
       throw new AppException(
-        ErrorCodes.cart.CUSTOMER_NOT_FOUND,
-        "Cliente não encontrado",
-        HttpStatus.BAD_REQUEST,
+        AppException.errorCodes.cart.CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado para este dispositivo",
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
     if (!customer?.cart) {
       throw new AppException(
-        ErrorCodes.cart.CUSTOMER_CART_NOT_FOUND,
+        AppException.errorCodes.cart.CUSTOMER_CART_NOT_FOUND,
         "Carrinho não encontrado para este cliente",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 

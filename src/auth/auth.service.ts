@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
 import { SyncDeviceIdDto } from "./dtos";
+import { AppException } from "../shared/exceptions/app.exception";
 
 @Injectable()
 export class AuthService {
@@ -20,10 +21,17 @@ export class AuthService {
       },
     });
 
-    // TODO: tratar se o customer existir mas estiver inativo (isActive: false)
-
     if (!existingCustomer) {
       await this.initCustomerWithDeviceId(deviceId);
+    }
+
+    // TODO: adicionar tratativa no front
+    if (existingCustomer && !existingCustomer.isActive) {
+      throw new AppException(
+        AppException.errorCodes.auth.INACTIVE_CUSTOMER,
+        "Seu dispositivo está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
+        AppException.HttpStatus.FORBIDDEN,
+      );
     }
 
     return {
