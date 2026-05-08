@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { WrapperDataInterceptor } from "../interceptors/wrapper-data.interceptor";
+import { GlobalExceptionFilter } from "../filters/exception.filter";
 
 export function applyGlobalConfig(app: INestApplication) {
   app.enableCors({
@@ -15,4 +16,6 @@ export function applyGlobalConfig(app: INestApplication) {
   );
 
   app.useGlobalInterceptors(new WrapperDataInterceptor());
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 }

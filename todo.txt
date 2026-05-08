@@ -1,1 +1,0 @@
-adicionar map de erros com codigo de cada um

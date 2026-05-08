@@ -1,11 +1,9 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { HttpStatus, Injectable } from "@nestjs/common";
 import { PrismaService } from "../shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
 import { CartItem, Product } from "../shared/database/prisma/generated/client";
+import { AppException } from "../shared/exceptions/app.exception";
+import { ErrorCodes } from "../shared/exceptions/error-codes";
 
 @Injectable()
 export class CartService {
@@ -27,7 +25,11 @@ export class CartService {
     );
 
     if (isProductInCart) {
-      throw new BadRequestException("Produto já está no carrinho");
+      throw new AppException(
+        ErrorCodes.cart.PRODUCT_ALREADY_IN_CART,
+        "Produto já está no carrinho",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const product = await this.prisma.product.findFirst({
@@ -39,7 +41,11 @@ export class CartService {
     });
 
     if (!product) {
-      throw new NotFoundException("Produto não encontrado");
+      throw new AppException(
+        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        "Produto não encontrado",
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     const updatedCart = await this.prisma.cart.update({
@@ -74,7 +80,11 @@ export class CartService {
     );
 
     if (!cartItem) {
-      throw new BadRequestException("Produto não existe no carrinho");
+      throw new AppException(
+        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        "Produto não existe no carrinho",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const updatedCart = await this.prisma.cart.update({
@@ -109,7 +119,11 @@ export class CartService {
     );
 
     if (!cartItem) {
-      throw new BadRequestException("Produto não existe no carrinho");
+      throw new AppException(
+        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        "Produto não existe no carrinho",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     if (cartItem.quantity === 1) {
@@ -160,7 +174,11 @@ export class CartService {
     );
 
     if (!isProductInCart) {
-      throw new BadRequestException("Produto não existe no carrinho");
+      throw new AppException(
+        ErrorCodes.cart.PRODUCT_NOT_EXIST,
+        "Produto não existe no carrinho",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const updatedCart = await this.prisma.cart.update({
@@ -201,12 +219,18 @@ export class CartService {
     });
 
     if (!customer) {
-      throw new BadRequestException("Cliente não encontrado");
+      throw new AppException(
+        ErrorCodes.cart.CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado",
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     if (!customer?.cart) {
-      throw new BadRequestException(
+      throw new AppException(
+        ErrorCodes.cart.CUSTOMER_CART_NOT_FOUND,
         "Carrinho não encontrado para este cliente",
+        HttpStatus.BAD_REQUEST,
       );
     }
 
