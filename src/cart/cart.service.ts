@@ -4,36 +4,23 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { PrismaService } from "../shared/database/prisma/prisma.service";
-import { AddToCartDto } from "./dtos";
+import { AddToCartDto, RemoveFromCartDto } from "./dtos";
 import { CartItem, Product } from "../shared/database/prisma/generated/client";
 
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getCart(deviceId: string) {
+    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+
+    return this.formatCart(customer.cart.items);
+  }
+
   async addToCart(deviceId: string, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.prisma.customer.findUnique({
-      where: { deviceId, isActive: true, deletedAt: null },
-      include: {
-        cart: {
-          include: {
-            items: true,
-          },
-        },
-      },
-    });
-
-    if (!customer) {
-      throw new BadRequestException("Cliente não encontrado");
-    }
-
-    if (!customer?.cart) {
-      throw new BadRequestException(
-        "Carrinho não encontrado para este cliente",
-      );
-    }
+    const customer = await this.findCustomerWithCartOrThrow(deviceId);
 
     const isProductInCart = customer.cart.items.some(
       (item) => item.productId === productId,
@@ -77,7 +64,127 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  async getCart(deviceId: string) {
+  async incrementProductQuantity(deviceId: string, dto: AddToCartDto) {
+    const { productId } = dto;
+
+    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+
+    const cartItem = customer.cart.items.find(
+      (item) => item.productId === productId,
+    );
+
+    if (!cartItem) {
+      throw new BadRequestException("Produto não existe no carrinho");
+    }
+
+    const updatedCart = await this.prisma.cart.update({
+      where: { id: customer.cart.id },
+      data: {
+        items: {
+          update: {
+            where: { id: cartItem.id },
+            data: { quantity: cartItem.quantity + 1 },
+          },
+        },
+      },
+      select: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return this.formatCart(updatedCart.items);
+  }
+
+  async decrementProductQuantity(deviceId: string, dto: AddToCartDto) {
+    const { productId } = dto;
+
+    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+
+    const cartItem = customer.cart.items.find(
+      (item) => item.productId === productId,
+    );
+
+    if (!cartItem) {
+      throw new BadRequestException("Produto não existe no carrinho");
+    }
+
+    if (cartItem.quantity === 1) {
+      const updatedCart = await this.prisma.cart.update({
+        where: { id: customer.cart.id },
+        data: {
+          items: {
+            deleteMany: { productId },
+          },
+        },
+        select: {
+          items: {
+            include: { product: true },
+          },
+        },
+      });
+
+      return this.formatCart(updatedCart.items);
+    }
+
+    const updatedCart = await this.prisma.cart.update({
+      where: { id: customer.cart.id },
+      data: {
+        items: {
+          update: {
+            where: { id: cartItem.id },
+            data: { quantity: cartItem.quantity - 1 },
+          },
+        },
+      },
+      select: {
+        items: {
+          include: { product: true },
+        },
+      },
+    });
+
+    return this.formatCart(updatedCart.items);
+  }
+
+  async removeFromCart(deviceId: string, dto: RemoveFromCartDto) {
+    const { productId } = dto;
+
+    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+
+    const isProductInCart = customer.cart.items.some(
+      (item) => item.productId === productId,
+    );
+
+    if (!isProductInCart) {
+      throw new BadRequestException("Produto não existe no carrinho");
+    }
+
+    const updatedCart = await this.prisma.cart.update({
+      where: { id: customer.cart.id },
+      data: {
+        items: {
+          deleteMany: {
+            productId,
+          },
+        },
+      },
+      select: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return this.formatCart(updatedCart.items);
+  }
+
+  private async findCustomerWithCartOrThrow(deviceId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { deviceId, isActive: true, deletedAt: null },
       include: {
@@ -103,7 +210,13 @@ export class CartService {
       );
     }
 
-    return this.formatCart(customer.cart.items);
+    return {
+      ...customer,
+      cart: {
+        ...customer.cart!,
+        items: customer.cart!.items,
+      },
+    };
   }
 
   private formatCart(
@@ -113,7 +226,12 @@ export class CartService {
       }
     >,
   ) {
-    const deliveryFee = 500; //TODO: calcular frete real
+    let deliveryFee = 200; //TODO: calcular frete real
+
+    if (!cartItems.length) {
+      deliveryFee = 0;
+    }
+
     const productsCount = cartItems.reduce(
       (sum, item) => sum + item.quantity,
       0,
