@@ -54,10 +54,12 @@ describe("ProductsService", () => {
         {
           ...products[0],
           quantityInCart: 1,
+          remainingStock: null,
         },
         {
           ...products[1],
           quantityInCart: 0,
+          remainingStock: null,
         },
       ]);
     });
@@ -75,6 +77,7 @@ describe("ProductsService", () => {
         {
           ...products[0],
           quantityInCart: 0,
+          remainingStock: null,
         },
       ]);
     });
@@ -90,6 +93,43 @@ describe("ProductsService", () => {
         {
           ...products[0],
           quantityInCart: 0,
+          remainingStock: null,
+        },
+      ]);
+    });
+
+    it("should return products with remainingStock when stock is 10 or less", async () => {
+      const products = [makeProduct("p1", 5)];
+      prismaMock.product.findMany.mockResolvedValue(products);
+      prismaMock.customer.findUnique.mockResolvedValue({
+        cart: { items: [] },
+      });
+
+      const result = await service.findBestSellers("device-123");
+
+      expect(result).toStrictEqual([
+        {
+          ...products[0],
+          quantityInCart: 0,
+          remainingStock: 5,
+        },
+      ]);
+    });
+
+    it("should return products without remainingStock when stock is greater than 10", async () => {
+      const products = [makeProduct("p1", 11)];
+      prismaMock.product.findMany.mockResolvedValue(products);
+      prismaMock.customer.findUnique.mockResolvedValue({
+        cart: { items: [] },
+      });
+
+      const result = await service.findBestSellers("device-123");
+
+      expect(result).toStrictEqual([
+        {
+          ...products[0],
+          quantityInCart: 0,
+          remainingStock: null,
         },
       ]);
     });

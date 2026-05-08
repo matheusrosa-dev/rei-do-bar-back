@@ -15,7 +15,7 @@ const prismaMock = {
   },
 };
 
-const makeProduct = (id: string, price = 1000) => ({
+const makeProduct = (id: string, price = 1000, stock = 100) => ({
   id,
   name: `Product ${id}`,
   description: `Desc ${id}`,
@@ -23,6 +23,7 @@ const makeProduct = (id: string, price = 1000) => ({
   imageUrl: `http://img/${id}`,
   isActive: true,
   deletedAt: null,
+  stock,
 });
 
 const makeCartItem = (
@@ -101,6 +102,7 @@ describe("CartService", () => {
           description: item.product.description,
           price: item.product.price * item.quantity,
           imageUrl: item.product.imageUrl,
+          remainingStock: null,
           quantity: item.quantity,
         })),
       });
@@ -192,6 +194,7 @@ describe("CartService", () => {
           description: item.product.description,
           price: item.product.price * item.quantity,
           imageUrl: item.product.imageUrl,
+          remainingStock: null,
           quantity: item.quantity,
         })),
       });
@@ -231,6 +234,23 @@ describe("CartService", () => {
         code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
         message: "Produto não encontrado",
         httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+    });
+
+    it("should throw when product stock is insufficient", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(
+        makeCustomerWithCart([]),
+      );
+      prismaMock.product.findFirst.mockResolvedValue(
+        makeProduct("p1", 1000, 0),
+      );
+
+      await expect(
+        service.addToCart("device-123", { productId: "p1" }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+        message: "Produto sem estoque disponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
     });
   });
@@ -288,6 +308,7 @@ describe("CartService", () => {
           description: item.product.description,
           price: item.product.price * item.quantity,
           imageUrl: item.product.imageUrl,
+          remainingStock: null,
           quantity: item.quantity,
         })),
       });
@@ -303,6 +324,23 @@ describe("CartService", () => {
       ).rejects.toMatchObject({
         code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
         message: "Produto não existe no carrinho",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw when incrementing exceeds stock", async () => {
+      const items = [
+        { ...makeCartItem("p1", 1), product: makeProduct("p1", 1000, 1) },
+      ];
+      prismaMock.customer.findUnique.mockResolvedValue(
+        makeCustomerWithCart(items),
+      );
+
+      await expect(
+        service.incrementProductQuantity("device-123", { productId: "p1" }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+        message: "Quantidade solicitada excede o estoque disponível",
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
     });
@@ -360,6 +398,7 @@ describe("CartService", () => {
           description: item.product.description,
           price: item.product.price * item.quantity,
           imageUrl: item.product.imageUrl,
+          remainingStock: null,
           quantity: item.quantity,
         })),
       });

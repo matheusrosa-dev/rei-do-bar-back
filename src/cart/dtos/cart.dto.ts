@@ -54,4 +54,7 @@ class CartItemDto {
 
   @Expose()
   quantity!: number;
+
+  @Expose()
+  remainingStock?: number;
 }

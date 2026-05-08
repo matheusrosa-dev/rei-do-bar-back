@@ -37,6 +37,10 @@ export class CartService {
         isActive: true,
         deletedAt: null,
       },
+      select: {
+        id: true,
+        stock: true,
+      },
     });
 
     if (!product) {
@@ -47,12 +51,20 @@ export class CartService {
       );
     }
 
+    if (product.stock < 1) {
+      throw new AppException(
+        AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+        "Produto sem estoque disponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const updatedCart = await this.prisma.cart.update({
       where: { id: customer.cart.id },
       data: {
         items: {
           create: {
-            productId,
+            productId: product.id,
             quantity: 1,
           },
         },
@@ -82,6 +94,14 @@ export class CartService {
       throw new AppException(
         AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
         "Produto não existe no carrinho",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (cartItem.quantity + 1 > cartItem.product.stock) {
+      throw new AppException(
+        AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+        "Quantidade solicitada excede o estoque disponível",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
@@ -274,6 +294,7 @@ export class CartService {
           description: product.description,
           price: product.price * quantity,
           imageUrl: product.imageUrl,
+          remainingStock: product.stock <= 10 ? product.stock : null,
           quantity,
         };
       }),
