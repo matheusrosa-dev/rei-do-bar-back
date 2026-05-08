@@ -24,7 +24,7 @@ import { DeviceIdGuard } from "./shared/guards/device-id.guard";
     },
     // {
     //   provide: APP_INTERCEPTOR,
-    //   useValue: new DelayInterceptor(1000),
+    //   useValue: new DelayInterceptor(200),
     // },
   ],
 })

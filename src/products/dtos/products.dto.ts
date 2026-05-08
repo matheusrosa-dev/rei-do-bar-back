@@ -17,5 +17,5 @@ export class ProductsDto {
   imageUrl!: string;
 
   @Expose()
-  isInCart!: string;
+  quantityInCart!: number;
 }

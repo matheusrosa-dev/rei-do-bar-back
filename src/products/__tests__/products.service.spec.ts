@@ -11,12 +11,13 @@ const prismaMock = {
   },
 };
 
-const makeProduct = (id: string) => ({
+const makeProduct = (id: string, stock = 100) => ({
   id,
   name: `Product ${id}`,
   description: `Description ${id}`,
   price: 1000,
   imageUrl: `http://img/${id}`,
+  stock,
 });
 
 describe("ProductsService", () => {
@@ -40,22 +41,28 @@ describe("ProductsService", () => {
   });
 
   describe("findBestSellers", () => {
-    it("should return products with isInCart=true for products in customer cart", async () => {
+    it("should return products with quantityInCart=1 for products in customer cart", async () => {
       const products = [makeProduct("p1"), makeProduct("p2")];
       prismaMock.product.findMany.mockResolvedValue(products);
       prismaMock.customer.findUnique.mockResolvedValue({
-        cart: { items: [{ productId: "p1" }] },
+        cart: { items: [{ productId: "p1", quantity: 1 }] },
       });
 
       const result = await service.findBestSellers("device-123");
 
       expect(result).toStrictEqual([
-        { ...products[0], isInCart: true },
-        { ...products[1], isInCart: false },
+        {
+          ...products[0],
+          quantityInCart: 1,
+        },
+        {
+          ...products[1],
+          quantityInCart: 0,
+        },
       ]);
     });
 
-    it("should return products with isInCart=false when cart is empty", async () => {
+    it("should return products with quantityInCart=0 when cart is empty", async () => {
       const products = [makeProduct("p1")];
       prismaMock.product.findMany.mockResolvedValue(products);
       prismaMock.customer.findUnique.mockResolvedValue({
@@ -64,17 +71,27 @@ describe("ProductsService", () => {
 
       const result = await service.findBestSellers("device-123");
 
-      expect(result).toStrictEqual([{ ...products[0], isInCart: false }]);
+      expect(result).toStrictEqual([
+        {
+          ...products[0],
+          quantityInCart: 0,
+        },
+      ]);
     });
 
-    it("should return products with isInCart=false when customer is not found", async () => {
+    it("should return products with quantityInCart=0 when customer is not found", async () => {
       const products = [makeProduct("p1")];
       prismaMock.product.findMany.mockResolvedValue(products);
       prismaMock.customer.findUnique.mockResolvedValue(null);
 
       const result = await service.findBestSellers("device-123");
 
-      expect(result).toStrictEqual([{ ...products[0], isInCart: false }]);
+      expect(result).toStrictEqual([
+        {
+          ...products[0],
+          quantityInCart: 0,
+        },
+      ]);
     });
 
     it("should query only active non-deleted products", async () => {

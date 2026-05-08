@@ -1,6 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 
+// enum Status {
+//   soldOut = "SOLD_OUT",
+//   lowStock = "LOW_STOCK",
+//   inStock = "IN_STOCK",
+// }
+
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -18,6 +24,7 @@ export class ProductsService {
         description: true,
         price: true,
         imageUrl: true,
+        stock: true,
       },
     });
 
@@ -29,19 +36,40 @@ export class ProductsService {
         cart: {
           select: {
             items: {
-              select: { productId: true },
+              select: { productId: true, quantity: true },
             },
           },
         },
       },
     });
 
-    const cartProductIds =
-      customer?.cart?.items.map((item) => item.productId) ?? [];
+    const quantityInCart =
+      customer?.cart?.items.reduce(
+        (acc, item) => {
+          const key = item.productId;
 
-    return bestSellers.map((product) => ({
-      ...product,
-      isInCart: cartProductIds.includes(product.id),
-    }));
+          acc[key] = (acc[key] || 0) + item.quantity;
+
+          return acc;
+        },
+        {} as Record<string, number>,
+      ) ?? {};
+
+    return bestSellers.map((product) => {
+      // let status = Status.inStock;
+
+      // if (product.stock === 0) {
+      //   status = Status.soldOut;
+      // } else if (product.stock <= 10) {
+      //   status = Status.lowStock;
+      // }
+
+      return {
+        ...product,
+        quantityInCart: quantityInCart[product.id] || 0,
+        // status,
+        // remainingStock: product.stock <= 10 ? product.stock : undefined,
+      };
+    });
   }
 }

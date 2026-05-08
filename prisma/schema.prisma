@@ -94,6 +94,7 @@ model Product {
   name        String
   description String?
   price       Int
+  stock       Int
   imageUrl    String     @map("image_url")
   isActive    Boolean    @map("is_active")
   createdAt   DateTime   @default(now()) @map("created_at")
