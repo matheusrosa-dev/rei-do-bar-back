@@ -1,7 +1,7 @@
-import { IsOptional, IsString } from "class-validator";
+import { IsOptional, IsUUID } from "class-validator";
 
 export class SyncDeviceIdDto {
   @IsOptional()
-  @IsString()
+  @IsUUID()
   deviceId?: string;
 }

@@ -1,10 +1,10 @@
 import { Controller, Get } from "@nestjs/common";
 import { CategoriesService } from "./categories.service";
 import { Serialize } from "../shared/interceptors/serialize.interceptor";
-import { CategoryDto } from "./dtos";
+import { CategoriesDto } from "./dtos";
 
 @Controller("categories")
-@Serialize(CategoryDto)
+@Serialize(CategoriesDto)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 

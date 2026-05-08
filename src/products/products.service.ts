@@ -23,9 +23,25 @@ export class ProductsService {
 
     //TODO: implementar logica de stock
 
+    const customer = await this.prisma.customer.findUnique({
+      where: { deviceId },
+      select: {
+        cart: {
+          select: {
+            items: {
+              select: { productId: true },
+            },
+          },
+        },
+      },
+    });
+
+    const cartProductIds =
+      customer?.cart?.items.map((item) => item.productId) ?? [];
+
     return bestSellers.map((product) => ({
       ...product,
-      isInCart: false, // TODO: implementar lógica real para verificar se o produto está no carrinho do usuário
+      isInCart: cartProductIds.includes(product.id),
     }));
   }
 }

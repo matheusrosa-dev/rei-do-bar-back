@@ -1,1 +1,1 @@
-export { CategoryDto } from "./category.dto";
+export { CategoriesDto } from "./categories.dto";

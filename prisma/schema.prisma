@@ -40,7 +40,6 @@ model Address {
   zipCode      String   @map("zip_code")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
 
   customer     Customer @relation(fields: [customerId], references: [id])
   orders       Order[]
@@ -53,9 +52,8 @@ model Cart {
   customerId String     @unique @map("customer_id")
   createdAt  DateTime   @default(now()) @map("created_at")
   updatedAt  DateTime   @updatedAt @map("updated_at")
-  deletedAt  DateTime?  @map("deleted_at")
 
-  customer   Customer   @relation(fields: [customerId], references: [id])
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   items      CartItem[]
 
   @@map("cart")
@@ -68,9 +66,8 @@ model CartItem {
   quantity  Int
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
 
-  cart      Cart     @relation(fields: [cartId], references: [id])
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product   Product  @relation(fields: [productId], references: [id])
 
   @@map("cart_items")
@@ -115,7 +112,6 @@ model Deliverer {
   name      String
   createdAt DateTime        @default(now()) @map("created_at")
   updatedAt DateTime        @updatedAt @map("updated_at")
-  deletedAt DateTime?       @map("deleted_at")
 
   token     DelivererToken?
   orders    Order[]
@@ -129,7 +125,6 @@ model DelivererToken {
   token       String    @unique
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
 
   deliverer   Deliverer @relation(fields: [delivererId], references: [id])
 

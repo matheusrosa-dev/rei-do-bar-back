@@ -1,6 +1,6 @@
 import { Expose } from "class-transformer";
 
-export class CategoryDto {
+export class CategoriesDto {
   @Expose()
   id!: number;
 
