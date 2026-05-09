@@ -56,5 +56,5 @@ class CartItemDto {
   quantity!: number;
 
   @Expose()
-  remainingStock?: number;
+  remainingStock!: number | null;
 }

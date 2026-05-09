@@ -20,5 +20,5 @@ export class ProductsDto {
   quantityInCart!: number;
 
   @Expose()
-  remainingStock?: number;
+  remainingStock!: number | null;
 }
