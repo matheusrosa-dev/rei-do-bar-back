@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Query } from "@nestjs/common";
 import { ProductsService } from "./products.service";
 import {
   CurrentSession,
@@ -13,7 +13,10 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get("best-sellers")
-  findBestSellers(@CurrentSession() session: ICurrentSession) {
-    return this.productsService.findBestSellers(session.deviceId);
+  findBestSellers(
+    @CurrentSession() session: ICurrentSession,
+    @Query("category") category?: string,
+  ) {
+    return this.productsService.findBestSellers(session.deviceId, category);
   }
 }

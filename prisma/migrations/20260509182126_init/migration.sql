@@ -74,6 +74,7 @@ CREATE TABLE "products" (
     "price" INTEGER NOT NULL,
     "stock" INTEGER NOT NULL,
     "image_url" TEXT NOT NULL,
+    "sort_order" INTEGER,
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

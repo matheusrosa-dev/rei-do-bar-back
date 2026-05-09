@@ -96,6 +96,7 @@ model Product {
   price       Int
   stock       Int
   imageUrl    String     @map("image_url")
+  sortOrder   Int?       @map("sort_order")
   isActive    Boolean    @map("is_active")
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")

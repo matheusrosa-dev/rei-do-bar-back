@@ -5,12 +5,20 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findBestSellers(deviceId: string) {
-    // TODO: implementar lógica real de best sellers
+  async findBestSellers(deviceId: string, category?: string) {
     const bestSellers = await this.prisma.product.findMany({
       where: {
         isActive: true,
         deletedAt: null,
+        ...(category
+          ? {
+              category: { name: category },
+            }
+          : {
+              sortOrder: {
+                not: null,
+              },
+            }),
       },
       select: {
         id: true,
@@ -20,9 +28,10 @@ export class ProductsService {
         imageUrl: true,
         stock: true,
       },
+      orderBy: {
+        sortOrder: "asc",
+      },
     });
-
-    //TODO: implementar logica de stock
 
     const customer = await this.prisma.customer.findUnique({
       where: { deviceId },

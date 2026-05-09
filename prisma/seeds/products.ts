@@ -6,6 +6,7 @@ const products = [
     description: "350ml",
     price: 899,
     stock: 10,
+    sortOrder: 1,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/corona-extra.png",
     category: "Cerveja",
@@ -15,6 +16,7 @@ const products = [
     description: "350ml",
     price: 749,
     stock: 4,
+    sortOrder: 2,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/heineken.png",
     category: "Cerveja",
@@ -24,6 +26,7 @@ const products = [
     description: "750ml",
     price: 4990,
     stock: 6,
+    sortOrder: 3,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/quinta-do-morgado.png",
     category: "Vinho",
@@ -33,6 +36,7 @@ const products = [
     description: "1L",
     price: 2990,
     stock: 8,
+    sortOrder: 4,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/velho-barreiro.png",
     category: "Destilado",
@@ -69,6 +73,7 @@ export async function seedProducts(prisma: PrismaClient) {
       description: product.description,
       price: product.price,
       imageUrl: product.imageUrl,
+      sortOrder: product.sortOrder,
       isActive: true,
       stock: product.stock,
       categoryId: categories.find(
