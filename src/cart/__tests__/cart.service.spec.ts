@@ -3,17 +3,7 @@ import { CartService } from "../cart.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
-
-const makeProduct = (id: string, price = 1000, stock = 100) => ({
-  id,
-  name: `Product ${id}`,
-  description: `Desc ${id}`,
-  price,
-  imageUrl: `http://img/${id}`,
-  isActive: true,
-  deletedAt: null,
-  stock,
-});
+import { ProductFactory } from "@shared/testing/factory";
 
 const makeCartItem = (
   productId: string,
@@ -23,7 +13,9 @@ const makeCartItem = (
   id: itemId,
   productId,
   quantity,
-  product: makeProduct(productId),
+  product: ProductFactory.createOne({
+    id: productId,
+  }),
 });
 
 const makeCustomerWithCart = (
@@ -154,7 +146,7 @@ describe("CartService", () => {
       prismaMock.customer.findUnique.mockResolvedValue(
         makeCustomerWithCart([]),
       );
-      prismaMock.product.findFirst.mockResolvedValue(makeProduct("p1"));
+      prismaMock.product.findFirst.mockResolvedValue(makeProduct({ id: "p1" }));
       prismaMock.cart.update.mockResolvedValue({ items });
 
       const result = await service.addToCart("device-123", { productId: "p1" });
@@ -229,7 +221,7 @@ describe("CartService", () => {
         makeCustomerWithCart([]),
       );
       prismaMock.product.findFirst.mockResolvedValue(
-        makeProduct("p1", 1000, 0),
+        makeProduct({ id: "p1", price: 1000, stock: 0 }),
       );
 
       await expect(
@@ -317,7 +309,10 @@ describe("CartService", () => {
 
     it("should throw when incrementing exceeds stock", async () => {
       const items = [
-        { ...makeCartItem("p1", 1), product: makeProduct("p1", 1000, 1) },
+        {
+          ...makeCartItem("p1", 100),
+          product: makeProduct({ id: "p1", price: 1000, stock: 100 }),
+        },
       ];
       prismaMock.customer.findUnique.mockResolvedValue(
         makeCustomerWithCart(items),
