@@ -2,20 +2,12 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AuthService } from "../auth.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
-
-const prismaMock = {
-  customer: {
-    findFirst: jest.fn(),
-    create: jest.fn(),
-  },
-};
+import { prismaMock } from "@shared/testing/mocks";
 
 describe("AuthService", () => {
   let service: AuthService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,

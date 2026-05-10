@@ -1,10 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsController } from "../products.controller";
 import { ProductsService } from "../products.service";
-
-const productsServiceMock = {
-  findBestSellers: jest.fn(),
-};
+import { productsServiceMock } from "@shared/testing/mocks";
 
 const session = { deviceId: "device-123" };
 
@@ -12,8 +9,6 @@ describe("ProductsController", () => {
   let controller: ProductsController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProductsController],
       providers: [{ provide: ProductsService, useValue: productsServiceMock }],

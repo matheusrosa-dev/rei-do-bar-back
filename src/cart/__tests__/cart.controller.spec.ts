@@ -1,14 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CartController } from "../cart.controller";
 import { CartService } from "../cart.service";
-
-const cartServiceMock = {
-  getCart: jest.fn(),
-  addToCart: jest.fn(),
-  incrementProductQuantity: jest.fn(),
-  decrementProductQuantity: jest.fn(),
-  removeFromCart: jest.fn(),
-};
+import { cartServiceMock } from "@shared/testing/mocks";
 
 const session = { deviceId: "device-123" };
 
@@ -24,8 +17,6 @@ describe("CartController", () => {
   let controller: CartController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CartController],
       providers: [{ provide: CartService, useValue: cartServiceMock }],

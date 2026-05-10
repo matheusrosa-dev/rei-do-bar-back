@@ -1,17 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthService } from "../auth.service";
 import { AuthController } from "../auth.controller";
-
-const authServiceMock = {
-  syncDeviceId: jest.fn(),
-};
+import { authServiceMock } from "@shared/testing/mocks";
 
 describe("AuthController", () => {
   let controller: AuthController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [{ provide: AuthService, useValue: authServiceMock }],

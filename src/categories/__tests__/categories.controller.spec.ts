@@ -1,17 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CategoriesController } from "../categories.controller";
 import { CategoriesService } from "../categories.service";
-
-const categoriesServiceMock = {
-  findAll: jest.fn(),
-};
+import { categoriesServiceMock } from "@shared/testing/mocks";
 
 describe("CategoriesController", () => {
   let controller: CategoriesController;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CategoriesController],
       providers: [

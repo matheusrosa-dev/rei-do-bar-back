@@ -2,18 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { CartService } from "../cart.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
-
-const prismaMock = {
-  customer: {
-    findUnique: jest.fn(),
-  },
-  product: {
-    findFirst: jest.fn(),
-  },
-  cart: {
-    update: jest.fn(),
-  },
-};
+import { prismaMock } from "@shared/testing/mocks";
 
 const makeProduct = (id: string, price = 1000, stock = 100) => ({
   id,
@@ -55,8 +44,6 @@ describe("CartService", () => {
   let service: CartService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CartService,

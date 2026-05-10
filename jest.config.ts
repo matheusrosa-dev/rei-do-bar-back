@@ -3,6 +3,7 @@ import type { Config } from "jest";
 const config: Config = {
   moduleFileExtensions: ["js", "json", "ts"],
   rootDir: "src",
+  clearMocks: true,
   testRegex: ".*\\.spec\\.ts$",
   coverageProvider: "v8",
   testEnvironment: "node",

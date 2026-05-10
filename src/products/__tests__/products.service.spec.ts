@@ -1,15 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-
-const prismaMock = {
-  product: {
-    findMany: jest.fn(),
-  },
-  customer: {
-    findUnique: jest.fn(),
-  },
-};
+import { prismaMock } from "@shared/testing/mocks";
 
 const makeProduct = (id: string, stock = 100) => ({
   id,
@@ -24,8 +16,6 @@ describe("ProductsService", () => {
   let service: ProductsService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductsService,

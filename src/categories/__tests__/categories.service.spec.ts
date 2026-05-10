@@ -1,19 +1,12 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CategoriesService } from "../categories.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-
-const prismaMock = {
-  category: {
-    findMany: jest.fn(),
-  },
-};
+import { prismaMock } from "@shared/testing/mocks";
 
 describe("CategoriesService", () => {
   let service: CategoriesService;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CategoriesService,
