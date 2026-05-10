@@ -40,16 +40,13 @@ export class AuthService {
   }
 
   private async initCustomerWithDeviceId(deviceId: string) {
-    const customer = await this.prisma.customer.create({
+    await this.prisma.customer.create({
       data: {
         deviceId,
         isActive: true,
-      },
-    });
-
-    await this.prisma.cart.create({
-      data: {
-        customerId: customer.id,
+        cart: {
+          create: {},
+        },
       },
     });
   }

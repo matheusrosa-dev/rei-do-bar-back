@@ -8,9 +8,6 @@ const prismaMock = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
-  cart: {
-    create: jest.fn(),
-  },
 };
 
 describe("AuthService", () => {
@@ -39,7 +36,7 @@ describe("AuthService", () => {
 
       prismaMock.customer.findFirst.mockResolvedValue(null);
       prismaMock.customer.create.mockResolvedValue({ id: customerId });
-      prismaMock.cart.create.mockResolvedValue({});
+      // prismaMock.cart.create.mockResolvedValue({});
 
       const result = await service.syncDeviceId({});
 
@@ -49,12 +46,10 @@ describe("AuthService", () => {
           data: expect.objectContaining({
             deviceId: result.deviceId,
             isActive: true,
+            cart: {
+              create: {},
+            },
           }),
-        }),
-      );
-      expect(prismaMock.cart.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { customerId },
         }),
       );
     });
@@ -72,26 +67,25 @@ describe("AuthService", () => {
 
       expect(result).toEqual({ deviceId });
       expect(prismaMock.customer.create).not.toHaveBeenCalled();
-      expect(prismaMock.cart.create).not.toHaveBeenCalled();
     });
 
     it("should return the same deviceId when its provided but no existing customer is found", async () => {
       const deviceId = "123e4567-e89b-12d3-a456-426614174000";
       prismaMock.customer.findFirst.mockResolvedValue(null);
       prismaMock.customer.create.mockResolvedValue({ id: "new-customer-id" });
-      prismaMock.cart.create.mockResolvedValue({});
 
       const result = await service.syncDeviceId({ deviceId });
 
       expect(result).toEqual({ deviceId });
       expect(prismaMock.customer.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ deviceId, isActive: true }),
-        }),
-      );
-      expect(prismaMock.cart.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { customerId: "new-customer-id" },
+          data: expect.objectContaining({
+            deviceId,
+            isActive: true,
+            cart: {
+              create: {},
+            },
+          }),
         }),
       );
     });
@@ -100,19 +94,19 @@ describe("AuthService", () => {
       const deviceId = "123e4567-e89b-12d3-a456-426614174000";
       prismaMock.customer.findFirst.mockResolvedValue(null);
       prismaMock.customer.create.mockResolvedValue({ id: "new-customer-id" });
-      prismaMock.cart.create.mockResolvedValue({});
 
       const result = await service.syncDeviceId({ deviceId });
 
       expect(result).toEqual({ deviceId });
       expect(prismaMock.customer.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ deviceId, isActive: true }),
-        }),
-      );
-      expect(prismaMock.cart.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { customerId: "new-customer-id" },
+          data: expect.objectContaining({
+            deviceId,
+            isActive: true,
+            cart: {
+              create: {},
+            },
+          }),
         }),
       );
     });

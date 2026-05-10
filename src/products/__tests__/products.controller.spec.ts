@@ -27,7 +27,7 @@ describe("ProductsController", () => {
   });
 
   describe("findBestSellers", () => {
-    it("should return best sellers from ProductsService", async () => {
+    it("should return best sellers from ProductsService without a category", async () => {
       const products = [
         { id: "p1", name: "Product 1" },
         { id: "p2", name: "Product 2" },
@@ -39,6 +39,24 @@ describe("ProductsController", () => {
       expect(result).toEqual(products);
       expect(productsServiceMock.findBestSellers).toHaveBeenCalledWith(
         session.deviceId,
+        undefined,
+      );
+    });
+
+    it("should return best sellers from ProductsService with a category", async () => {
+      const products = [
+        { id: "p3", name: "Product 3" },
+        { id: "p4", name: "Product 4" },
+      ];
+      const category = "Cerveja";
+      productsServiceMock.findBestSellers.mockResolvedValue(products);
+
+      const result = await controller.findBestSellers(session, category);
+
+      expect(result).toEqual(products);
+      expect(productsServiceMock.findBestSellers).toHaveBeenCalledWith(
+        session.deviceId,
+        category,
       );
     });
   });

@@ -6,45 +6,46 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findBestSellers(deviceId: string, category?: string) {
-    const bestSellers = await this.prisma.product.findMany({
-      where: {
-        isActive: true,
-        deletedAt: null,
-        ...(category
-          ? {
-              category: { name: category },
-            }
-          : {
-              sortOrder: {
-                not: null,
+    const [bestSellers, customer] = await Promise.all([
+      this.prisma.product.findMany({
+        where: {
+          isActive: true,
+          deletedAt: null,
+          ...(category
+            ? {
+                category: { name: category },
+              }
+            : {
+                sortOrder: {
+                  not: null,
+                },
+              }),
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          price: true,
+          imageUrl: true,
+          stock: true,
+        },
+        orderBy: {
+          sortOrder: "asc",
+        },
+      }),
+      this.prisma.customer.findUnique({
+        where: { deviceId },
+        select: {
+          cart: {
+            select: {
+              items: {
+                select: { productId: true, quantity: true },
               },
-            }),
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        price: true,
-        imageUrl: true,
-        stock: true,
-      },
-      orderBy: {
-        sortOrder: "asc",
-      },
-    });
-
-    const customer = await this.prisma.customer.findUnique({
-      where: { deviceId },
-      select: {
-        cart: {
-          select: {
-            items: {
-              select: { productId: true, quantity: true },
             },
           },
         },
-      },
-    });
+      }),
+    ]);
 
     const quantityInCart = this.calculateQuantityInCart(
       customer?.cart?.items ?? [],
