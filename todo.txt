@@ -1,2 +1,1 @@
-pensar em uma forma melhor de estruturar os dados mockados para testes
 adicionar transactions onde for necessario
