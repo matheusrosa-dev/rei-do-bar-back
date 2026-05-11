@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
-import { SyncDeviceIdDto } from "./dtos";
+import { LoginDto, SyncDeviceIdDto } from "./dtos";
 
 @Injectable()
 export class AuthService {
@@ -36,6 +36,12 @@ export class AuthService {
     return {
       deviceId,
     };
+  }
+
+  async login(deviceId: string, dto: LoginDto) {
+    console.log(deviceId, dto);
+
+    return {};
   }
 
   private async initCustomerWithDeviceId(deviceId: string) {
