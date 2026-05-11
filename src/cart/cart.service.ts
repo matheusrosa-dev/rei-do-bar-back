@@ -275,14 +275,14 @@ export class CartService {
       deliveryFee = 0;
     }
 
-    const productsCount = cartItems.reduce(
-      (sum, item) => sum + item.quantity,
-      0,
-    );
-    const subtotal = cartItems.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0,
-    );
+    let productsCount = 0;
+
+    const subtotal = cartItems.reduce((sum, item) => {
+      productsCount += item.quantity;
+      return sum + item.product.price * item.quantity;
+    }, 0);
+
+    const total = subtotal + deliveryFee;
 
     return {
       products: cartItems.map((cartItem) => {
@@ -301,7 +301,7 @@ export class CartService {
       deliveryFee,
       subtotal,
       productsCount,
-      total: subtotal + deliveryFee,
+      total,
     };
   }
 }

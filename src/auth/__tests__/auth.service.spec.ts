@@ -3,6 +3,7 @@ import { AuthService } from "../auth.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
+import { CartFactory, CustomerFactory } from "@shared/testing/factories";
 
 describe("AuthService", () => {
   let service: AuthService;
@@ -28,7 +29,6 @@ describe("AuthService", () => {
 
       prismaMock.customer.findFirst.mockResolvedValue(null);
       prismaMock.customer.create.mockResolvedValue({ id: customerId });
-      // prismaMock.cart.create.mockResolvedValue({});
 
       const result = await service.syncDeviceId({});
 
@@ -47,22 +47,25 @@ describe("AuthService", () => {
     });
 
     it("should return the provided deviceId when customer already exists", async () => {
-      const deviceId = "123e4567-e89b-12d3-a456-426614174000";
-
-      prismaMock.customer.findFirst.mockResolvedValue({
-        id: "customer-id",
-        deviceId,
-        isActive: true,
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({
+          items: [],
+        }),
       });
 
-      const result = await service.syncDeviceId({ deviceId });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
-      expect(result).toEqual({ deviceId });
+      const result = await service.syncDeviceId({
+        deviceId: customer.deviceId!,
+      });
+
+      expect(result).toEqual({ deviceId: customer.deviceId });
       expect(prismaMock.customer.create).not.toHaveBeenCalled();
     });
 
     it("should return the same deviceId when its provided but no existing customer is found", async () => {
       const deviceId = "123e4567-e89b-12d3-a456-426614174000";
+
       prismaMock.customer.findFirst.mockResolvedValue(null);
       prismaMock.customer.create.mockResolvedValue({ id: "new-customer-id" });
 
@@ -104,14 +107,18 @@ describe("AuthService", () => {
     });
 
     it("should throw an exception when the existing customer is inactive", async () => {
-      const deviceId = "123e4567-e89b-12d3-a456-426614174000";
-      prismaMock.customer.findFirst.mockResolvedValue({
-        id: "customer-id",
-        deviceId,
+      const customer = CustomerFactory.createOne({
         isActive: false,
+        cart: CartFactory.createOne({
+          items: [],
+        }),
       });
 
-      await expect(service.syncDeviceId({ deviceId })).rejects.toMatchObject({
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+
+      await expect(
+        service.syncDeviceId({ deviceId: customer.deviceId! }),
+      ).rejects.toMatchObject({
         code: AppException.errorCodes.auth.INACTIVE_CUSTOMER,
         message:
           "Seu dispositivo está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
