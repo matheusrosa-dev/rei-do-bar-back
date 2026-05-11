@@ -1,7 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuthService } from "../auth.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
 import { CartFactory, CustomerFactory } from "@shared/testing/factories";
 
@@ -104,26 +103,6 @@ describe("AuthService", () => {
           }),
         }),
       );
-    });
-
-    it("should throw an exception when the existing customer is inactive", async () => {
-      const customer = CustomerFactory.createOne({
-        isActive: false,
-        cart: CartFactory.createOne({
-          items: [],
-        }),
-      });
-
-      prismaMock.customer.findFirst.mockResolvedValue(customer);
-
-      await expect(
-        service.syncDeviceId({ deviceId: customer.deviceId! }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.auth.INACTIVE_CUSTOMER,
-        message:
-          "Seu dispositivo está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
-        httpStatus: AppException.HttpStatus.FORBIDDEN,
-      });
     });
   });
 });

@@ -24,31 +24,31 @@ describe("AppException", () => {
 
   it("should expose the HTTP status via httpStatus getter", () => {
     const exception = new AppException(
-      AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
-      "Produto já no carrinho",
-      HttpStatus.BAD_REQUEST,
+      AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
+      "Produto não encontrado",
+      HttpStatus.NOT_FOUND,
     );
 
-    expect(exception.httpStatus).toBe(HttpStatus.BAD_REQUEST);
+    expect(exception.httpStatus).toBe(HttpStatus.NOT_FOUND);
   });
 
   it("should include code and message in the response body", () => {
     const exception = new AppException(
-      AppException.errorCodes.auth.INACTIVE_CUSTOMER,
-      "Cliente inativo",
-      HttpStatus.BAD_REQUEST,
+      AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
+      "Produto não encontrado",
+      HttpStatus.NOT_FOUND,
     );
 
     const response = exception.getResponse() as Record<string, unknown>;
-    expect(response.code).toBe("AUTH_001");
-    expect(response.message).toBe("Cliente inativo");
+    expect(response.code).toBe("CART_001");
+    expect(response.message).toBe("Produto não encontrado");
   });
 
   it("should extend HttpException", () => {
     const exception = new AppException(
-      AppException.errorCodes.cart.CUSTOMER_CART_NOT_FOUND,
-      "Carrinho não encontrado",
-      HttpStatus.BAD_REQUEST,
+      AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
+      "Produto não encontrado",
+      HttpStatus.NOT_FOUND,
     );
 
     expect(exception).toBeInstanceOf(HttpException);

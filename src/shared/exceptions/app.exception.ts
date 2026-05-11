@@ -22,9 +22,6 @@ export class AppException extends HttpException {
       PRODUCT_NOT_FOUND_IN_CART: "CART_005",
       PRODUCT_OUT_OF_STOCK: "CART_006",
     },
-    auth: {
-      INACTIVE_CUSTOMER: "AUTH_001",
-    },
   };
 
   static readonly HttpStatus = HttpStatus;
