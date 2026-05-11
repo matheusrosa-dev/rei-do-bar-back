@@ -2,15 +2,11 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { prismaMock } from "@shared/testing/mocks";
-
-const makeProduct = (id: string, stock = 100) => ({
-  id,
-  name: `Product ${id}`,
-  description: `Description ${id}`,
-  price: 1000,
-  imageUrl: `http://img/${id}`,
-  stock,
-});
+import {
+  CartFactory,
+  CartItemFactory,
+  ProductFactory,
+} from "@shared/testing/factories";
 
 describe("ProductsService", () => {
   let service: ProductsService;
@@ -33,10 +29,18 @@ describe("ProductsService", () => {
   describe("findBestSellers", () => {
     describe("quantityInCart", () => {
       it("should return products with quantityInCart=1 for products in customer cart", async () => {
-        const products = [makeProduct("p1"), makeProduct("p2")];
+        const products = ProductFactory.createMany(2, { stock: 20 });
+        const cartItem = CartItemFactory.createOne({
+          quantity: 1,
+          product: products[0],
+        });
+        const cart = CartFactory.createOne({
+          items: [cartItem],
+        });
+
         prismaMock.product.findMany.mockResolvedValue(products);
         prismaMock.customer.findUnique.mockResolvedValue({
-          cart: { items: [{ productId: "p1", quantity: 1 }] },
+          cart,
         });
 
         const result = await service.findBestSellers("device-123");
@@ -56,8 +60,9 @@ describe("ProductsService", () => {
       });
 
       it("should return products with quantityInCart=0 when cart is empty", async () => {
-        const products = [makeProduct("p1")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        const product = ProductFactory.createOne({ stock: 20 });
+
+        prismaMock.product.findMany.mockResolvedValue([product]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -66,7 +71,7 @@ describe("ProductsService", () => {
 
         expect(result).toStrictEqual([
           {
-            ...products[0],
+            ...product,
             quantityInCart: 0,
             remainingStock: null,
           },
@@ -74,15 +79,16 @@ describe("ProductsService", () => {
       });
 
       it("should return products with quantityInCart=0 when customer is not found", async () => {
-        const products = [makeProduct("p1")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        const product = ProductFactory.createOne({ stock: 20 });
+
+        prismaMock.product.findMany.mockResolvedValue([product]);
         prismaMock.customer.findUnique.mockResolvedValue(null);
 
         const result = await service.findBestSellers("device-123");
 
         expect(result).toStrictEqual([
           {
-            ...products[0],
+            ...product,
             quantityInCart: 0,
             remainingStock: null,
           },
@@ -92,8 +98,9 @@ describe("ProductsService", () => {
 
     describe("remainingStock", () => {
       it("should return products without remainingStock when stock is greater than 10", async () => {
-        const products = [makeProduct("p1", 11)];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        const product = ProductFactory.createOne({ stock: 11 });
+
+        prismaMock.product.findMany.mockResolvedValue([product]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -102,7 +109,7 @@ describe("ProductsService", () => {
 
         expect(result).toStrictEqual([
           {
-            ...products[0],
+            ...product,
             quantityInCart: 0,
             remainingStock: null,
           },
@@ -110,8 +117,9 @@ describe("ProductsService", () => {
       });
 
       it("should return products with remainingStock when stock is 10 or less", async () => {
-        const products = [makeProduct("p1", 5)];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        const product = ProductFactory.createOne({ stock: 5 });
+
+        prismaMock.product.findMany.mockResolvedValue([product]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -120,7 +128,7 @@ describe("ProductsService", () => {
 
         expect(result).toStrictEqual([
           {
-            ...products[0],
+            ...product,
             quantityInCart: 0,
             remainingStock: 5,
           },
@@ -130,8 +138,7 @@ describe("ProductsService", () => {
 
     describe("category filtering", () => {
       it("should filter products by category when category is provided", async () => {
-        const products = [makeProduct("p1"), makeProduct("p2")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        prismaMock.product.findMany.mockResolvedValue([]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -148,8 +155,7 @@ describe("ProductsService", () => {
       });
 
       it("should not filter by category when category is not provided", async () => {
-        const products = [makeProduct("p1"), makeProduct("p2")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        prismaMock.product.findMany.mockResolvedValue([]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -168,8 +174,7 @@ describe("ProductsService", () => {
 
     describe("sortOrder filtering", () => {
       it("should filter products with sortOrder not null when category is not provided", async () => {
-        const products = [makeProduct("p1"), makeProduct("p2")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        prismaMock.product.findMany.mockResolvedValue([]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -186,8 +191,7 @@ describe("ProductsService", () => {
       });
 
       it("should not filter products by sortOrder when category is provided", async () => {
-        const products = [makeProduct("p1"), makeProduct("p2")];
-        prismaMock.product.findMany.mockResolvedValue(products);
+        prismaMock.product.findMany.mockResolvedValue([]);
         prismaMock.customer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
@@ -205,8 +209,7 @@ describe("ProductsService", () => {
     });
 
     it("should sort products by sortOrder ascending", async () => {
-      const products = [makeProduct("p1"), makeProduct("p2")];
-      prismaMock.product.findMany.mockResolvedValue(products);
+      prismaMock.product.findMany.mockResolvedValue([]);
       prismaMock.customer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
