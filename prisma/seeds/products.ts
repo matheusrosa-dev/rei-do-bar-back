@@ -43,7 +43,6 @@ const products = [
   },
 ];
 
-// TODO: remover seed de produtos
 export async function seedProducts(prisma: PrismaClient) {
   console.log("Seeding products...");
 

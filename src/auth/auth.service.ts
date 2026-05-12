@@ -55,7 +55,7 @@ export class AuthService {
       throwIfNotFound: true,
     }))!;
 
-    const alreadyHasVerificationCode = await this.prisma.otpCodes.findFirst({
+    const alreadyHasVerificationCode = await this.prisma.otpCode.findFirst({
       where: {
         customerId: customer.id,
         expiresAt: {
@@ -69,7 +69,7 @@ export class AuthService {
     if (!alreadyHasVerificationCode) {
       code = this.generateCode();
 
-      await this.prisma.otpCodes.create({
+      await this.prisma.otpCode.create({
         data: {
           code,
           customerId: customer.id,
@@ -150,7 +150,7 @@ export class AuthService {
   private async validateOtpCode(props: { customerId: string; code: string }) {
     const { customerId, code } = props;
 
-    const verificationCode = await this.prisma.otpCodes.findUnique({
+    const verificationCode = await this.prisma.otpCode.findUnique({
       where: {
         customerId,
         code: code,
@@ -168,7 +168,7 @@ export class AuthService {
       );
     }
 
-    await this.prisma.otpCodes.delete({
+    await this.prisma.otpCode.delete({
       where: {
         id: verificationCode.id,
       },

@@ -149,6 +149,17 @@ CREATE TABLE "order_items" (
     CONSTRAINT "order_items_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "settings" (
+    "id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "settings_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "customers_device_id_key" ON "customers"("device_id");
 
@@ -178,6 +189,9 @@ CREATE UNIQUE INDEX "orders_delivery_code_key" ON "orders"("delivery_code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "settings_key_key" ON "settings"("key");
 
 -- AddForeignKey
 ALTER TABLE "otp_codes" ADD CONSTRAINT "otp_codes_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

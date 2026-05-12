@@ -14,7 +14,7 @@ export const prismaMock = {
   category: {
     findMany: jest.fn(),
   },
-  otpCodes: {
+  otpCode: {
     findUnique: jest.fn(),
     delete: jest.fn(),
     findFirst: jest.fn(),

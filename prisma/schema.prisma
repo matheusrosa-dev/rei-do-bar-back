@@ -26,13 +26,13 @@ model Customer {
   cart      Cart?
   addresses Address[]
   orders    Order[]
-  otpCodes  OtpCodes[]
+  otpCodes  OtpCode[]
 
 
   @@map("customers")
 }
 
-model OtpCodes {
+model OtpCode {
   id         String    @id @default(uuid())
   customerId String    @map("customer_id")
   code       String    @unique         @db.VarChar(6)
@@ -186,6 +186,16 @@ model OrderItem {
 
   @@map("order_items")
   @@unique([orderId, productId])
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
 }
 
 enum OrderStatus {

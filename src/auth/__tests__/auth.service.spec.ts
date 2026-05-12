@@ -126,7 +126,7 @@ describe("AuthService", () => {
         deviceId,
         id: customerId,
       });
-      prismaMock.otpCodes.findFirst.mockResolvedValue(null);
+      prismaMock.otpCode.findFirst.mockResolvedValue(null);
 
       await expect(
         service.verifyCustomerPhone(deviceId, {
@@ -134,7 +134,7 @@ describe("AuthService", () => {
         }),
       ).resolves.toBeUndefined();
 
-      expect(prismaMock.otpCodes.create).toHaveBeenCalledWith(
+      expect(prismaMock.otpCode.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             code: expect.any(String),
@@ -207,7 +207,7 @@ describe("AuthService", () => {
       const code = "ABC123";
       const dateNow = Date.now();
 
-      prismaMock.otpCodes.findUnique.mockResolvedValue({
+      prismaMock.otpCode.findUnique.mockResolvedValue({
         code,
         expiresAt: new Date(dateNow + (service as any).otpExpirationMs),
       });
@@ -216,7 +216,7 @@ describe("AuthService", () => {
         (service as any).validateOtpCode({ customerId, code }),
       ).resolves.toBeUndefined();
 
-      expect(prismaMock.otpCodes.findUnique).toHaveBeenCalledWith(
+      expect(prismaMock.otpCode.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             customerId,
@@ -233,7 +233,7 @@ describe("AuthService", () => {
       const codeId = "otp-code-id";
       const code = "ABC123";
 
-      prismaMock.otpCodes.findUnique.mockResolvedValue({
+      prismaMock.otpCode.findUnique.mockResolvedValue({
         id: codeId,
         code,
         expiresAt: new Date(Date.now() + (service as any).otpExpirationMs),
@@ -246,7 +246,7 @@ describe("AuthService", () => {
         }),
       ).resolves.toBeUndefined();
 
-      expect(prismaMock.otpCodes.delete).toHaveBeenCalledWith(
+      expect(prismaMock.otpCode.delete).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             id: codeId,
@@ -256,7 +256,7 @@ describe("AuthService", () => {
     });
 
     it("should throw an error if OTP code is invalid", async () => {
-      prismaMock.otpCodes.findUnique.mockResolvedValue(null);
+      prismaMock.otpCode.findUnique.mockResolvedValue(null);
 
       await expect(
         (service as any).validateOtpCode({
