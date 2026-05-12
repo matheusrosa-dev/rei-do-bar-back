@@ -16,6 +16,18 @@ CREATE TABLE "customers" (
 );
 
 -- CreateTable
+CREATE TABLE "otp_codes" (
+    "id" TEXT NOT NULL,
+    "customer_id" TEXT NOT NULL,
+    "code" VARCHAR(6) NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "otp_codes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "addresses" (
     "id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
@@ -144,6 +156,9 @@ CREATE UNIQUE INDEX "customers_device_id_key" ON "customers"("device_id");
 CREATE UNIQUE INDEX "customers_phone_key" ON "customers"("phone");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "otp_codes_code_key" ON "otp_codes"("code");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "cart_customer_id_key" ON "cart"("customer_id");
 
 -- CreateIndex
@@ -163,6 +178,9 @@ CREATE UNIQUE INDEX "orders_delivery_code_key" ON "orders"("delivery_code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");
+
+-- AddForeignKey
+ALTER TABLE "otp_codes" ADD CONSTRAINT "otp_codes_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "addresses" ADD CONSTRAINT "addresses_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

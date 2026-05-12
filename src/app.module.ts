@@ -22,6 +22,7 @@ import { DeviceIdGuard } from "./shared/guards/device-id.guard";
       provide: APP_GUARD,
       useClass: DeviceIdGuard,
     },
+    //TODO: adicionar no env
     // {
     //   provide: APP_INTERCEPTOR,
     //   useValue: new DelayInterceptor(200),

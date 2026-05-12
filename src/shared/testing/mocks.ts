@@ -14,6 +14,12 @@ export const prismaMock = {
   category: {
     findMany: jest.fn(),
   },
+  otpCodes: {
+    findUnique: jest.fn(),
+    delete: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+  },
 };
 
 export const cartServiceMock = {

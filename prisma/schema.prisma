@@ -26,8 +26,23 @@ model Customer {
   cart      Cart?
   addresses Address[]
   orders    Order[]
+  otpCodes  OtpCodes[]
+
 
   @@map("customers")
+}
+
+model OtpCodes {
+  id         String    @id @default(uuid())
+  customerId String    @map("customer_id")
+  code       String    @unique         @db.VarChar(6)
+  expiresAt  DateTime  @map("expires_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt      @map("updated_at")
+
+  customer   Customer  @relation(fields: [customerId], references: [id])
+
+  @@map("otp_codes")
 }
 
 model Address {
