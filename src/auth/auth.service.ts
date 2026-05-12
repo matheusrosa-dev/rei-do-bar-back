@@ -8,10 +8,21 @@ import {
 } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { Customer } from "@shared/database/prisma/generated/client";
+import { ConfigService } from "@nestjs/config";
+import { IAuthConfig } from "@shared/config/env-config.interface";
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly otpExpirationMs: number;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    configService: ConfigService,
+  ) {
+    const authConfig = configService.get<IAuthConfig>("auth")!;
+
+    this.otpExpirationMs = authConfig.otpExpirationMinutes * 60 * 1000;
+  }
 
   async syncDeviceId(dto: SyncDeviceIdDto) {
     let deviceId = dto?.deviceId;
@@ -62,9 +73,7 @@ export class AuthService {
         data: {
           code,
           customerId: customer.id,
-          //TODO: ADICIONAR NO ENV
-          //TODO: ADICIONAR DELIVERY FEE NO ENV TAMBEM
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000), // Expira em 5 minutos
+          expiresAt: new Date(Date.now() + this.otpExpirationMs),
         },
       });
     }

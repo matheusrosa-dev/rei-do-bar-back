@@ -5,6 +5,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { prismaMock } from "@shared/testing/mocks";
 import { CartFactory, CustomerFactory } from "@shared/testing/factories";
 import { AppException } from "@shared/exceptions/app.exception";
+import { ConfigService } from "@nestjs/config";
 
 describe("AuthService", () => {
   let service: AuthService;
@@ -14,6 +15,14 @@ describe("AuthService", () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prismaMock },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === "auth") return { otpExpirationMinutes: 5 };
+            },
+          },
+        },
       ],
     }).compile();
 
@@ -196,12 +205,11 @@ describe("AuthService", () => {
     it("should validate the OTP code successfully", async () => {
       const customerId = "customer-id";
       const code = "ABC123";
-      const dateNow = new Date();
+      const dateNow = Date.now();
 
       prismaMock.otpCodes.findUnique.mockResolvedValue({
         code,
-        // TODO: corrigir isso para pegar do env
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 minutes
+        expiresAt: new Date(dateNow + (service as any).otpExpirationMs),
       });
 
       await expect(
@@ -214,7 +222,7 @@ describe("AuthService", () => {
             customerId,
             code,
             expiresAt: {
-              gte: dateNow,
+              gte: new Date(dateNow),
             },
           },
         }),
@@ -228,8 +236,7 @@ describe("AuthService", () => {
       prismaMock.otpCodes.findUnique.mockResolvedValue({
         id: codeId,
         code,
-        // TODO: corrigir isso para pegar do env
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 minutes
+        expiresAt: new Date(Date.now() + (service as any).otpExpirationMs),
       });
 
       await expect(

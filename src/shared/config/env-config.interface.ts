@@ -6,3 +6,7 @@ export interface IApiConfig {
   port: number;
   delay: number;
 }
+
+export interface IAuthConfig {
+  otpExpirationMinutes: number;
+}
