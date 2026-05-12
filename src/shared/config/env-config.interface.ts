@@ -4,4 +4,5 @@ export interface IDatabaseConfig {
 
 export interface IApiConfig {
   port: number;
+  delay: number;
 }
