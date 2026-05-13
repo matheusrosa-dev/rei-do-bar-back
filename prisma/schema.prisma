@@ -15,9 +15,8 @@ datasource db {
 
 model Customer {
   id        String   @id @default(uuid())
-  deviceId  String?  @unique @map("device_id")
   name      String?
-  phone     String?  @unique()
+  phone     String   @unique()
   isActive  Boolean  @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -26,21 +25,31 @@ model Customer {
   cart      Cart?
   addresses Address[]
   orders    Order[]
-  otpCodes  OtpCode[]
 
 
   @@map("customers")
 }
 
+model AnonymousCustomer {
+  id        String   @id @default(uuid())
+  deviceId  String   @unique @map("device_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cart      Cart?
+  otpCodes  OtpCode[]
+
+  @@map("anonymous_customers")
+}
+
 model OtpCode {
   id         String    @id @default(uuid())
-  customerId String    @map("customer_id")
-  code       String    @unique         @db.VarChar(6)
+  anonymousCustomerId String    @map("anonymous_customer_id")
+  hashedCode       String    @unique         
   expiresAt  DateTime  @map("expires_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt      @map("updated_at")
 
-  customer   Customer  @relation(fields: [customerId], references: [id])
+  anonymousCustomer   AnonymousCustomer  @relation(fields: [anonymousCustomerId], references: [id], onDelete: Cascade)
 
   @@map("otp_codes")
 }
@@ -63,13 +72,15 @@ model Address {
 }
 
 model Cart {
-  id         String     @id @default(uuid())
-  customerId String     @unique @map("customer_id")
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @updatedAt @map("updated_at")
+  id                  String             @id             @default(uuid())
+  customerId          String?            @unique         @map("customer_id")
+  anonymousCustomerId String?            @unique         @map("anonymous_customer_id")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt      @map("updated_at")
 
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  items      CartItem[]
+  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  anonymousCustomer   AnonymousCustomer? @relation(fields: [anonymousCustomerId], references: [id])
+  items               CartItem[]
 
   @@map("cart")
 }

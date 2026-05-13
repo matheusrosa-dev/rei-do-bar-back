@@ -9,17 +9,19 @@ export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getCart(deviceId: string) {
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const anonymousCustomer =
+      await this.findAnonymousCustomerWithCartOrThrow(deviceId);
 
-    return this.formatCart(customer.cart.items);
+    return this.formatCart(anonymousCustomer.cart.items);
   }
 
   async addToCart(deviceId: string, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const anonymousCustomer =
+      await this.findAnonymousCustomerWithCartOrThrow(deviceId);
 
-    const isProductInCart = customer.cart.items.some(
+    const isProductInCart = anonymousCustomer.cart.items.some(
       (item) => item.productId === productId,
     );
 
@@ -60,7 +62,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: anonymousCustomer.cart.id },
       data: {
         items: {
           create: {
@@ -84,9 +86,10 @@ export class CartService {
   async incrementProductQuantity(deviceId: string, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const anonymousCustomer =
+      await this.findAnonymousCustomerWithCartOrThrow(deviceId);
 
-    const cartItem = customer.cart.items.find(
+    const cartItem = anonymousCustomer.cart.items.find(
       (item) => item.productId === productId,
     );
 
@@ -107,7 +110,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: anonymousCustomer.cart.id },
       data: {
         items: {
           update: {
@@ -131,9 +134,10 @@ export class CartService {
   async decrementProductQuantity(deviceId: string, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const anonymousCustomer =
+      await this.findAnonymousCustomerWithCartOrThrow(deviceId);
 
-    const cartItem = customer.cart.items.find(
+    const cartItem = anonymousCustomer.cart.items.find(
       (item) => item.productId === productId,
     );
 
@@ -147,7 +151,7 @@ export class CartService {
 
     if (cartItem.quantity === 1) {
       const updatedCart = await this.prisma.cart.update({
-        where: { id: customer.cart.id },
+        where: { id: anonymousCustomer.cart.id },
         data: {
           items: {
             deleteMany: { productId },
@@ -164,7 +168,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: anonymousCustomer.cart.id },
       data: {
         items: {
           update: {
@@ -186,9 +190,10 @@ export class CartService {
   async removeFromCart(deviceId: string, dto: RemoveFromCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const anonymousCustomer =
+      await this.findAnonymousCustomerWithCartOrThrow(deviceId);
 
-    const isProductInCart = customer.cart.items.some(
+    const isProductInCart = anonymousCustomer.cart.items.some(
       (item) => item.productId === productId,
     );
 
@@ -201,7 +206,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: anonymousCustomer.cart.id },
       data: {
         items: {
           deleteMany: {
@@ -221,9 +226,9 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  private async findCustomerWithCartOrThrow(deviceId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { deviceId, isActive: true, deletedAt: null },
+  private async findAnonymousCustomerWithCartOrThrow(deviceId: string) {
+    const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({
+      where: { deviceId },
       include: {
         cart: {
           include: {
@@ -237,27 +242,27 @@ export class CartService {
       },
     });
 
-    if (!customer) {
+    if (!anonymousCustomer) {
       throw new AppException(
-        AppException.errorCodes.cart.CUSTOMER_NOT_FOUND,
-        "Cliente não encontrado para este dispositivo",
+        AppException.errorCodes.cart.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
-    if (!customer?.cart) {
+    if (!anonymousCustomer?.cart) {
       throw new AppException(
-        AppException.errorCodes.cart.CUSTOMER_CART_NOT_FOUND,
-        "Carrinho não encontrado para este cliente",
+        AppException.errorCodes.cart.CART_NOT_FOUND,
+        "Carrinho não encontrado",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
     return {
-      ...customer,
+      ...anonymousCustomer,
       cart: {
-        ...customer.cart!,
-        items: customer.cart!.items,
+        ...anonymousCustomer.cart!,
+        items: anonymousCustomer.cart!.items,
       },
     };
   }

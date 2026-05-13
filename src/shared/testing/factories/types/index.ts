@@ -1,7 +1,7 @@
 import {
+  AnonymousCustomer,
   Cart,
   CartItem,
-  Customer,
   Product,
 } from "@shared/database/prisma/generated/client";
 
@@ -13,6 +13,6 @@ export type CartWithItems = Cart & {
   items: CartItemWithProduct[];
 };
 
-export type CustomerWithCart = Customer & {
+export type AnonymousCustomerWithCart = AnonymousCustomer & {
   cart: CartWithItems;
 };

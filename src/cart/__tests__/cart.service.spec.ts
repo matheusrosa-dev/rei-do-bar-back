@@ -7,14 +7,14 @@ import { prismaMock } from "@shared/testing/mocks";
 import {
   CartFactory,
   CartItemFactory,
-  CustomerFactory,
+  AnonymousCustomerFactory,
   ProductFactory,
 } from "@shared/testing/factories";
 
 describe("CartService", () => {
   let service: CartService;
 
-  let findCustomerSpy: jest.SpyInstance;
+  let findAnonymousCustomerSpy: jest.SpyInstance;
   let formatCartSpy: jest.SpyInstance;
 
   beforeEach(async () => {
@@ -27,7 +27,10 @@ describe("CartService", () => {
 
     service = module.get<CartService>(CartService);
 
-    findCustomerSpy = jest.spyOn(service as any, "findCustomerWithCartOrThrow");
+    findAnonymousCustomerSpy = jest.spyOn(
+      service as any,
+      "findAnonymousCustomerWithCartOrThrow",
+    );
     formatCartSpy = jest.spyOn(service as any, "formatCart");
   });
 
@@ -106,26 +109,28 @@ describe("CartService", () => {
     });
   });
 
-  describe("findCustomerWithCartOrThrow", () => {
-    it("should return customer with cart and items", async () => {
+  describe("findAnonymousCustomerWithCartOrThrow", () => {
+    it("should return anonymous customer with cart and items", async () => {
       const products = ProductFactory.createMany(2, { stock: 20 });
       const cart = CartFactory.createOne({
         items: products.map((product) =>
           CartItemFactory.createOne({ product, quantity: 1 }),
         ),
       });
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart,
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
-
-      const result = await (service as any).findCustomerWithCartOrThrow(
-        customer.deviceId!,
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
       );
 
+      const result = await (
+        service as any
+      ).findAnonymousCustomerWithCartOrThrow(anonymousCustomer.deviceId);
+
       expect(result).toEqual({
-        ...customer,
+        ...anonymousCustomer,
         cart: {
           ...cart,
           items: cart.items,
@@ -133,36 +138,36 @@ describe("CartService", () => {
       });
     });
 
-    it("should throw AppException when customer is not found", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+    it("should throw AppException when anonymous customer is not found", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 
       await expect(
-        (service as any).findCustomerWithCartOrThrow("nonexistent"),
+        (service as any).findAnonymousCustomerWithCartOrThrow("nonexistent"),
       ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.CUSTOMER_NOT_FOUND,
-        message: "Cliente não encontrado para este dispositivo",
+        code: AppException.errorCodes.cart.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        message: "Cliente não encontrado",
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
     });
 
-    it("should throw AppException when cart is not found for customer", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+    it("should throw AppException when cart is not found for anonymous customer", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: null,
       });
 
       await expect(
-        (service as any).findCustomerWithCartOrThrow("device-123"),
+        (service as any).findAnonymousCustomerWithCartOrThrow("device-123"),
       ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.CUSTOMER_CART_NOT_FOUND,
-        message: "Carrinho não encontrado para este cliente",
+        code: AppException.errorCodes.cart.CART_NOT_FOUND,
+        message: "Carrinho não encontrado",
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
     });
   });
 
   describe("getCart", () => {
-    it("should return formatted cart for a valid customer", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+    it("should return formatted cart for a valid anonymous customer", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: {
           items: [],
         },
@@ -170,7 +175,7 @@ describe("CartService", () => {
 
       await service.getCart("device-123");
 
-      expect(findCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
     });
   });
@@ -186,7 +191,7 @@ describe("CartService", () => {
         ],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
       prismaMock.product.findFirst.mockResolvedValue(product);
@@ -196,7 +201,7 @@ describe("CartService", () => {
         productId: product.id,
       });
 
-      expect(findCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
 
       expect(prismaMock.cart.update).toHaveBeenCalledWith(
@@ -211,7 +216,7 @@ describe("CartService", () => {
     it("should throw when product is already in cart", async () => {
       const product = ProductFactory.createOne({ stock: 20 });
 
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [
             CartItemFactory.createOne({
@@ -221,10 +226,14 @@ describe("CartService", () => {
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
 
       await expect(
-        service.addToCart(customer.deviceId!, { productId: product.id }),
+        service.addToCart(anonymousCustomer.deviceId, {
+          productId: product.id,
+        }),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
         message: "Produto já existe no carrinho",
@@ -233,7 +242,7 @@ describe("CartService", () => {
     });
 
     it("should throw when product does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
       prismaMock.product.findFirst.mockResolvedValue(null);
@@ -250,7 +259,7 @@ describe("CartService", () => {
     it("should throw when product stock is insufficient", async () => {
       const product = ProductFactory.createOne({ stock: 0 });
 
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
       prismaMock.product.findFirst.mockResolvedValue(product);
@@ -268,7 +277,7 @@ describe("CartService", () => {
   describe("incrementProductQuantity", () => {
     it("should increment the quantity of an existing cart item", async () => {
       const product = ProductFactory.createOne({ stock: 20 });
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [
             CartItemFactory.createOne({
@@ -279,16 +288,18 @@ describe("CartService", () => {
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
       prismaMock.cart.update.mockResolvedValue({
         items: [],
       });
 
-      await service.incrementProductQuantity(customer.deviceId!, {
+      await service.incrementProductQuantity(anonymousCustomer.deviceId, {
         productId: product.id,
       });
 
-      expect(findCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
 
       expect(prismaMock.cart.update).toHaveBeenCalledWith(
@@ -305,7 +316,7 @@ describe("CartService", () => {
     });
 
     it("should throw when product is not in cart", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
 
@@ -322,7 +333,7 @@ describe("CartService", () => {
 
     it("should throw when incrementing exceeds stock", async () => {
       const product = ProductFactory.createOne({ stock: 5 });
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [
             CartItemFactory.createOne({
@@ -333,10 +344,12 @@ describe("CartService", () => {
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
 
       await expect(
-        service.incrementProductQuantity(customer.deviceId!, {
+        service.incrementProductQuantity(anonymousCustomer.deviceId, {
           productId: product.id,
         }),
       ).rejects.toMatchObject({
@@ -350,7 +363,7 @@ describe("CartService", () => {
   describe("decrementProductQuantity", () => {
     it("should decrement quantity when it is greater than 1", async () => {
       const product = ProductFactory.createOne({ stock: 20 });
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [
             CartItemFactory.createOne({
@@ -361,16 +374,18 @@ describe("CartService", () => {
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
       prismaMock.cart.update.mockResolvedValue({
         items: [],
       });
 
-      await service.decrementProductQuantity(customer.deviceId!, {
+      await service.decrementProductQuantity(anonymousCustomer.deviceId, {
         productId: product.id,
       });
 
-      expect(findCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
 
       expect(prismaMock.cart.update).toHaveBeenCalledWith(
@@ -389,18 +404,20 @@ describe("CartService", () => {
     it("should remove the item when quantity is 1", async () => {
       const product = ProductFactory.createOne({ stock: 20 });
 
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [CartItemFactory.createOne({ product })],
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
       prismaMock.cart.update.mockResolvedValue({
         items: [],
       });
 
-      await service.decrementProductQuantity(customer.deviceId!, {
+      await service.decrementProductQuantity(anonymousCustomer.deviceId, {
         productId: product.id,
       });
 
@@ -414,16 +431,18 @@ describe("CartService", () => {
     });
 
     it("should throw when product is not in cart", async () => {
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [],
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
 
       await expect(
-        service.decrementProductQuantity(customer.deviceId!, {
+        service.decrementProductQuantity(anonymousCustomer.deviceId, {
           productId: "non-existent-product-id",
         }),
       ).rejects.toMatchObject({
@@ -437,7 +456,7 @@ describe("CartService", () => {
   describe("removeFromCart", () => {
     it("should remove a product from the cart", async () => {
       const product = ProductFactory.createOne({ stock: 20 });
-      const customer = CustomerFactory.createOne({
+      const anonymousCustomer = AnonymousCustomerFactory.createOne({
         cart: CartFactory.createOne({
           items: [
             CartItemFactory.createOne({
@@ -447,16 +466,18 @@ describe("CartService", () => {
         }),
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
       prismaMock.cart.update.mockResolvedValue({
         items: [],
       });
 
-      await service.removeFromCart(customer.deviceId!, {
+      await service.removeFromCart(anonymousCustomer.deviceId, {
         productId: product.id,
       });
 
-      expect(findCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
 
       expect(prismaMock.cart.update).toHaveBeenCalledWith(
@@ -469,7 +490,7 @@ describe("CartService", () => {
     });
 
     it("should throw when product is not in cart", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
 

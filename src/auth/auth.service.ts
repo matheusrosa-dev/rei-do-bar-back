@@ -1,15 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
-import {
-  LoginWithCodeDto,
-  SyncDeviceIdDto,
-  VerifyCustomerPhoneDto,
-} from "./dtos";
+import { LoginWithCodeDto, SyncDeviceIdDto, VerifyPhoneDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
-import { Customer } from "@shared/database/prisma/generated/client";
+import {
+  AnonymousCustomer,
+  Cart,
+  Customer,
+} from "@shared/database/prisma/generated/client";
 import { ConfigService } from "@nestjs/config";
 import { IAuthConfig } from "@shared/config/env-config.interface";
+import crypto from "node:crypto";
 
 @Injectable()
 export class AuthService {
@@ -31,13 +32,12 @@ export class AuthService {
       deviceId = randomUUID();
     }
 
-    const existingCustomer = await this.findCustomerByDeviceId(deviceId);
+    const anonymousCustomer = await this.findAnonymousCustomer(deviceId);
 
-    if (!existingCustomer) {
-      await this.prisma.customer.create({
+    if (!anonymousCustomer) {
+      await this.prisma.anonymousCustomer.create({
         data: {
           deviceId,
-          isActive: true,
           cart: {
             create: {},
           },
@@ -50,29 +50,31 @@ export class AuthService {
     };
   }
 
-  async verifyCustomerPhone(deviceId: string, dto: VerifyCustomerPhoneDto) {
-    const customer = (await this.findCustomerByDeviceId(deviceId, {
+  async verifyPhone(deviceId: string, dto: VerifyPhoneDto) {
+    const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
     }))!;
 
-    const alreadyHasVerificationCode = await this.prisma.otpCode.findFirst({
+    // Verifica se já existe um otp code válido para o cliente anônimo
+    const existingVerificationCode = await this.prisma.otpCode.findFirst({
       where: {
-        customerId: customer.id,
+        anonymousCustomerId: anonymousCustomer.id,
         expiresAt: {
           gte: new Date(),
         },
       },
     });
 
-    let code = alreadyHasVerificationCode?.code;
+    let hashedCode = existingVerificationCode?.hashedCode;
 
-    if (!alreadyHasVerificationCode) {
-      code = this.generateCode();
+    // Se não existir um código válido, gera um novo e salva no banco de dados
+    if (!existingVerificationCode) {
+      hashedCode = this.generateHashedCode();
 
       await this.prisma.otpCode.create({
         data: {
-          code,
-          customerId: customer.id,
+          hashedCode,
+          anonymousCustomerId: anonymousCustomer.id,
           expiresAt: new Date(Date.now() + this.otpExpirationMs),
         },
       });
@@ -81,28 +83,30 @@ export class AuthService {
     //TODO: INTEGRAR COM SERVIÇO DE ENVIO DE SMS
     // TODO: remover console.log
     console.log(`Telefone: ${dto.phone}`);
-    console.log(`Código de verificação: ${code}`);
+    console.log(`Código de verificação: ${hashedCode}`);
   }
 
   async loginWithCode(deviceId: string, dto: LoginWithCodeDto) {
-    const customerFromDeviceId = (await this.findCustomerByDeviceId(deviceId, {
+    const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
+      includeCart: true,
     }))!;
 
     await this.validateOtpCode({
-      customerId: customerFromDeviceId.id,
+      anonymousCustomerId: anonymousCustomer.id,
       code: dto.code,
     });
 
-    let customerWithPhone: Customer | null;
+    let customer: Customer | null;
 
-    customerWithPhone = await this.prisma.customer.findUnique({
+    // Verifica se já existe um cliente associado a esse número de telefone
+    customer = await this.prisma.customer.findUnique({
       where: {
         phone: dto.phone,
       },
     });
 
-    if (customerWithPhone && !customerWithPhone.isActive) {
+    if (customer && !customer.isActive) {
       throw new AppException(
         AppException.errorCodes.auth.INACTIVE_CUSTOMER,
         "Este número de telefone está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
@@ -110,57 +114,94 @@ export class AuthService {
       );
     }
 
-    if (!customerWithPhone) {
-      customerWithPhone = await this.prisma.customer.update({
-        where: {
-          id: customerFromDeviceId.id,
-        },
-        data: {
-          phone: dto.phone,
-          deviceId: null,
-        },
+    if (!customer) {
+      customer = await this.prisma.$transaction(async (tx) => {
+        // Cria um novo cliente ativo com o número de telefone fornecido
+        const newCustomer = await tx.customer.create({
+          data: {
+            phone: dto.phone,
+            isActive: true,
+          },
+        });
+
+        await Promise.all([
+          // Atribui o carrinho anônimo ao novo cliente
+          tx.cart.update({
+            where: {
+              id: anonymousCustomer.cart!.id,
+            },
+            data: {
+              anonymousCustomerId: null,
+              customerId: newCustomer.id,
+            },
+          }),
+
+          // Remove o cliente anônimo, já que não é mais necessário
+          tx.anonymousCustomer.delete({
+            where: {
+              id: anonymousCustomer.id,
+            },
+          }),
+        ]);
+
+        return newCustomer;
       });
     }
 
     //TODO: gerar token JWT e retornar
-    console.log(`Cliente ${customerWithPhone!.id} autenticado com sucesso!`);
+    console.log(`Cliente ${customer!.id} autenticado com sucesso!`);
   }
 
-  private async findCustomerByDeviceId(
+  private async findAnonymousCustomer(
     deviceId: string,
-    config?: { throwIfNotFound: boolean },
+    config?: { throwIfNotFound: boolean; includeCart?: boolean },
   ) {
-    const customerFromDeviceId = await this.prisma.customer.findUnique({
+    const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({
       where: {
         deviceId,
       },
+      ...(config?.includeCart && {
+        include: {
+          cart: true,
+        },
+      }),
     });
 
-    if (!customerFromDeviceId && config?.throwIfNotFound) {
+    if (!anonymousCustomer && config?.throwIfNotFound) {
       throw new AppException(
-        AppException.errorCodes.auth.CUSTOMER_NOT_FOUND,
+        AppException.errorCodes.auth.ANONYMOUS_CUSTOMER_NOT_FOUND,
         "Cliente não encontrado para o dispositivo fornecido.",
         AppException.HttpStatus.FORBIDDEN,
       );
     }
 
-    return customerFromDeviceId;
+    return anonymousCustomer as
+      | (AnonymousCustomer & {
+          cart?: Cart;
+        })
+      | null;
   }
 
-  private async validateOtpCode(props: { customerId: string; code: string }) {
-    const { customerId, code } = props;
+  private async validateOtpCode(props: {
+    anonymousCustomerId: string;
+    code: string;
+  }) {
+    const { anonymousCustomerId, code } = props;
 
-    const verificationCode = await this.prisma.otpCode.findUnique({
+    // Verifica se existe um código de verificação válido para o cliente anônimo
+    const verificationCode = await this.prisma.otpCode.findFirst({
       where: {
-        customerId,
-        code: code,
+        anonymousCustomerId,
         expiresAt: {
           gte: new Date(),
         },
       },
     });
 
-    if (!verificationCode) {
+    if (
+      !verificationCode ||
+      this.hashCode(code) !== verificationCode.hashedCode
+    ) {
       throw new AppException(
         AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
         "Código de verificação inválido ou expirado.",
@@ -168,6 +209,7 @@ export class AuthService {
       );
     }
 
+    // Remove o código de verificação após a validação bem-sucedida
     await this.prisma.otpCode.delete({
       where: {
         id: verificationCode.id,
@@ -175,11 +217,22 @@ export class AuthService {
     });
   }
 
-  private generateCode() {
+  private generateHashedCode() {
     const codeLength = 6;
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     const values = crypto.getRandomValues(new Uint8Array(codeLength));
 
-    return Array.from(values, (value) => chars[value % chars.length]).join("");
+    const code = Array.from(
+      values,
+      (value) => chars[value % chars.length],
+    ).join("");
+
+    const hashedCode = this.hashCode(code);
+
+    return hashedCode;
+  }
+
+  private hashCode(code: string) {
+    return crypto.createHash("sha256").update(code).digest("hex");
   }
 }

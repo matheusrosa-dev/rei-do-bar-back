@@ -6,7 +6,7 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findBestSellers(deviceId: string, category?: string) {
-    const [bestSellers, customer] = await Promise.all([
+    const [bestSellers, anonymousCustomer] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           isActive: true,
@@ -33,7 +33,7 @@ export class ProductsService {
           sortOrder: "asc",
         },
       }),
-      this.prisma.customer.findUnique({
+      this.prisma.anonymousCustomer.findUnique({
         where: { deviceId },
         select: {
           cart: {
@@ -48,7 +48,7 @@ export class ProductsService {
     ]);
 
     const quantityInCart = this.calculateQuantityInCart(
-      customer?.cart?.items ?? [],
+      anonymousCustomer?.cart?.items ?? [],
     );
 
     return bestSellers.map((product) => {

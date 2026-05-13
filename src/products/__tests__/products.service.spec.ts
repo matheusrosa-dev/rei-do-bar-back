@@ -28,7 +28,7 @@ describe("ProductsService", () => {
 
   describe("findBestSellers", () => {
     describe("quantityInCart", () => {
-      it("should return products with quantityInCart=1 for products in customer cart", async () => {
+      it("should return products with quantityInCart=1 for products in anonymous customer cart", async () => {
         const products = ProductFactory.createMany(2, { stock: 20 });
         const cartItem = CartItemFactory.createOne({
           quantity: 1,
@@ -39,7 +39,7 @@ describe("ProductsService", () => {
         });
 
         prismaMock.product.findMany.mockResolvedValue(products);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart,
         });
 
@@ -63,7 +63,7 @@ describe("ProductsService", () => {
         const product = ProductFactory.createOne({ stock: 20 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -78,11 +78,11 @@ describe("ProductsService", () => {
         ]);
       });
 
-      it("should return products with quantityInCart=0 when customer is not found", async () => {
+      it("should return products with quantityInCart=0 when anonymous customer is not found", async () => {
         const product = ProductFactory.createOne({ stock: 20 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        prismaMock.customer.findUnique.mockResolvedValue(null);
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 
         const result = await service.findBestSellers("device-123");
 
@@ -101,7 +101,7 @@ describe("ProductsService", () => {
         const product = ProductFactory.createOne({ stock: 11 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -120,7 +120,7 @@ describe("ProductsService", () => {
         const product = ProductFactory.createOne({ stock: 5 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -139,7 +139,7 @@ describe("ProductsService", () => {
     describe("category filtering", () => {
       it("should filter products by category when category is provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -156,7 +156,7 @@ describe("ProductsService", () => {
 
       it("should not filter by category when category is not provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -175,7 +175,7 @@ describe("ProductsService", () => {
     describe("sortOrder filtering", () => {
       it("should filter products with sortOrder not null when category is not provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -192,7 +192,7 @@ describe("ProductsService", () => {
 
       it("should not filter products by sortOrder when category is provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
           cart: { items: [] },
         });
 
@@ -210,7 +210,7 @@ describe("ProductsService", () => {
 
     it("should sort products by sortOrder ascending", async () => {
       prismaMock.product.findMany.mockResolvedValue([]);
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
         cart: { items: [] },
       });
 
@@ -225,7 +225,7 @@ describe("ProductsService", () => {
 
     it("should query only active non-deleted products", async () => {
       prismaMock.product.findMany.mockResolvedValue([]);
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 
       await service.findBestSellers("device-123");
 

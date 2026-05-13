@@ -1,7 +1,6 @@
 export const prismaMock = {
-  customer: {
+  anonymousCustomer: {
     findUnique: jest.fn(),
-    findFirst: jest.fn(),
     create: jest.fn(),
   },
   product: {
@@ -15,7 +14,6 @@ export const prismaMock = {
     findMany: jest.fn(),
   },
   otpCode: {
-    findUnique: jest.fn(),
     delete: jest.fn(),
     findFirst: jest.fn(),
     create: jest.fn(),

@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { SyncDeviceIdDto } from "./dtos/sync-device-id.dto";
 import { Public } from "@shared/decorators/public.decorator";
-import { LoginWithCodeDto, VerifyCustomerPhoneDto } from "./dtos";
+import { LoginWithCodeDto, VerifyPhoneDto } from "./dtos";
 import {
   CurrentSession,
   type ICurrentSession,
@@ -24,9 +24,9 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async verifyCustomerPhone(
     @CurrentSession() session: ICurrentSession,
-    @Body() body: VerifyCustomerPhoneDto,
+    @Body() body: VerifyPhoneDto,
   ) {
-    return this.authService.verifyCustomerPhone(session.deviceId, body);
+    return this.authService.verifyPhone(session.deviceId, body);
   }
 
   @Post("login-with-code")

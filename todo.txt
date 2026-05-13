@@ -4,3 +4,4 @@ fazer testes com o deletedAt
 criar tabela draft user
 criar cron que vai limpar os otp codes expirados
 remover seed de produtos ou fazer com que rode apenas em dev
+criptografar otp code antes de salvar
