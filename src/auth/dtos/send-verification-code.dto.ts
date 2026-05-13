@@ -1,6 +1,6 @@
 import { IsString, Length } from "class-validator";
 
-export class VerifyPhoneDto {
+export class SendVerificationCodeDto {
   @IsString()
   @Length(10, 11)
   phone!: string;

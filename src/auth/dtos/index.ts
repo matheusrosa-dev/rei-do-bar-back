@@ -1,3 +1,3 @@
-export { LoginWithCodeDto } from "./login-with-code.dto";
+export { VerifyCodeDto } from "./verify-code.dto";
 export { SyncDeviceIdDto } from "./sync-device-id.dto";
-export { VerifyPhoneDto } from "./verify-phone.dto";
+export { SendVerificationCodeDto } from "./send-verification-code.dto";

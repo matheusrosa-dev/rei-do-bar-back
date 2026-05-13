@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
-import { LoginWithCodeDto, SyncDeviceIdDto, VerifyPhoneDto } from "./dtos";
+import {
+  VerifyCodeDto,
+  SyncDeviceIdDto,
+  SendVerificationCodeDto,
+} from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
   AnonymousCustomer,
@@ -50,7 +54,7 @@ export class AuthService {
     };
   }
 
-  async verifyPhone(deviceId: string, dto: VerifyPhoneDto) {
+  async sendVerificationCode(deviceId: string, dto: SendVerificationCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
     }))!;
@@ -81,12 +85,9 @@ export class AuthService {
     }
 
     //TODO: INTEGRAR COM SERVIÇO DE ENVIO DE SMS
-    // TODO: remover console.log
-    console.log(`Telefone: ${dto.phone}`);
-    console.log(`Código de verificação: ${hashedCode}`);
   }
 
-  async loginWithCode(deviceId: string, dto: LoginWithCodeDto) {
+  async verifyCode(deviceId: string, dto: VerifyCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
       includeCart: true,
@@ -226,6 +227,9 @@ export class AuthService {
       values,
       (value) => chars[value % chars.length],
     ).join("");
+
+    // TODO: remover console.log
+    console.log(`Código de verificação: ${code}`);
 
     const hashedCode = this.hashCode(code);
 

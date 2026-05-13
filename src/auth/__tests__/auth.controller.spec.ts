@@ -41,3 +41,5 @@ describe("AuthController", () => {
     });
   });
 });
+
+//TODO: adicionar testes para os outros métodos do controller

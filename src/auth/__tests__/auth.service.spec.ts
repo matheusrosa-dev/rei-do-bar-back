@@ -105,7 +105,7 @@ describe("AuthService", () => {
     });
   });
 
-  describe("verifyPhone", () => {
+  describe("sendVerificationCode", () => {
     it("should create a new OTP code if there is no active code for the anonymous customer and return it", async () => {
       const anonymousCustomerId = "anonymous-customer-id";
       const deviceId = "device-id";
@@ -118,7 +118,7 @@ describe("AuthService", () => {
       prismaMock.otpCode.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.verifyPhone(deviceId, {
+        service.sendVerificationCode(deviceId, {
           phone: "11999999999",
         }),
       ).resolves.toBeUndefined();
@@ -150,7 +150,7 @@ describe("AuthService", () => {
       });
 
       await expect(
-        service.verifyPhone("device-id", {
+        service.sendVerificationCode("device-id", {
           phone: "11999999999",
         }),
       ).resolves.toBeUndefined();
