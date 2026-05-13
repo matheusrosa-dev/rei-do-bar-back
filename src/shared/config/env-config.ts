@@ -7,6 +7,7 @@ import {
 
 import * as Joi from "joi";
 import "dotenv/config";
+import { SignOptions } from "jsonwebtoken";
 
 export const apiConfig = registerAs<IApiConfig>("api", () => ({
   port: Number(process.env.API_PORT),
@@ -19,6 +20,13 @@ export const databaseConfig = registerAs<IDatabaseConfig>("database", () => ({
 
 export const authConfig = registerAs<IAuthConfig>("auth", () => ({
   otpExpirationMinutes: Number(process.env.AUTH_OTP_EXPIRATION_MINUTES),
+
+  jwtSecret: process.env.AUTH_JWT_SECRET!,
+  jwtRefreshSecret: process.env.AUTH_JWT_REFRESH_SECRET!,
+  jwtExpirationTime: process.env
+    .AUTH_JWT_EXPIRATION_TIME as SignOptions["expiresIn"],
+  jwtRefreshExpirationTime: process.env
+    .AUTH_JWT_REFRESH_EXPIRATION_TIME as SignOptions["expiresIn"],
 }));
 
 export const validationSchema = Joi.object({
@@ -28,4 +36,8 @@ export const validationSchema = Joi.object({
   DATABASE_URL: Joi.string().uri().required(),
 
   AUTH_OTP_EXPIRATION_MINUTES: Joi.number().required(),
+  AUTH_JWT_SECRET: Joi.string().required(),
+  AUTH_JWT_REFRESH_SECRET: Joi.string().required(),
+  AUTH_JWT_EXPIRATION_TIME: Joi.string().required(),
+  AUTH_JWT_REFRESH_EXPIRATION_TIME: Joi.string().required(),
 });

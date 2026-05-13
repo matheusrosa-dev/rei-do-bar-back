@@ -6,6 +6,7 @@ import { prismaMock } from "@shared/testing/mocks";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ConfigService } from "@nestjs/config";
 import crypto from "node:crypto";
+import jwt from "jsonwebtoken";
 
 describe("AuthService", () => {
   let service: AuthService;
@@ -19,7 +20,14 @@ describe("AuthService", () => {
           provide: ConfigService,
           useValue: {
             get: (key: string) => {
-              if (key === "auth") return { otpExpirationMinutes: 5 };
+              if (key === "auth")
+                return {
+                  otpExpirationMinutes: 5,
+                  jwtSecret: "test-jwt-secret",
+                  jwtRefreshSecret: "test-jwt-refresh-secret",
+                  jwtExpirationTime: "900s",
+                  jwtRefreshExpirationTime: "14d",
+                };
             },
           },
         },
@@ -106,7 +114,7 @@ describe("AuthService", () => {
   });
 
   describe("sendVerificationCode", () => {
-    it("should create a new OTP code if there is no active code for the anonymous customer and return it", async () => {
+    it("should create a new OTP code", async () => {
       const anonymousCustomerId = "anonymous-customer-id";
       const deviceId = "device-id";
 
@@ -141,12 +149,16 @@ describe("AuthService", () => {
       );
     });
 
-    it("should not create a new OTP code if there is an active code for the anonymous customer", async () => {
+    it("should delete all old OTP codes associated with the anonymous customer before creating a new one", async () => {
+      const anonymousCustomerId = "anonymous-customer-id";
+
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        id: "anonymous-customer-id",
+        id: anonymousCustomerId,
       });
       prismaMock.otpCode.findFirst.mockResolvedValue({
-        hashedCode: "existing-hashed-code",
+        id: "old-otp-code-id",
+        hashedCode: "hashed-code",
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       });
 
       await expect(
@@ -155,7 +167,13 @@ describe("AuthService", () => {
         }),
       ).resolves.toBeUndefined();
 
-      expect(prismaMock.otpCode.create).not.toHaveBeenCalled();
+      expect(prismaMock.otpCode.deleteMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            anonymousCustomerId,
+          },
+        }),
+      );
     });
 
     // TODO: adicionar teste de quando enviar o sms
@@ -260,27 +278,27 @@ describe("AuthService", () => {
       );
     });
 
-    it("should delete the OTP code after successful validation", async () => {
-      const codeId = "otp-code-id";
+    it("should delete all OTP codes of the anonymous customer after successful validation", async () => {
+      const anonymousCustomerId = "anonymous-customer-id";
       const code = "ABC123";
 
       prismaMock.otpCode.findFirst.mockResolvedValue({
-        id: codeId,
+        id: "otp-code-id",
         hashedCode: crypto.createHash("sha256").update(code).digest("hex"),
         expiresAt: new Date(Date.now() + (service as any).otpExpirationMs),
       });
 
       await expect(
         (service as any).validateOtpCode({
-          anonymousCustomerId: "anonymous-customer-id",
+          anonymousCustomerId,
           code,
         }),
       ).resolves.toBeUndefined();
 
-      expect(prismaMock.otpCode.delete).toHaveBeenCalledWith(
+      expect(prismaMock.otpCode.deleteMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            id: codeId,
+            anonymousCustomerId,
           },
         }),
       );
@@ -325,14 +343,45 @@ describe("AuthService", () => {
     });
   });
 
-  describe("generateHashedCode", () => {
-    it("should generate a 6-digit code and return its SHA-256 hash", () => {
-      const spy = jest.spyOn(service as any, "hashCode");
+  describe("generateTokens", () => {
+    it("should generate access and refresh tokens with correct payload and expiration", () => {
+      const payload = { customerId: "customer-id", phone: "11999999999" };
+      const tokens = (service as any).generateTokens(payload);
 
+      expect(tokens).toEqual({
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+
+      expect(
+        jwt.verify(tokens.accessToken, (service as any).authConfig.jwtSecret),
+      ).toMatchObject({
+        customerId: payload.customerId,
+        phone: payload.phone,
+      });
+
+      expect(
+        jwt.verify(
+          tokens.refreshToken,
+          (service as any).authConfig.jwtRefreshSecret,
+        ),
+      ).toMatchObject({
+        customerId: payload.customerId,
+        phone: payload.phone,
+      });
+    });
+  });
+
+  describe("generateHashedCode", () => {
+    it("should generate a 6-digit code and return its SHA-256 hash and original code", () => {
       const code = (service as any).generateHashedCode();
 
-      expect(code).toHaveLength(64); // SHA-256 hash length in hexadecimal
-      expect(spy).toHaveBeenCalled();
+      expect(code).toEqual({
+        hashedCode: expect.any(String),
+        code: expect.any(String),
+      });
+
+      expect(code.hashedCode).toHaveLength(64); // SHA-256 hash length in hexadecimal
     });
   });
 

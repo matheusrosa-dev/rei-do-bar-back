@@ -9,6 +9,7 @@ import {
 } from "@shared/decorators/current-session.decorator";
 
 @Controller("auth")
+// TODO: adicionar serializer
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

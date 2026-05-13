@@ -15,18 +15,17 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { IAuthConfig } from "@shared/config/env-config.interface";
 import crypto from "node:crypto";
+import jwt from "jsonwebtoken";
 
 @Injectable()
 export class AuthService {
-  private readonly otpExpirationMs: number;
+  private readonly authConfig: IAuthConfig;
 
   constructor(
     private readonly prisma: PrismaService,
     configService: ConfigService,
   ) {
-    const authConfig = configService.get<IAuthConfig>("auth")!;
-
-    this.otpExpirationMs = authConfig.otpExpirationMinutes * 60 * 1000;
+    this.authConfig = configService.get<IAuthConfig>("auth")!;
   }
 
   async syncDeviceId(dto: SyncDeviceIdDto) {
@@ -59,34 +58,35 @@ export class AuthService {
       throwIfNotFound: true,
     }))!;
 
-    // Verifica se já existe um otp code válido para o cliente anônimo
-    const existingVerificationCode = await this.prisma.otpCode.findFirst({
-      where: {
-        anonymousCustomerId: anonymousCustomer.id,
-        expiresAt: {
-          gte: new Date(),
+    const { code, hashedCode } = this.generateHashedCode();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Remove todos os códigos antigos associados a esse cliente anônimo
+      await tx.otpCode.deleteMany({
+        where: {
+          anonymousCustomerId: anonymousCustomer.id,
         },
-      },
-    });
+      });
 
-    let hashedCode = existingVerificationCode?.hashedCode;
+      const { otpExpirationMinutes } = this.authConfig;
 
-    // Se não existir um código válido, gera um novo e salva no banco de dados
-    if (!existingVerificationCode) {
-      hashedCode = this.generateHashedCode();
-
-      await this.prisma.otpCode.create({
+      // Cria um novo código de verificação
+      await tx.otpCode.create({
         data: {
           hashedCode,
           anonymousCustomerId: anonymousCustomer.id,
-          expiresAt: new Date(Date.now() + this.otpExpirationMs),
+          expiresAt: new Date(Date.now() + otpExpirationMinutes * 60 * 1000),
         },
       });
-    }
+    });
 
     //TODO: INTEGRAR COM SERVIÇO DE ENVIO DE SMS
+
+    // TODO: remover console.log
+    console.log(`Código de verificação: ${code}`);
   }
 
+  // TODO: adicionar testes
   async verifyCode(deviceId: string, dto: VerifyCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
@@ -149,8 +149,15 @@ export class AuthService {
       });
     }
 
-    //TODO: gerar token JWT e retornar
-    console.log(`Cliente ${customer!.id} autenticado com sucesso!`);
+    const tokens = this.generateTokens({
+      customerId: customer.id,
+      phone: customer.phone,
+    });
+
+    // TODO: remover console.log
+    console.log(tokens);
+
+    return tokens;
   }
 
   private async findAnonymousCustomer(
@@ -211,11 +218,30 @@ export class AuthService {
     }
 
     // Remove o código de verificação após a validação bem-sucedida
-    await this.prisma.otpCode.delete({
+    await this.prisma.otpCode.deleteMany({
       where: {
-        id: verificationCode.id,
+        anonymousCustomerId,
       },
     });
+  }
+
+  private generateTokens(payload: { customerId: string; phone: string }) {
+    const {
+      jwtSecret,
+      jwtRefreshSecret,
+      jwtExpirationTime,
+      jwtRefreshExpirationTime,
+    } = this.authConfig;
+
+    const accessToken = jwt.sign(payload, jwtSecret, {
+      expiresIn: jwtExpirationTime,
+    });
+
+    const refreshToken = jwt.sign(payload, jwtRefreshSecret, {
+      expiresIn: jwtRefreshExpirationTime,
+    });
+
+    return { accessToken, refreshToken };
   }
 
   private generateHashedCode() {
@@ -228,12 +254,12 @@ export class AuthService {
       (value) => chars[value % chars.length],
     ).join("");
 
-    // TODO: remover console.log
-    console.log(`Código de verificação: ${code}`);
-
     const hashedCode = this.hashCode(code);
 
-    return hashedCode;
+    return {
+      code,
+      hashedCode,
+    };
   }
 
   private hashCode(code: string) {

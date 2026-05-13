@@ -1,4 +1,7 @@
 export const prismaMock = {
+  $transaction: jest
+    .fn()
+    .mockImplementation((callback) => callback(prismaMock)),
   anonymousCustomer: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -15,6 +18,7 @@ export const prismaMock = {
   },
   otpCode: {
     delete: jest.fn(),
+    deleteMany: jest.fn(),
     findFirst: jest.fn(),
     create: jest.fn(),
   },
