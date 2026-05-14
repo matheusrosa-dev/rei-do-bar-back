@@ -1,12 +1,19 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { SyncDeviceIdDto } from "./dtos/sync-device-id.dto";
 import { Public } from "@shared/decorators/public.decorator";
-import { SendVerificationCodeDto, VerifyCodeDto } from "./dtos";
+import { SyncDeviceIdDto, LoginOtpCodeDto, SendOtpCodeDto } from "./dtos";
 import {
   CurrentSession,
   type ICurrentSession,
 } from "@shared/decorators/current-session.decorator";
+import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
 
 @Controller("auth")
 // TODO: adicionar serializer
@@ -21,21 +28,29 @@ export class AuthController {
     return { deviceId };
   }
 
-  @Post("send-verification-code")
+  @Post("send-otp-code")
   @HttpCode(HttpStatus.NO_CONTENT)
-  async sendVerificationCode(
+  async sendOtpCode(
     @CurrentSession() session: ICurrentSession,
-    @Body() body: SendVerificationCodeDto,
+    @Body() body: SendOtpCodeDto,
   ) {
-    return this.authService.sendVerificationCode(session.deviceId, body);
+    return this.authService.sendOtpCode(session.deviceId, body);
   }
 
-  @Post("verify-code")
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async loginWithCode(
+  @Post("login-otp-code")
+  async loginWithOtpCode(
     @CurrentSession() session: ICurrentSession,
-    @Body() body: VerifyCodeDto,
+    @Body() body: LoginOtpCodeDto,
   ) {
-    return this.authService.verifyCode(session.deviceId, body);
+    return this.authService.loginWithOtpCode(session.deviceId, body);
+  }
+
+  @Post("refresh")
+  @UseGuards(RefreshTokenGuard)
+  async refreshTokens(@CurrentSession() session: ICurrentSession) {
+    return this.authService.refreshTokens({
+      customerId: session.customerId!,
+      token: session.token!,
+    });
   }
 }

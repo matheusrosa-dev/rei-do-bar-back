@@ -24,6 +24,16 @@ CREATE TABLE "anonymous_customers" (
 );
 
 -- CreateTable
+CREATE TABLE "refresh_tokens" (
+    "id" TEXT NOT NULL,
+    "customer_id" TEXT NOT NULL,
+    "hashedToken" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "otp_codes" (
     "id" TEXT NOT NULL,
     "anonymous_customer_id" TEXT NOT NULL,
@@ -176,6 +186,9 @@ CREATE UNIQUE INDEX "customers_phone_key" ON "customers"("phone");
 CREATE UNIQUE INDEX "anonymous_customers_device_id_key" ON "anonymous_customers"("device_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "refresh_tokens_hashedToken_key" ON "refresh_tokens"("hashedToken");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "otp_codes_hashedCode_key" ON "otp_codes"("hashedCode");
 
 -- CreateIndex
@@ -204,6 +217,9 @@ CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("orde
 
 -- CreateIndex
 CREATE UNIQUE INDEX "settings_key_key" ON "settings"("key");
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "otp_codes" ADD CONSTRAINT "otp_codes_anonymous_customer_id_fkey" FOREIGN KEY ("anonymous_customer_id") REFERENCES "anonymous_customers"("id") ON DELETE CASCADE ON UPDATE CASCADE;

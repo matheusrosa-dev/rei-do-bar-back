@@ -25,6 +25,7 @@ model Customer {
   cart      Cart?
   addresses Address[]
   orders    Order[]
+  refreshTokens RefreshToken[]
 
 
   @@map("customers")
@@ -39,6 +40,17 @@ model AnonymousCustomer {
   otpCodes  OtpCode[]
 
   @@map("anonymous_customers")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  customerId String    @map("customer_id")
+  hashedToken      String    @unique
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
 }
 
 model OtpCode {

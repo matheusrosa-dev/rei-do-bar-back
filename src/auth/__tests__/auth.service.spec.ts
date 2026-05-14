@@ -113,7 +113,7 @@ describe("AuthService", () => {
     });
   });
 
-  describe("sendVerificationCode", () => {
+  describe("sendOtpCode", () => {
     it("should create a new OTP code", async () => {
       const anonymousCustomerId = "anonymous-customer-id";
       const deviceId = "device-id";
@@ -126,7 +126,7 @@ describe("AuthService", () => {
       prismaMock.otpCode.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.sendVerificationCode(deviceId, {
+        service.sendOtpCode(deviceId, {
           phone: "11999999999",
         }),
       ).resolves.toBeUndefined();
@@ -162,7 +162,7 @@ describe("AuthService", () => {
       });
 
       await expect(
-        service.sendVerificationCode("device-id", {
+        service.sendOtpCode("device-id", {
           phone: "11999999999",
         }),
       ).resolves.toBeUndefined();
@@ -351,51 +351,34 @@ describe("AuthService", () => {
       expect(tokens).toEqual({
         accessToken: expect.any(String),
         refreshToken: expect.any(String),
+        hashedRefreshToken: expect.any(String),
       });
 
-      expect(
-        jwt.verify(tokens.accessToken, (service as any).authConfig.jwtSecret),
-      ).toMatchObject({
-        customerId: payload.customerId,
-        phone: payload.phone,
-      });
+      const verifiedAccessToken = jwt.verify(
+        tokens.accessToken,
+        (service as any).authConfig.jwtSecret,
+      );
+      const verifiedRefreshToken = jwt.verify(
+        tokens.refreshToken,
+        (service as any).authConfig.jwtRefreshSecret,
+      );
 
-      expect(
-        jwt.verify(
-          tokens.refreshToken,
-          (service as any).authConfig.jwtRefreshSecret,
-        ),
-      ).toMatchObject({
-        customerId: payload.customerId,
-        phone: payload.phone,
-      });
-    });
-  });
-
-  describe("generateHashedCode", () => {
-    it("should generate a 6-digit code and return its SHA-256 hash and original code", () => {
-      const code = (service as any).generateHashedCode();
-
-      expect(code).toEqual({
-        hashedCode: expect.any(String),
-        code: expect.any(String),
-      });
-
-      expect(code.hashedCode).toHaveLength(64); // SHA-256 hash length in hexadecimal
-    });
-  });
-
-  describe("hashCode", () => {
-    it("should return the SHA-256 hash of the input code", () => {
-      const code = "ABC123";
-      const expectedHash = crypto
+      const hashedRefreshToken = crypto
         .createHash("sha256")
-        .update(code)
+        .update(tokens.refreshToken)
         .digest("hex");
 
-      const result = (service as any).hashCode(code);
+      expect(tokens.hashedRefreshToken).toBe(hashedRefreshToken);
 
-      expect(result).toBe(expectedHash);
+      expect(verifiedAccessToken).toMatchObject({
+        customerId: payload.customerId,
+        phone: payload.phone,
+      });
+
+      expect(verifiedRefreshToken).toMatchObject({
+        customerId: payload.customerId,
+        phone: payload.phone,
+      });
     });
   });
 });

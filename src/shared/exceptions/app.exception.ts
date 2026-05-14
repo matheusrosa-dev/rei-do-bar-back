@@ -26,6 +26,8 @@ export class AppException extends HttpException {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",
       INVALID_VERIFICATION_CODE: "AUTH_002",
       INACTIVE_CUSTOMER: "AUTH_003",
+      INVALID_REFRESH_TOKEN: "AUTH_004",
+      CUSTOMER_NOT_FOUND: "AUTH_005",
     },
   };
 

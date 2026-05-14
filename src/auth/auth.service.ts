@@ -1,11 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
-import {
-  VerifyCodeDto,
-  SyncDeviceIdDto,
-  SendVerificationCodeDto,
-} from "./dtos";
+import { LoginOtpCodeDto, SyncDeviceIdDto, SendOtpCodeDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
   AnonymousCustomer,
@@ -14,8 +10,9 @@ import {
 } from "@shared/database/prisma/generated/client";
 import { ConfigService } from "@nestjs/config";
 import { IAuthConfig } from "@shared/config/env-config.interface";
-import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
+import { hashString } from "@shared/helpers/string";
+import { generateOtpCode } from "@shared/helpers/otp-code";
 
 @Injectable()
 export class AuthService {
@@ -53,12 +50,12 @@ export class AuthService {
     };
   }
 
-  async sendVerificationCode(deviceId: string, dto: SendVerificationCodeDto) {
+  async sendOtpCode(deviceId: string, dto: SendOtpCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
     }))!;
 
-    const { code, hashedCode } = this.generateHashedCode();
+    const { code, hashedCode } = generateOtpCode();
 
     await this.prisma.$transaction(async (tx) => {
       // Remove todos os códigos antigos associados a esse cliente anônimo
@@ -87,7 +84,7 @@ export class AuthService {
   }
 
   // TODO: adicionar testes
-  async verifyCode(deviceId: string, dto: VerifyCodeDto) {
+  async loginWithOtpCode(deviceId: string, dto: LoginOtpCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
       includeCart: true,
@@ -154,10 +151,77 @@ export class AuthService {
       phone: customer.phone,
     });
 
-    // TODO: remover console.log
-    console.log(tokens);
+    await this.prisma.refreshToken.create({
+      data: {
+        hashedToken: tokens.hashedRefreshToken,
+        customerId: customer.id,
+      },
+    });
 
-    return tokens;
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async refreshTokens(data: { customerId: string; token: string }) {
+    const customer = await this.prisma.customer.findUnique({
+      where: {
+        id: data.customerId,
+      },
+      include: {
+        refreshTokens: true,
+      },
+    });
+
+    if (!customer) {
+      throw new AppException(
+        AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        "Acesso negado. O token de atualização fornecido é inválido.",
+        AppException.HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const validToken = customer.refreshTokens.find(
+      (rt) => rt.hashedToken === hashString(data.token),
+    );
+
+    if (!validToken) {
+      throw new AppException(
+        AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        "Acesso negado. O token de atualização fornecido é inválido.",
+        AppException.HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const newTokens = this.generateTokens({
+      customerId: customer.id,
+      phone: customer.phone,
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await Promise.all([
+        // Remove o refresh token antigo para evitar que seja reutilizado
+        tx.refreshToken.delete({
+          where: {
+            id: validToken.id,
+          },
+        }),
+
+        // Armazena o novo refresh token
+        tx.refreshToken.create({
+          data: {
+            hashedToken: newTokens.hashedRefreshToken,
+            customerId: customer.id,
+          },
+        }),
+      ]);
+    });
+
+    return {
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken,
+    };
   }
 
   private async findAnonymousCustomer(
@@ -206,10 +270,7 @@ export class AuthService {
       },
     });
 
-    if (
-      !verificationCode ||
-      this.hashCode(code) !== verificationCode.hashedCode
-    ) {
+    if (!verificationCode || hashString(code) !== verificationCode.hashedCode) {
       throw new AppException(
         AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
         "Código de verificação inválido ou expirado.",
@@ -241,28 +302,10 @@ export class AuthService {
       expiresIn: jwtRefreshExpirationTime,
     });
 
-    return { accessToken, refreshToken };
-  }
-
-  private generateHashedCode() {
-    const codeLength = 6;
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const values = crypto.getRandomValues(new Uint8Array(codeLength));
-
-    const code = Array.from(
-      values,
-      (value) => chars[value % chars.length],
-    ).join("");
-
-    const hashedCode = this.hashCode(code);
-
     return {
-      code,
-      hashedCode,
+      accessToken,
+      refreshToken,
+      hashedRefreshToken: hashString(refreshToken),
     };
-  }
-
-  private hashCode(code: string) {
-    return crypto.createHash("sha256").update(code).digest("hex");
   }
 }
