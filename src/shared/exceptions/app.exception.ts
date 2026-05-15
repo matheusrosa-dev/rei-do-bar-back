@@ -28,6 +28,7 @@ export class AppException extends HttpException {
       INACTIVE_CUSTOMER: "AUTH_003",
       INVALID_REFRESH_TOKEN: "AUTH_004",
       CUSTOMER_NOT_FOUND: "AUTH_005",
+      INVALID_TOKEN_IN_DECORATOR: "AUTH_006",
     },
   };
 
