@@ -9,11 +9,9 @@ import {
 import { AuthService } from "./auth.service";
 import { Public } from "@shared/decorators/public.decorator";
 import { SyncDeviceIdDto, LoginOtpCodeDto, SendOtpCodeDto } from "./dtos";
-import {
-  CurrentSession,
-  type ICurrentSession,
-} from "@shared/decorators/current-session.decorator";
+import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
+import type { ICurrentSession } from "@shared/types/jwt";
 
 @Controller("auth")
 // TODO: adicionar serializer
@@ -34,7 +32,7 @@ export class AuthController {
     @CurrentSession() session: ICurrentSession,
     @Body() body: SendOtpCodeDto,
   ) {
-    return this.authService.sendOtpCode(session.deviceId, body);
+    return this.authService.sendOtpCode(session.deviceId!, body);
   }
 
   @Post("login-otp-code")
@@ -42,7 +40,7 @@ export class AuthController {
     @CurrentSession() session: ICurrentSession,
     @Body() body: LoginOtpCodeDto,
   ) {
-    return this.authService.loginWithOtpCode(session.deviceId, body);
+    return this.authService.loginWithOtpCode(session.deviceId!, body);
   }
 
   @Post("refresh")

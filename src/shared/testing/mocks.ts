@@ -22,6 +22,14 @@ export const prismaMock = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
+  customer: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+  refreshToken: {
+    create: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 export const cartServiceMock = {

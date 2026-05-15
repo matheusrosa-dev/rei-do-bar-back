@@ -13,6 +13,7 @@ import { IAuthConfig } from "@shared/config/env-config.interface";
 import jwt from "jsonwebtoken";
 import { hashString } from "@shared/helpers/string";
 import { generateOtpCode } from "@shared/helpers/otp-code";
+import { CustomersService } from "../customers/customers.service";
 
 @Injectable()
 export class AuthService {
@@ -20,6 +21,7 @@ export class AuthService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly customersService: CustomersService,
     configService: ConfigService,
   ) {
     this.authConfig = configService.get<IAuthConfig>("auth")!;
@@ -83,7 +85,6 @@ export class AuthService {
     console.log(`Código de verificação: ${code}`);
   }
 
-  // TODO: adicionar testes
   async loginWithOtpCode(deviceId: string, dto: LoginOtpCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
@@ -113,36 +114,14 @@ export class AuthService {
     }
 
     if (!customer) {
-      customer = await this.prisma.$transaction(async (tx) => {
-        // Cria um novo cliente ativo com o número de telefone fornecido
-        const newCustomer = await tx.customer.create({
-          data: {
-            phone: dto.phone,
-            isActive: true,
-          },
-        });
-
-        await Promise.all([
-          // Atribui o carrinho anônimo ao novo cliente
-          tx.cart.update({
-            where: {
-              id: anonymousCustomer.cart!.id,
-            },
-            data: {
-              anonymousCustomerId: null,
-              customerId: newCustomer.id,
-            },
-          }),
-
-          // Remove o cliente anônimo, já que não é mais necessário
-          tx.anonymousCustomer.delete({
-            where: {
-              id: anonymousCustomer.id,
-            },
-          }),
-        ]);
-
-        return newCustomer;
+      customer = await this.customersService.createCustomerFromAnonymous({
+        newCustomer: {
+          phone: dto.phone,
+        },
+        anonymousCustomer: {
+          cartId: anonymousCustomer.cart!.id,
+          id: anonymousCustomer.id,
+        },
       });
     }
 
