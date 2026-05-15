@@ -1,12 +1,18 @@
 import { Injectable } from "@nestjs/common";
+
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import type { ICurrentSession } from "@shared/types/jwt";
+import { CustomersService } from "../customers/customers.service";
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customersService: CustomersService,
+  ) {}
 
-  async findBestSellers(deviceId: string, category?: string) {
-    const [bestSellers, anonymousCustomer] = await Promise.all([
+  async findBestSellers(session: ICurrentSession, category?: string) {
+    const [bestSellers, customerOrAnonymous] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           isActive: true,
@@ -33,14 +39,11 @@ export class ProductsService {
           sortOrder: "asc",
         },
       }),
-      this.prisma.anonymousCustomer.findUnique({
-        where: { deviceId },
-        select: {
-          cart: {
-            select: {
-              items: {
-                select: { productId: true, quantity: true },
-              },
+      this.customersService.findCustomerOrAnonymous(session, {
+        cart: {
+          select: {
+            items: {
+              select: { productId: true, quantity: true },
             },
           },
         },
@@ -48,7 +51,8 @@ export class ProductsService {
     ]);
 
     const quantityInCart = this.calculateQuantityInCart(
-      anonymousCustomer?.cart?.items ?? [],
+      (customerOrAnonymous.anonymousCustomer ?? customerOrAnonymous.customer)
+        ?.cart?.items ?? [],
     );
 
     return bestSellers.map((product) => {

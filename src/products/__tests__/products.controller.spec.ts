@@ -33,7 +33,7 @@ describe("ProductsController", () => {
 
       expect(result).toEqual(products);
       expect(productsServiceMock.findBestSellers).toHaveBeenCalledWith(
-        session.deviceId,
+        session,
         undefined,
       );
     });
@@ -50,7 +50,7 @@ describe("ProductsController", () => {
 
       expect(result).toEqual(products);
       expect(productsServiceMock.findBestSellers).toHaveBeenCalledWith(
-        session.deviceId,
+        session,
         category,
       );
     });
