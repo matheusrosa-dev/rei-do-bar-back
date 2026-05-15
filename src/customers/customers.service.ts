@@ -5,7 +5,6 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // TODO: adicionar testes
   async createCustomerFromAnonymous(data: {
     newCustomer: {
       phone: string;

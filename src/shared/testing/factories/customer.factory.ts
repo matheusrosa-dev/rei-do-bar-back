@@ -22,7 +22,6 @@ const makeCustomer = (props: Props): CustomerWithCart => ({
   deletedAt: null,
 });
 
-// TODO: criar testes
 export class CustomerFactory {
   static createOne(props: Props) {
     return makeCustomer(props);

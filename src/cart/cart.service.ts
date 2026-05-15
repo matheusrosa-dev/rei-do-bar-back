@@ -227,8 +227,6 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  // TODO: adicionar testes
-  // TODO: remover o service de customer
   private async findAnonymousOrCustomerWithCartOrThrow(
     session: ICurrentSession,
   ) {
@@ -243,6 +241,13 @@ export class CartService {
         },
       },
     };
+
+    if (
+      (!session?.deviceId && !session?.customerId) ||
+      (session?.deviceId && session?.customerId)
+    ) {
+      throw new Error("Session must have either deviceId or customerId");
+    }
 
     if (session?.deviceId) {
       const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({

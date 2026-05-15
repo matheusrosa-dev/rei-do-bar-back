@@ -62,7 +62,10 @@ export class ProductsService {
       },
     };
 
-    if (!session?.deviceId && !session?.customerId) {
+    if (
+      (!session?.deviceId && !session?.customerId) ||
+      (session?.deviceId && session?.customerId)
+    ) {
       throw new Error("Session must have either deviceId or customerId");
     }
 

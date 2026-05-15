@@ -9,12 +9,13 @@ import {
   CartItemFactory,
   AnonymousCustomerFactory,
   ProductFactory,
+  CustomerFactory,
 } from "@shared/testing/factories";
 
 describe("CartService", () => {
   let service: CartService;
 
-  let findAnonymousCustomerSpy: jest.SpyInstance;
+  let findAnonymousOrCustomerWithCartOrThrow: jest.SpyInstance;
   let formatCartSpy: jest.SpyInstance;
 
   beforeEach(async () => {
@@ -27,9 +28,9 @@ describe("CartService", () => {
 
     service = module.get<CartService>(CartService);
 
-    findAnonymousCustomerSpy = jest.spyOn(
+    findAnonymousOrCustomerWithCartOrThrow = jest.spyOn(
       service as any,
-      "findAnonymousCustomerWithCartOrThrow",
+      "findAnonymousOrCustomerWithCartOrThrow",
     );
     formatCartSpy = jest.spyOn(service as any, "formatCart");
   });
@@ -37,6 +38,41 @@ describe("CartService", () => {
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
+
+  const sessionCases = [
+    {
+      label: "deviceId session",
+      session: { deviceId: "device-123" },
+      mockEmptyCart: () => {
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
+          cart: { items: [] },
+        });
+      },
+      mockCustomerWithCart: (items: any[]) => {
+        const customer = AnonymousCustomerFactory.createOne({
+          cart: CartFactory.createOne({ items }),
+        });
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue(customer);
+        return { deviceId: customer.deviceId };
+      },
+    },
+    {
+      label: "customerId session",
+      session: { customerId: "customer-123" },
+      mockEmptyCart: () => {
+        prismaMock.customer.findUnique.mockResolvedValue({
+          cart: { items: [] },
+        });
+      },
+      mockCustomerWithCart: (items: any[]) => {
+        const customer = CustomerFactory.createOne({
+          cart: CartFactory.createOne({ items }),
+        });
+        prismaMock.customer.findUnique.mockResolvedValue(customer);
+        return { customerId: customer.id };
+      },
+    },
+  ];
 
   describe("formatCart", () => {
     it("should calculate total, subtotal, deliveryFee and productsCount correctly", () => {
@@ -109,42 +145,113 @@ describe("CartService", () => {
     });
   });
 
-  describe("findAnonymousCustomerWithCartOrThrow", () => {
-    it("should return anonymous customer with cart and items", async () => {
-      const products = ProductFactory.createMany(2, { stock: 20 });
-      const cart = CartFactory.createOne({
-        items: products.map((product) =>
-          CartItemFactory.createOne({ product, quantity: 1 }),
-        ),
-      });
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart,
-      });
+  describe("findAnonymousOrCustomerWithCartOrThrow", () => {
+    const deviceId = "device-123";
+    const customerId = "customer-123";
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
+    it("should query anonymous customer with cart items when deviceId is present in session", async () => {
+      const findUniqueSpy = jest.spyOn(
+        prismaMock.anonymousCustomer,
+        "findUnique",
       );
 
-      const result = await (
-        service as any
-      ).findAnonymousCustomerWithCartOrThrow(anonymousCustomer.deviceId);
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        AnonymousCustomerFactory.createOne({
+          cart: CartFactory.createOne({
+            items: [],
+          }),
+        }),
+      );
 
-      expect(result).toEqual({
-        ...anonymousCustomer,
-        cart: {
-          ...cart,
-          items: cart.items,
+      await (service as any).findAnonymousOrCustomerWithCartOrThrow({
+        deviceId,
+      });
+
+      expect(findUniqueSpy).toHaveBeenCalledWith({
+        where: { deviceId },
+        include: {
+          cart: {
+            include: {
+              items: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+          },
         },
       });
+    });
+
+    it("should query customer with cart items when customerId is present in session", async () => {
+      const findUniqueSpy = jest.spyOn(prismaMock.customer, "findUnique");
+
+      prismaMock.customer.findUnique.mockResolvedValue(
+        CustomerFactory.createOne({
+          cart: CartFactory.createOne({
+            items: [],
+          }),
+        }),
+      );
+
+      await (service as any).findAnonymousOrCustomerWithCartOrThrow({
+        customerId,
+      });
+
+      expect(findUniqueSpy).toHaveBeenCalledWith({
+        where: { id: customerId },
+        include: {
+          cart: {
+            include: {
+              items: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it("should throw error when session has both deviceId and customerId", async () => {
+      await expect(
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({
+          deviceId,
+          customerId,
+        }),
+      ).rejects.toThrow("Session must have either deviceId or customerId");
+    });
+
+    it("should throw error when session has neither deviceId nor customerId", async () => {
+      await expect(
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({}),
+      ).rejects.toThrow("Session must have either deviceId or customerId");
     });
 
     it("should throw AppException when anonymous customer is not found", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 
       await expect(
-        (service as any).findAnonymousCustomerWithCartOrThrow("nonexistent"),
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({
+          deviceId,
+        }),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.cart.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        message: "Cliente não encontrado",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw AppException when customer is not found", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({
+          customerId,
+        }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.CUSTOMER_NOT_FOUND,
         message: "Cliente não encontrado",
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
@@ -156,7 +263,21 @@ describe("CartService", () => {
       });
 
       await expect(
-        (service as any).findAnonymousCustomerWithCartOrThrow("device-123"),
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({ deviceId }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.CART_NOT_FOUND,
+        message: "Carrinho não encontrado",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw AppException when cart is not found for customer", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue({
+        cart: null,
+      });
+
+      await expect(
+        (service as any).findAnonymousOrCustomerWithCartOrThrow({ customerId }),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.cart.CART_NOT_FOUND,
         message: "Carrinho não encontrado",
@@ -166,340 +287,274 @@ describe("CartService", () => {
   });
 
   describe("getCart", () => {
-    it("should return formatted cart for a valid anonymous customer", async () => {
+    const cart = CartFactory.createOne({ items: [] });
+
+    it("should call findAnonymousOrCustomerWithCartOrThrow and formatCart with anonymous customer", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: {
-          items: [],
-        },
+        cart,
       });
 
-      await service.getCart("device-123");
+      await service.getCart({ deviceId: "device-123" });
 
-      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
+      expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
+      expect(formatCartSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("should call findAnonymousOrCustomerWithCartOrThrow and formatCart with customer", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue({
+        cart,
+      });
+
+      await service.getCart({ customerId: "customer-123" });
+
+      expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("addToCart", () => {
-    it("should add a product to the cart", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-      const cart = CartFactory.createOne({
-        items: [
-          CartItemFactory.createOne({
-            product,
-          }),
-        ],
-      });
+    describe.each(sessionCases)("$label", ({
+      session,
+      mockEmptyCart,
+      mockCustomerWithCart,
+    }) => {
+      it("should add a product to the cart", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const cart = CartFactory.createOne({
+          items: [CartItemFactory.createOne({ product })],
+        });
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: { items: [] },
-      });
-      prismaMock.product.findFirst.mockResolvedValue(product);
-      prismaMock.cart.update.mockResolvedValue(cart);
+        mockEmptyCart();
+        prismaMock.product.findFirst.mockResolvedValue(product);
+        prismaMock.cart.update.mockResolvedValue(cart);
 
-      await service.addToCart("device-123", {
-        productId: product.id,
-      });
+        await service.addToCart(session, { productId: product.id });
 
-      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledTimes(1);
-
-      expect(prismaMock.cart.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            items: { create: { productId: product.id, quantity: 1 } },
-          }),
-        }),
-      );
-    });
-
-    it("should throw when product is already in cart", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [
-            CartItemFactory.createOne({
-              product,
+        expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
+        expect(formatCartSpy).toHaveBeenCalledTimes(1);
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: { create: { productId: product.id, quantity: 1 } },
             }),
-          ],
-        }),
+          }),
+        );
       });
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
+      it("should throw when product is already in cart", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product }),
+        ]);
 
-      await expect(
-        service.addToCart(anonymousCustomer.deviceId, {
-          productId: product.id,
-        }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
-        message: "Produto já existe no carrinho",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        await expect(
+          service.addToCart(session, { productId: product.id }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+          message: "Produto já existe no carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
       });
-    });
 
-    it("should throw when product does not exist", async () => {
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: { items: [] },
+      it("should throw when product does not exist", async () => {
+        mockEmptyCart();
+        prismaMock.product.findFirst.mockResolvedValue(null);
+
+        await expect(
+          service.addToCart(session, { productId: "nonexistent" }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
+          message: "Produto não encontrado",
+          httpStatus: AppException.HttpStatus.NOT_FOUND,
+        });
       });
-      prismaMock.product.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.addToCart("device-123", { productId: "nonexistent" }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND,
-        message: "Produto não encontrado",
-        httpStatus: AppException.HttpStatus.NOT_FOUND,
-      });
-    });
+      it("should throw when product stock is insufficient", async () => {
+        const product = ProductFactory.createOne({ stock: 0 });
 
-    it("should throw when product stock is insufficient", async () => {
-      const product = ProductFactory.createOne({ stock: 0 });
+        mockEmptyCart();
+        prismaMock.product.findFirst.mockResolvedValue(product);
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: { items: [] },
-      });
-      prismaMock.product.findFirst.mockResolvedValue(product);
-
-      await expect(
-        service.addToCart("device-123", { productId: product.id }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
-        message: "Produto sem estoque disponível",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        await expect(
+          service.addToCart(session, { productId: product.id }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+          message: "Produto sem estoque disponível",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
       });
     });
   });
 
   describe("incrementProductQuantity", () => {
-    it("should increment the quantity of an existing cart item", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [
-            CartItemFactory.createOne({
-              product,
-              quantity: 1,
-            }),
-          ],
-        }),
-      });
+    describe.each(sessionCases)("$label", ({
+      session,
+      mockEmptyCart,
+      mockCustomerWithCart,
+    }) => {
+      it("should increment the quantity of an existing cart item", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product, quantity: 1 }),
+        ]);
+        prismaMock.cart.update.mockResolvedValue({ items: [] });
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-      prismaMock.cart.update.mockResolvedValue({
-        items: [],
-      });
-
-      await service.incrementProductQuantity(anonymousCustomer.deviceId, {
-        productId: product.id,
-      });
-
-      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledTimes(1);
-
-      expect(prismaMock.cart.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            items: {
-              update: expect.objectContaining({
-                data: { quantity: 2 },
-              }),
-            },
-          }),
-        }),
-      );
-    });
-
-    it("should throw when product is not in cart", async () => {
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: { items: [] },
-      });
-
-      await expect(
-        service.incrementProductQuantity("device-123", {
-          productId: "non-existent-product-id",
-        }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
-        message: "Produto não existe no carrinho",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should throw when incrementing exceeds stock", async () => {
-      const product = ProductFactory.createOne({ stock: 5 });
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [
-            CartItemFactory.createOne({
-              product,
-              quantity: 5,
-            }),
-          ],
-        }),
-      });
-
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-
-      await expect(
-        service.incrementProductQuantity(anonymousCustomer.deviceId, {
+        await service.incrementProductQuantity(session, {
           productId: product.id,
-        }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
-        message: "Quantidade solicitada excede o estoque disponível",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
+        expect(formatCartSpy).toHaveBeenCalledTimes(1);
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                update: expect.objectContaining({
+                  data: { quantity: 2 },
+                }),
+              },
+            }),
+          }),
+        );
+      });
+
+      it("should throw when product is not in cart", async () => {
+        mockEmptyCart();
+
+        await expect(
+          service.incrementProductQuantity(session, {
+            productId: "non-existent-product-id",
+          }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
+          message: "Produto não existe no carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+      });
+
+      it("should throw when incrementing exceeds stock", async () => {
+        const product = ProductFactory.createOne({ stock: 5 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product, quantity: 5 }),
+        ]);
+
+        await expect(
+          service.incrementProductQuantity(session, {
+            productId: product.id,
+          }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+          message: "Quantidade solicitada excede o estoque disponível",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
       });
     });
   });
 
   describe("decrementProductQuantity", () => {
-    it("should decrement quantity when it is greater than 1", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [
-            CartItemFactory.createOne({
-              product,
-              quantity: 3,
+    describe.each(sessionCases)("$label", ({
+      session,
+      mockEmptyCart,
+      mockCustomerWithCart,
+    }) => {
+      it("should decrement quantity when it is greater than 1", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product, quantity: 3 }),
+        ]);
+        prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+        await service.decrementProductQuantity(session, {
+          productId: product.id,
+        });
+
+        expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
+        expect(formatCartSpy).toHaveBeenCalledTimes(1);
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                update: expect.objectContaining({
+                  data: { quantity: 2 },
+                }),
+              },
             }),
-          ],
-        }),
-      });
-
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-      prismaMock.cart.update.mockResolvedValue({
-        items: [],
-      });
-
-      await service.decrementProductQuantity(anonymousCustomer.deviceId, {
-        productId: product.id,
-      });
-
-      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledTimes(1);
-
-      expect(prismaMock.cart.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            items: {
-              update: expect.objectContaining({
-                data: { quantity: 2 },
-              }),
-            },
           }),
-        }),
-      );
-    });
-
-    it("should remove the item when quantity is 1", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [CartItemFactory.createOne({ product })],
-        }),
+        );
       });
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-      prismaMock.cart.update.mockResolvedValue({
-        items: [],
-      });
+      it("should remove the item when quantity is 1", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product }),
+        ]);
+        prismaMock.cart.update.mockResolvedValue({ items: [] });
 
-      await service.decrementProductQuantity(anonymousCustomer.deviceId, {
-        productId: product.id,
-      });
+        await service.decrementProductQuantity(session, {
+          productId: product.id,
+        });
 
-      expect(prismaMock.cart.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            items: { deleteMany: { productId: product.id } },
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: { deleteMany: { productId: product.id } },
+            }),
           }),
-        }),
-      );
-    });
-
-    it("should throw when product is not in cart", async () => {
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [],
-        }),
+        );
       });
 
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
+      it("should throw when product is not in cart", async () => {
+        mockEmptyCart();
 
-      await expect(
-        service.decrementProductQuantity(anonymousCustomer.deviceId, {
-          productId: "non-existent-product-id",
-        }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
-        message: "Produto não existe no carrinho",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        await expect(
+          service.decrementProductQuantity(session, {
+            productId: "non-existent-product-id",
+          }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
+          message: "Produto não existe no carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
       });
     });
   });
 
   describe("removeFromCart", () => {
-    it("should remove a product from the cart", async () => {
-      const product = ProductFactory.createOne({ stock: 20 });
-      const anonymousCustomer = AnonymousCustomerFactory.createOne({
-        cart: CartFactory.createOne({
-          items: [
-            CartItemFactory.createOne({
-              product,
+    describe.each(sessionCases)("$label", ({
+      session,
+      mockEmptyCart,
+      mockCustomerWithCart,
+    }) => {
+      it("should remove a product from the cart", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product }),
+        ]);
+        prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+        await service.removeFromCart(session, { productId: product.id });
+
+        expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
+        expect(formatCartSpy).toHaveBeenCalledTimes(1);
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: { deleteMany: { productId: product.id } },
             }),
-          ],
-        }),
-      });
-
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-      prismaMock.cart.update.mockResolvedValue({
-        items: [],
-      });
-
-      await service.removeFromCart(anonymousCustomer.deviceId, {
-        productId: product.id,
-      });
-
-      expect(findAnonymousCustomerSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledTimes(1);
-
-      expect(prismaMock.cart.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            items: { deleteMany: { productId: product.id } },
           }),
-        }),
-      );
-    });
-
-    it("should throw when product is not in cart", async () => {
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-        cart: { items: [] },
+        );
       });
 
-      await expect(
-        service.removeFromCart("device-123", { productId: "product-id" }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
-        message: "Produto não existe no carrinho",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      it("should throw when product is not in cart", async () => {
+        mockEmptyCart();
+
+        await expect(
+          service.removeFromCart(session, { productId: "product-id" }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_NOT_FOUND_IN_CART,
+          message: "Produto não existe no carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
       });
     });
   });

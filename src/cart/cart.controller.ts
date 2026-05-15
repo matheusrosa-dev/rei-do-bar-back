@@ -7,11 +7,9 @@ import {
   IncrementProductQuantityDto,
   RemoveFromCartDto,
 } from "./dtos";
-import {
-  CurrentSession,
-  type ICurrentSession,
-} from "@shared/decorators/current-session.decorator";
+import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
+import type { ICurrentSession } from "@shared/types/jwt";
 
 @Controller("cart")
 @Serialize(CartDto)
@@ -20,7 +18,7 @@ export class CartController {
 
   @Get()
   async getCart(@CurrentSession() session: ICurrentSession) {
-    return this.cartService.getCart(session.deviceId);
+    return this.cartService.getCart(session);
   }
 
   @Post("product/:productId")
@@ -28,7 +26,7 @@ export class CartController {
     @CurrentSession() session: ICurrentSession,
     @Param() dto: AddToCartDto,
   ) {
-    return this.cartService.addToCart(session.deviceId, dto);
+    return this.cartService.addToCart(session, dto);
   }
 
   @Put("product/:productId/increment")
@@ -36,7 +34,7 @@ export class CartController {
     @CurrentSession() session: ICurrentSession,
     @Param() dto: IncrementProductQuantityDto,
   ) {
-    return this.cartService.incrementProductQuantity(session.deviceId, dto);
+    return this.cartService.incrementProductQuantity(session, dto);
   }
 
   @Put("product/:productId/decrement")
@@ -44,7 +42,7 @@ export class CartController {
     @CurrentSession() session: ICurrentSession,
     @Param() dto: DecrementProductQuantityDto,
   ) {
-    return this.cartService.decrementProductQuantity(session.deviceId, dto);
+    return this.cartService.decrementProductQuantity(session, dto);
   }
 
   @Delete("product/:productId")
@@ -52,6 +50,6 @@ export class CartController {
     @CurrentSession() session: ICurrentSession,
     @Param() dto: RemoveFromCartDto,
   ) {
-    return this.cartService.removeFromCart(session.deviceId, dto);
+    return this.cartService.removeFromCart(session, dto);
   }
 }
