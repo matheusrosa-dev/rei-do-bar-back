@@ -8,13 +8,19 @@ import {
 } from "@nestjs/common";
 import { AuthService } from "./auth.service";
 import { Public } from "@shared/decorators/public.decorator";
-import { SyncDeviceIdDto, LoginOtpCodeDto, SendOtpCodeDto } from "./dtos";
+import {
+  SyncDeviceIdDto,
+  LoginOtpCodeDto,
+  SendOtpCodeDto,
+  AuthDto,
+} from "./dtos";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
 import type { ICurrentSession } from "@shared/types/jwt";
+import { Serialize } from "@shared/interceptors/serialize.interceptor";
 
 @Controller("auth")
-// TODO: adicionar serializer
+@Serialize(AuthDto)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
