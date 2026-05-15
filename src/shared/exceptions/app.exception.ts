@@ -21,6 +21,7 @@ export class AppException extends HttpException {
       CART_NOT_FOUND: "CART_004",
       PRODUCT_NOT_FOUND_IN_CART: "CART_005",
       PRODUCT_OUT_OF_STOCK: "CART_006",
+      CUSTOMER_NOT_FOUND: "CART_007",
     },
     auth: {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",

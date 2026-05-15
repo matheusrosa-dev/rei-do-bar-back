@@ -2,33 +2,23 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { CustomersService } from "../../customers/customers.service";
 import { prismaMock } from "@shared/testing/mocks";
 import {
   AnonymousCustomerFactory,
   CartFactory,
   CartItemFactory,
+  CustomerFactory,
   ProductFactory,
 } from "@shared/testing/factories";
 
 describe("ProductsService", () => {
   let service: ProductsService;
-  let customersServiceMock: jest.Mocked<
-    Pick<CustomersService, "findCustomerOrAnonymous">
-  >;
-
-  const session = { deviceId: "device-123" };
 
   beforeEach(async () => {
-    customersServiceMock = {
-      findCustomerOrAnonymous: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductsService,
         { provide: PrismaService, useValue: prismaMock },
-        { provide: CustomersService, useValue: customersServiceMock },
       ],
     }).compile();
 
@@ -39,18 +29,40 @@ describe("ProductsService", () => {
     expect(service).toBeDefined();
   });
 
-  describe("findBestSellers", () => {
-    const anonymousCustomerWithEmptyCart = AnonymousCustomerFactory.createOne({
-      cart: CartFactory.createOne({ items: [] }),
-    });
+  const sessionVariants = [
+    {
+      label: "anonymous customer",
+      session: { deviceId: "device-123" },
+      mockWithCart: (value: any) =>
+        prismaMock.anonymousCustomer.findUnique.mockResolvedValue(value),
+      customerWithEmptyCart: AnonymousCustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      }),
+    },
+    {
+      label: "customer",
+      session: { customerId: "customer-123" },
+      mockWithCart: (value: any) =>
+        prismaMock.customer.findUnique.mockResolvedValue(value),
+      customerWithEmptyCart: CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      }),
+    },
+  ];
 
-    it("should call calculateQuantityInCart with the correct cart items from anonymous customer", async () => {
+  describe.each(sessionVariants)("findBestSellers - $label", ({
+    session,
+    mockWithCart,
+    customerWithEmptyCart,
+  }) => {
+    it("should call calculateQuantityInCart with cart items", async () => {
       const products = ProductFactory.createMany(2, { stock: 20 });
 
       const calculateQuantityInCartSpy = jest.spyOn(
         service as any,
         "calculateQuantityInCart",
       );
+
       const cartItem = CartItemFactory.createOne({
         quantity: 2,
         product: products[0],
@@ -60,14 +72,27 @@ describe("ProductsService", () => {
       });
 
       prismaMock.product.findMany.mockResolvedValue(products);
-      customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-        anonymousCustomer: { cart },
-        customer: null,
-      });
+      mockWithCart({ id: "customer-id", cart });
 
       await service.findBestSellers(session);
 
       expect(calculateQuantityInCartSpy).toHaveBeenCalledWith(cart.items);
+    });
+
+    it("should call findAnonymousOrCustomerWithCart with session", async () => {
+      const products = ProductFactory.createMany(2, { stock: 20 });
+
+      const findAnonymousOrCustomerWithCartSpy = jest.spyOn(
+        service as any,
+        "findAnonymousOrCustomerWithCart",
+      );
+
+      prismaMock.product.findMany.mockResolvedValue(products);
+      mockWithCart(customerWithEmptyCart);
+
+      await service.findBestSellers(session);
+
+      expect(findAnonymousOrCustomerWithCartSpy).toHaveBeenCalledWith(session);
     });
 
     describe("quantityInCart", () => {
@@ -83,10 +108,7 @@ describe("ProductsService", () => {
         });
 
         prismaMock.product.findMany.mockResolvedValue(products);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: { cart },
-          customer: null,
-        });
+        mockWithCart({ id: "customer-id", cart });
 
         const result = await service.findBestSellers(session);
 
@@ -101,10 +123,7 @@ describe("ProductsService", () => {
         const products = ProductFactory.createOne({ stock: 20 });
 
         prismaMock.product.findMany.mockResolvedValue([products]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         const result = await service.findBestSellers(session);
 
@@ -112,14 +131,11 @@ describe("ProductsService", () => {
         expect(result[0].remainingStock).toBeNull();
       });
 
-      it("should return products with quantityInCart=0 when anonymous customer is not found", async () => {
+      it("should return products with quantityInCart=0 when customer is not found", async () => {
         const products = ProductFactory.createOne({ stock: 20 });
 
         prismaMock.product.findMany.mockResolvedValue([products]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: null,
-          customer: null,
-        });
+        mockWithCart(null);
 
         const result = await service.findBestSellers(session);
 
@@ -133,10 +149,7 @@ describe("ProductsService", () => {
         const product = ProductFactory.createOne({ stock: 11 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         const result = await service.findBestSellers(session);
 
@@ -148,10 +161,7 @@ describe("ProductsService", () => {
         const product = ProductFactory.createOne({ stock: 5 });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         const result = await service.findBestSellers(session);
 
@@ -163,10 +173,7 @@ describe("ProductsService", () => {
     describe("category filtering", () => {
       it("should filter products by category when category is provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         await service.findBestSellers(session, "Bebidas");
 
@@ -181,10 +188,7 @@ describe("ProductsService", () => {
 
       it("should not filter by category when category is not provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         await service.findBestSellers(session);
 
@@ -201,10 +205,7 @@ describe("ProductsService", () => {
     describe("sortOrder filtering", () => {
       it("should filter products with sortOrder not null when category is not provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         await service.findBestSellers(session);
 
@@ -219,10 +220,7 @@ describe("ProductsService", () => {
 
       it("should not filter products by sortOrder when category is provided", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
-        customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-          anonymousCustomer: anonymousCustomerWithEmptyCart,
-          customer: null,
-        });
+        mockWithCart(customerWithEmptyCart);
 
         await service.findBestSellers(session, "Bebidas");
 
@@ -238,10 +236,7 @@ describe("ProductsService", () => {
 
     it("should sort products by sortOrder ascending", async () => {
       prismaMock.product.findMany.mockResolvedValue([]);
-      customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-        anonymousCustomer: anonymousCustomerWithEmptyCart,
-        customer: null,
-      });
+      mockWithCart(customerWithEmptyCart);
 
       await service.findBestSellers(session);
 
@@ -254,10 +249,7 @@ describe("ProductsService", () => {
 
     it("should query only active non-deleted products", async () => {
       prismaMock.product.findMany.mockResolvedValue([]);
-      customersServiceMock.findCustomerOrAnonymous.mockResolvedValue({
-        anonymousCustomer: null,
-        customer: null,
-      });
+      mockWithCart(null);
 
       await service.findBestSellers(session);
 
@@ -266,6 +258,66 @@ describe("ProductsService", () => {
           where: { isActive: true, deletedAt: null, sortOrder: { not: null } },
         }),
       );
+    });
+  });
+
+  describe("findAnonymousOrCustomerWithCart", () => {
+    it("should query anonymous customer with cart items when deviceId is present in session", async () => {
+      const findUniqueSpy = jest.spyOn(
+        prismaMock.anonymousCustomer,
+        "findUnique",
+      );
+
+      await (service as any).findAnonymousOrCustomerWithCart({
+        deviceId: "device-123",
+      });
+
+      expect(findUniqueSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { deviceId: "device-123" },
+          select: {
+            cart: {
+              select: {
+                items: {
+                  select: { productId: true, quantity: true },
+                },
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    it("should query customer with cart items when customerId is present in session and deviceId is not present", async () => {
+      const findUniqueSpy = jest.spyOn(prismaMock.customer, "findUnique");
+      const sessionWithCustomerId = { customerId: "customer-123" };
+
+      await (service as any).findAnonymousOrCustomerWithCart(
+        sessionWithCustomerId,
+      );
+
+      expect(findUniqueSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: sessionWithCustomerId.customerId },
+          select: {
+            cart: {
+              select: {
+                items: {
+                  select: { productId: true, quantity: true },
+                },
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    it("should throw an error when session does not have deviceId or customerId", () => {
+      const invalidSession = {};
+
+      expect(() =>
+        (service as any).findAnonymousOrCustomerWithCart(invalidSession),
+      ).toThrow("Session must have either deviceId or customerId");
     });
   });
 

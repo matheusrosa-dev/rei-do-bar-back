@@ -13,7 +13,7 @@ type Props = {
 
 const makeCustomer = (props: Props): CustomerWithCart => ({
   id: props?.id ?? chance.guid(),
-  name: props?.name ?? chance.name(),
+  name: props?.name === undefined ? chance.name() : props.name,
   phone: props?.phone ?? chance.phone(),
   isActive: props?.isActive ?? true,
   cart: props.cart,
@@ -22,6 +22,7 @@ const makeCustomer = (props: Props): CustomerWithCart => ({
   deletedAt: null,
 });
 
+// TODO: criar testes
 export class CustomerFactory {
   static createOne(props: Props) {
     return makeCustomer(props);

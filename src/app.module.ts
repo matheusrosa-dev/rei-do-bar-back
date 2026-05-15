@@ -10,6 +10,7 @@ import { DeviceIdGuard } from "./shared/guards/device-id.guard";
 import { DelayInterceptor } from "@shared/interceptors/delay.interceptor";
 import { ConfigService } from "@nestjs/config";
 import { IApiConfig } from "@shared/config/env-config.interface";
+import { CustomersModule } from "./customers/customers.module";
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { IApiConfig } from "@shared/config/env-config.interface";
     CategoriesModule,
     ProductsModule,
     CartModule,
+    CustomersModule,
   ],
   providers: [
     {

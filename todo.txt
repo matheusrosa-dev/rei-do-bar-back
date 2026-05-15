@@ -4,3 +4,5 @@ fazer testes com o deletedAt
 criar cron que vai limpar os otp codes expirados
 remover seed de produtos ou fazer com que rode apenas em dev
 adicionar basic auth na aplicação
+verificar nas rotas se o usuario está realizando ação com device-id ou customerId
+substituir include por selects

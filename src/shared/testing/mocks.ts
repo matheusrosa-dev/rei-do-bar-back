@@ -5,6 +5,7 @@ export const prismaMock = {
   anonymousCustomer: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    delete: jest.fn(),
   },
   product: {
     findFirst: jest.fn(),

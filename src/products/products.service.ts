@@ -2,14 +2,10 @@ import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import type { ICurrentSession } from "@shared/types/jwt";
-import { CustomersService } from "../customers/customers.service";
 
 @Injectable()
 export class ProductsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly customersService: CustomersService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findBestSellers(session: ICurrentSession, category?: string) {
     const [bestSellers, customerOrAnonymous] = await Promise.all([
@@ -39,20 +35,11 @@ export class ProductsService {
           sortOrder: "asc",
         },
       }),
-      this.customersService.findCustomerOrAnonymous(session, {
-        cart: {
-          select: {
-            items: {
-              select: { productId: true, quantity: true },
-            },
-          },
-        },
-      }),
+      this.findAnonymousOrCustomerWithCart(session),
     ]);
 
     const quantityInCart = this.calculateQuantityInCart(
-      (customerOrAnonymous.anonymousCustomer ?? customerOrAnonymous.customer)
-        ?.cart?.items ?? [],
+      customerOrAnonymous?.cart?.items ?? [],
     );
 
     return bestSellers.map((product) => {
@@ -61,6 +48,34 @@ export class ProductsService {
         quantityInCart: quantityInCart[product.id] || 0,
         remainingStock: product.stock <= 10 ? product.stock : null,
       };
+    });
+  }
+
+  private findAnonymousOrCustomerWithCart(session: ICurrentSession) {
+    const select = {
+      cart: {
+        select: {
+          items: {
+            select: { productId: true, quantity: true },
+          },
+        },
+      },
+    };
+
+    if (!session?.deviceId && !session?.customerId) {
+      throw new Error("Session must have either deviceId or customerId");
+    }
+
+    if (session?.deviceId) {
+      return this.prisma.anonymousCustomer.findUnique({
+        where: { deviceId: session.deviceId },
+        select,
+      });
+    }
+
+    return this.prisma.customer.findUnique({
+      where: { id: session.customerId },
+      select,
     });
   }
 
