@@ -1,6 +1,9 @@
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('pending', 'preparing', 'shipped', 'delivered', 'cancelled');
 
+-- CreateEnum
+CREATE TYPE "SettingKey" AS ENUM ('DELIVERY_FEE');
+
 -- CreateTable
 CREATE TABLE "customers" (
     "id" TEXT NOT NULL,
@@ -171,7 +174,7 @@ CREATE TABLE "order_items" (
 -- CreateTable
 CREATE TABLE "settings" (
     "id" TEXT NOT NULL,
-    "key" TEXT NOT NULL,
+    "key" "SettingKey" NOT NULL,
     "value" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
