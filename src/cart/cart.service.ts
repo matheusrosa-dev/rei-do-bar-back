@@ -42,7 +42,6 @@ export class CartService {
       where: {
         id: productId,
         isActive: true,
-        deletedAt: null,
       },
       select: {
         id: true,

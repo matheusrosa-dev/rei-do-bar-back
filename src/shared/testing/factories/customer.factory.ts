@@ -19,7 +19,6 @@ const makeCustomer = (props: Props): CustomerWithCart => ({
   cart: props.cart,
   createdAt: new Date(),
   updatedAt: new Date(),
-  deletedAt: null,
 });
 
 export class CustomerFactory {

@@ -25,7 +25,6 @@ describe("CustomerFactory", () => {
       expect(customer.isActive).toBe(true);
       expect(customer.createdAt).toBeInstanceOf(Date);
       expect(customer.updatedAt).toBeInstanceOf(Date);
-      expect(customer.deletedAt).toBeNull();
     });
 
     it("should use provided values when all props are given", () => {

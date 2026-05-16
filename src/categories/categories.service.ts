@@ -9,7 +9,6 @@ export class CategoriesService {
     return this.prisma.category.findMany({
       where: {
         isActive: true,
-        deletedAt: null,
       },
       select: {
         id: true,

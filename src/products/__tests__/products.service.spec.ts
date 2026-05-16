@@ -260,7 +260,6 @@ describe("ProductsService", () => {
           expect.objectContaining({
             where: {
               isActive: true,
-              deletedAt: null,
               sortOrder: { not: null },
             },
           }),

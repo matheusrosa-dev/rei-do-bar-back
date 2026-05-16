@@ -12,7 +12,6 @@ export class ProductsService {
       this.prisma.product.findMany({
         where: {
           isActive: true,
-          deletedAt: null,
           ...(category
             ? {
                 category: { name: category },

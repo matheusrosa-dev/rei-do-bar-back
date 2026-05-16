@@ -21,7 +21,6 @@ describe("ProductFactory", () => {
       expect(product.categoryId).toBeDefined();
       expect(product.createdAt).toBeInstanceOf(Date);
       expect(product.updatedAt).toBeInstanceOf(Date);
-      expect(product.deletedAt).toBeNull();
     });
 
     it("should use provided values when all props are given", () => {
