@@ -147,6 +147,7 @@ export class AuthService {
     const customer = await this.prisma.customer.findUnique({
       where: {
         id: data.customerId,
+        isActive: true,
       },
       include: {
         refreshTokens: true,

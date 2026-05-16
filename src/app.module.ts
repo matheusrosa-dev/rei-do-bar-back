@@ -11,6 +11,7 @@ import { DelayInterceptor } from "@shared/interceptors/delay.interceptor";
 import { ConfigService } from "@nestjs/config";
 import { IApiConfig } from "@shared/config/env-config.interface";
 import { CustomersModule } from "./customers/customers.module";
+import { MeModule } from './me/me.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { CustomersModule } from "./customers/customers.module";
     ProductsModule,
     CartModule,
     CustomersModule,
+    MeModule,
   ],
   providers: [
     {

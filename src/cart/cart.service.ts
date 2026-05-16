@@ -285,7 +285,7 @@ export class CartService {
     }
 
     const customer = await this.prisma.customer.findUnique({
-      where: { id: session.customerId },
+      where: { id: session.customerId, isActive: true },
       include,
     });
 

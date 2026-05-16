@@ -31,6 +31,10 @@ export class AppException extends HttpException {
       CUSTOMER_NOT_FOUND: "AUTH_005",
       INVALID_TOKEN_IN_DECORATOR: "AUTH_006",
     },
+    me: {
+      CUSTOMER_NOT_FOUND: "ME_001",
+      NO_FIELDS_TO_UPDATE: "ME_002",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

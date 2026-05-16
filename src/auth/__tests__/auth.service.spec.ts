@@ -370,6 +370,16 @@ describe("AuthService", () => {
         token,
       });
 
+      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
+        where: {
+          id: customer.id,
+          isActive: true,
+        },
+        include: {
+          refreshTokens: true,
+        },
+      });
+
       expect(result).toEqual({
         accessToken: expect.any(String),
         refreshToken: expect.any(String),

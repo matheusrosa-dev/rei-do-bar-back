@@ -306,7 +306,7 @@ describe("ProductsService", () => {
 
       expect(findUniqueSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: sessionWithCustomerId.customerId },
+          where: { id: sessionWithCustomerId.customerId, isActive: true },
           select: {
             cart: {
               select: {

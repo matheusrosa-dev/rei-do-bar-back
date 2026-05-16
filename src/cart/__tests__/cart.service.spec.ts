@@ -204,7 +204,7 @@ describe("CartService", () => {
       });
 
       expect(findUniqueSpy).toHaveBeenCalledWith({
-        where: { id: customerId },
+        where: { id: customerId, isActive: true },
         include: {
           cart: {
             include: {

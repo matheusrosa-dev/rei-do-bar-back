@@ -77,7 +77,7 @@ export class ProductsService {
     }
 
     return this.prisma.customer.findUnique({
-      where: { id: session.customerId },
+      where: { id: session.customerId, isActive: true },
       select,
     });
   }
