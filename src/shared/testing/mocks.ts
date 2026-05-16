@@ -26,9 +26,13 @@ export const prismaMock = {
     findFirst: jest.fn(),
     create: jest.fn(),
   },
+  address: {
+    updateMany: jest.fn(),
+  },
   customer: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
   refreshToken: {
     create: jest.fn(),

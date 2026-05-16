@@ -5,3 +5,5 @@ remover seed de produtos ou fazer com que rode apenas em dev
 adicionar basic auth na aplicação
 substituir include por selects
 futuramente adicionar opção para alterar número do usuario
+
+verificar os erros dos  throw new AppException
