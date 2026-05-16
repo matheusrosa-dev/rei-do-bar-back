@@ -22,19 +22,17 @@ describe("CustomerFactory", () => {
       expect(customer.id).toBeDefined();
       expect(customer.name).toBeDefined();
       expect(customer.phone).toBeDefined();
-      expect(customer.deviceId).toBeDefined();
       expect(customer.isActive).toBe(true);
-      expect(customer.deletedAt).toBeNull();
       expect(customer.createdAt).toBeInstanceOf(Date);
       expect(customer.updatedAt).toBeInstanceOf(Date);
+      expect(customer.deletedAt).toBeNull();
     });
 
     it("should use provided values when all props are given", () => {
       const props = {
         id: "customer-id",
         name: "John Doe",
-        phone: "+55 11 99999-9999",
-        deviceId: "device-id",
+        phone: "+5511999999999",
         isActive: false,
         cart,
       };
@@ -44,9 +42,14 @@ describe("CustomerFactory", () => {
       expect(customer.id).toBe(props.id);
       expect(customer.name).toBe(props.name);
       expect(customer.phone).toBe(props.phone);
-      expect(customer.deviceId).toBe(props.deviceId);
       expect(customer.isActive).toBe(props.isActive);
       expect(customer.cart).toBe(props.cart);
+    });
+
+    it("should allow name to be set to an empty string", () => {
+      const customer = CustomerFactory.createOne({ name: "", cart });
+
+      expect(customer.name).toBe("");
     });
   });
 
@@ -64,14 +67,10 @@ describe("CustomerFactory", () => {
     });
 
     it("should apply provided props to all created customers", () => {
-      const customers = CustomerFactory.createMany(3, {
-        cart,
-        isActive: false,
-      });
+      const customers = CustomerFactory.createMany(3, { cart });
 
       for (const customer of customers) {
         expect(customer.cart).toBe(cart);
-        expect(customer.isActive).toBe(false);
       }
     });
   });

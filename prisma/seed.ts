@@ -1,12 +1,14 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/shared/database/prisma/generated/client";
-import { seedCategories, seedProducts } from "./seeds";
+import { seedCategories, seedProducts, seedSettings } from "./seeds";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  await seedSettings(prisma);
+
   await seedCategories(prisma);
   await seedProducts(prisma);
 }

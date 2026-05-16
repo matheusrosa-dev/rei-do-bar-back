@@ -5,7 +5,7 @@ const products = [
     name: "Corona Extra",
     description: "350ml",
     price: 899,
-    stock: 10,
+    stock: 11,
     sortOrder: 1,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/corona-extra.png",
@@ -43,7 +43,6 @@ const products = [
   },
 ];
 
-// TODO: remover seed de produtos
 export async function seedProducts(prisma: PrismaClient) {
   console.log("Seeding products...");
 

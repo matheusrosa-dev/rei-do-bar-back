@@ -7,21 +7,19 @@ type Props = {
   id?: string;
   name?: string;
   phone?: string;
-  deviceId?: string;
   isActive?: boolean;
   cart: CartWithItems;
 };
 
 const makeCustomer = (props: Props): CustomerWithCart => ({
   id: props?.id ?? chance.guid(),
-  name: props?.name ?? chance.name(),
+  name: props?.name === undefined ? chance.name() : props.name,
   phone: props?.phone ?? chance.phone(),
-  deviceId: props?.deviceId ?? chance.guid(),
   isActive: props?.isActive ?? true,
   cart: props.cart,
-  deletedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
+  deletedAt: null,
 });
 
 export class CustomerFactory {

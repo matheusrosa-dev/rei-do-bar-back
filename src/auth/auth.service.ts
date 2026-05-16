@@ -1,11 +1,31 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { randomUUID } from "node:crypto";
-import { SyncDeviceIdDto } from "./dtos";
+import { LoginOtpCodeDto, SyncDeviceIdDto, SendOtpCodeDto } from "./dtos";
+import { AppException } from "@shared/exceptions/app.exception";
+import {
+  AnonymousCustomer,
+  Cart,
+  Customer,
+} from "@shared/database/prisma/generated/client";
+import { ConfigService } from "@nestjs/config";
+import { IAuthConfig } from "@shared/config/env-config.interface";
+import jwt from "jsonwebtoken";
+import { hashString } from "@shared/helpers/string";
+import { generateOtpCode } from "@shared/helpers/otp-code";
+import { CustomersService } from "../customers/customers.service";
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly authConfig: IAuthConfig;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly customersService: CustomersService,
+    configService: ConfigService,
+  ) {
+    this.authConfig = configService.get<IAuthConfig>("auth")!;
+  }
 
   async syncDeviceId(dto: SyncDeviceIdDto) {
     let deviceId = dto?.deviceId;
@@ -14,39 +34,257 @@ export class AuthService {
       deviceId = randomUUID();
     }
 
-    const existingCustomer = await this.prisma.customer.findFirst({
-      where: {
-        deviceId,
-      },
-    });
+    const anonymousCustomer = await this.findAnonymousCustomer(deviceId);
 
-    if (!existingCustomer) {
-      await this.initCustomerWithDeviceId(deviceId);
+    if (!anonymousCustomer) {
+      await this.prisma.anonymousCustomer.create({
+        data: {
+          deviceId,
+          cart: {
+            create: {},
+          },
+        },
+      });
     }
-
-    // TODO: mover isso para quando for realizar a compra
-    // if (existingCustomer && !existingCustomer.isActive) {
-    //   throw new AppException(
-    //     AppException.errorCodes.auth.INACTIVE_CUSTOMER,
-    //     "Seu dispositivo está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
-    //     AppException.HttpStatus.FORBIDDEN,
-    //   );
-    // }
 
     return {
       deviceId,
     };
   }
 
-  private async initCustomerWithDeviceId(deviceId: string) {
-    await this.prisma.customer.create({
+  async sendOtpCode(deviceId: string, dto: SendOtpCodeDto) {
+    const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
+      throwIfNotFound: true,
+    }))!;
+
+    const { code, hashedCode } = generateOtpCode();
+
+    await this.prisma.$transaction(async (tx) => {
+      // Remove todos os códigos antigos associados a esse cliente anônimo
+      await tx.otpCode.deleteMany({
+        where: {
+          anonymousCustomerId: anonymousCustomer.id,
+        },
+      });
+
+      const { otpExpirationMinutes } = this.authConfig;
+
+      // Cria um novo código de verificação
+      await tx.otpCode.create({
+        data: {
+          hashedCode,
+          anonymousCustomerId: anonymousCustomer.id,
+          expiresAt: new Date(Date.now() + otpExpirationMinutes * 60 * 1000),
+        },
+      });
+    });
+
+    //TODO: INTEGRAR COM SERVIÇO DE ENVIO DE SMS
+
+    // TODO: remover console.log
+    console.log(`Código de verificação: ${code}`);
+  }
+
+  async loginWithOtpCode(deviceId: string, dto: LoginOtpCodeDto) {
+    const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
+      throwIfNotFound: true,
+      includeCart: true,
+    }))!;
+
+    await this.validateOtpCode({
+      anonymousCustomerId: anonymousCustomer.id,
+      code: dto.code,
+    });
+
+    let customer: Customer | null;
+
+    // Verifica se já existe um cliente associado a esse número de telefone
+    customer = await this.prisma.customer.findUnique({
+      where: {
+        phone: dto.phone,
+      },
+    });
+
+    if (customer && !customer.isActive) {
+      throw new AppException(
+        AppException.errorCodes.auth.INACTIVE_CUSTOMER,
+        "Este número de telefone está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
+        AppException.HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (!customer) {
+      customer = await this.customersService.createCustomerFromAnonymous({
+        newCustomer: {
+          phone: dto.phone,
+        },
+        anonymousCustomer: {
+          cartId: anonymousCustomer.cart!.id,
+          id: anonymousCustomer.id,
+        },
+      });
+    }
+
+    const tokens = this.generateTokens({
+      customerId: customer.id,
+      phone: customer.phone,
+    });
+
+    await this.prisma.refreshToken.create({
       data: {
+        hashedToken: tokens.hashedRefreshToken,
+        customerId: customer.id,
+      },
+    });
+
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async refreshTokens(data: { customerId: string; token: string }) {
+    const customer = await this.prisma.customer.findUnique({
+      where: {
+        id: data.customerId,
+      },
+      include: {
+        refreshTokens: true,
+      },
+    });
+
+    if (!customer) {
+      throw new AppException(
+        AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        "Acesso negado. O token de atualização fornecido é inválido.",
+        AppException.HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const validToken = customer.refreshTokens.find(
+      (rt) => rt.hashedToken === hashString(data.token),
+    );
+
+    if (!validToken) {
+      throw new AppException(
+        AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        "Acesso negado. O token de atualização fornecido é inválido.",
+        AppException.HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const newTokens = this.generateTokens({
+      customerId: customer.id,
+      phone: customer.phone,
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await Promise.all([
+        // Remove o refresh token antigo para evitar que seja reutilizado
+        tx.refreshToken.delete({
+          where: {
+            id: validToken.id,
+          },
+        }),
+
+        // Armazena o novo refresh token
+        tx.refreshToken.create({
+          data: {
+            hashedToken: newTokens.hashedRefreshToken,
+            customerId: customer.id,
+          },
+        }),
+      ]);
+    });
+
+    return {
+      accessToken: newTokens.accessToken,
+      refreshToken: newTokens.refreshToken,
+    };
+  }
+
+  private async findAnonymousCustomer(
+    deviceId: string,
+    config?: { throwIfNotFound: boolean; includeCart?: boolean },
+  ) {
+    const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({
+      where: {
         deviceId,
-        isActive: true,
-        cart: {
-          create: {},
+      },
+      ...(config?.includeCart && {
+        include: {
+          cart: true,
+        },
+      }),
+    });
+
+    if (!anonymousCustomer && config?.throwIfNotFound) {
+      throw new AppException(
+        AppException.errorCodes.auth.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado para o dispositivo fornecido.",
+        AppException.HttpStatus.FORBIDDEN,
+      );
+    }
+
+    return anonymousCustomer as
+      | (AnonymousCustomer & {
+          cart?: Cart;
+        })
+      | null;
+  }
+
+  private async validateOtpCode(props: {
+    anonymousCustomerId: string;
+    code: string;
+  }) {
+    const { anonymousCustomerId, code } = props;
+
+    // Verifica se existe um código de verificação válido para o cliente anônimo
+    const verificationCode = await this.prisma.otpCode.findFirst({
+      where: {
+        anonymousCustomerId,
+        expiresAt: {
+          gte: new Date(),
         },
       },
     });
+
+    if (!verificationCode || hashString(code) !== verificationCode.hashedCode) {
+      throw new AppException(
+        AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
+        "Código de verificação inválido ou expirado.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Remove o código de verificação após a validação bem-sucedida
+    await this.prisma.otpCode.deleteMany({
+      where: {
+        anonymousCustomerId,
+      },
+    });
+  }
+
+  private generateTokens(payload: { customerId: string; phone: string }) {
+    const {
+      jwtSecret,
+      jwtRefreshSecret,
+      jwtExpirationTime,
+      jwtRefreshExpirationTime,
+    } = this.authConfig;
+
+    const accessToken = jwt.sign(payload, jwtSecret, {
+      expiresIn: jwtExpirationTime,
+    });
+
+    const refreshToken = jwt.sign(payload, jwtRefreshSecret, {
+      expiresIn: jwtRefreshExpirationTime,
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      hashedRefreshToken: hashString(refreshToken),
+    };
   }
 }

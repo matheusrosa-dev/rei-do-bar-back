@@ -1,4 +1,5 @@
 import {
+  AnonymousCustomer,
   Cart,
   CartItem,
   Customer,
@@ -11,6 +12,10 @@ export type CartItemWithProduct = CartItem & {
 
 export type CartWithItems = Cart & {
   items: CartItemWithProduct[];
+};
+
+export type AnonymousCustomerWithCart = AnonymousCustomer & {
+  cart: CartWithItems;
 };
 
 export type CustomerWithCart = Customer & {

@@ -1,25 +1,32 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
-import { CartItem, Product } from "@shared/database/prisma/generated/client";
+import {
+  CartItem,
+  Product,
+  SettingKey,
+} from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
+import { ICurrentSession } from "@shared/types/jwt";
 
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getCart(deviceId: string) {
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+  async getCart(session: ICurrentSession) {
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    return this.formatCart(customer.cart.items);
+    return this.formatCart(customerOrAnonymous.cart.items);
   }
 
-  async addToCart(deviceId: string, dto: AddToCartDto) {
+  async addToCart(session: ICurrentSession, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    const isProductInCart = customer.cart.items.some(
+    const isProductInCart = customerOrAnonymous.cart.items.some(
       (item) => item.productId === productId,
     );
 
@@ -60,7 +67,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: customerOrAnonymous.cart.id },
       data: {
         items: {
           create: {
@@ -81,12 +88,13 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  async incrementProductQuantity(deviceId: string, dto: AddToCartDto) {
+  async incrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    const cartItem = customer.cart.items.find(
+    const cartItem = customerOrAnonymous.cart.items.find(
       (item) => item.productId === productId,
     );
 
@@ -107,7 +115,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: customerOrAnonymous.cart.id },
       data: {
         items: {
           update: {
@@ -128,12 +136,13 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  async decrementProductQuantity(deviceId: string, dto: AddToCartDto) {
+  async decrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    const cartItem = customer.cart.items.find(
+    const cartItem = customerOrAnonymous.cart.items.find(
       (item) => item.productId === productId,
     );
 
@@ -147,7 +156,7 @@ export class CartService {
 
     if (cartItem.quantity === 1) {
       const updatedCart = await this.prisma.cart.update({
-        where: { id: customer.cart.id },
+        where: { id: customerOrAnonymous.cart.id },
         data: {
           items: {
             deleteMany: { productId },
@@ -164,7 +173,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: customerOrAnonymous.cart.id },
       data: {
         items: {
           update: {
@@ -183,12 +192,13 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  async removeFromCart(deviceId: string, dto: RemoveFromCartDto) {
+  async removeFromCart(session: ICurrentSession, dto: RemoveFromCartDto) {
     const { productId } = dto;
 
-    const customer = await this.findCustomerWithCartOrThrow(deviceId);
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    const isProductInCart = customer.cart.items.some(
+    const isProductInCart = customerOrAnonymous.cart.items.some(
       (item) => item.productId === productId,
     );
 
@@ -201,7 +211,7 @@ export class CartService {
     }
 
     const updatedCart = await this.prisma.cart.update({
-      where: { id: customer.cart.id },
+      where: { id: customerOrAnonymous.cart.id },
       data: {
         items: {
           deleteMany: {
@@ -221,34 +231,76 @@ export class CartService {
     return this.formatCart(updatedCart.items);
   }
 
-  private async findCustomerWithCartOrThrow(deviceId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { deviceId, isActive: true, deletedAt: null },
-      include: {
-        cart: {
-          include: {
-            items: {
-              include: {
-                product: true,
-              },
+  private async findAnonymousOrCustomerWithCartOrThrow(
+    session: ICurrentSession,
+  ) {
+    const include = {
+      cart: {
+        include: {
+          items: {
+            include: {
+              product: true,
             },
           },
         },
       },
+    };
+
+    if (
+      (!session?.deviceId && !session?.customerId) ||
+      (session?.deviceId && session?.customerId)
+    ) {
+      throw new Error("Session must have either deviceId or customerId");
+    }
+
+    if (session?.deviceId) {
+      const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({
+        where: { deviceId: session.deviceId },
+        include,
+      });
+
+      if (!anonymousCustomer) {
+        throw new AppException(
+          AppException.errorCodes.cart.ANONYMOUS_CUSTOMER_NOT_FOUND,
+          "Cliente não encontrado",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (!anonymousCustomer?.cart) {
+        throw new AppException(
+          AppException.errorCodes.cart.CART_NOT_FOUND,
+          "Carrinho não encontrado",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return {
+        ...anonymousCustomer,
+        cart: {
+          ...anonymousCustomer.cart,
+          items: anonymousCustomer.cart.items,
+        },
+      };
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: session.customerId },
+      include,
     });
 
     if (!customer) {
       throw new AppException(
         AppException.errorCodes.cart.CUSTOMER_NOT_FOUND,
-        "Cliente não encontrado para este dispositivo",
+        "Cliente não encontrado",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
     if (!customer?.cart) {
       throw new AppException(
-        AppException.errorCodes.cart.CUSTOMER_CART_NOT_FOUND,
-        "Carrinho não encontrado para este cliente",
+        AppException.errorCodes.cart.CART_NOT_FOUND,
+        "Carrinho não encontrado",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
@@ -256,20 +308,24 @@ export class CartService {
     return {
       ...customer,
       cart: {
-        ...customer.cart!,
-        items: customer.cart!.items,
+        ...customer.cart,
+        items: customer.cart.items,
       },
     };
   }
 
-  private formatCart(
+  private async formatCart(
     cartItems: Array<
       CartItem & {
         product: Product;
       }
     >,
   ) {
-    let deliveryFee = 200; //TODO: calcular frete real
+    const stringfiedDeliveryFee = await this.prisma.setting.findUnique({
+      where: { key: SettingKey.DELIVERY_FEE },
+    });
+
+    let deliveryFee = Number(stringfiedDeliveryFee!.value) / 100;
 
     if (!cartItems.length) {
       deliveryFee = 0;

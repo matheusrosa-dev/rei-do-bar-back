@@ -3,7 +3,12 @@ import { CartItemWithProduct, CartWithItems } from "./types";
 
 const chance = new Chance();
 
-type Props = { id?: string; customerId?: string; items: CartItemWithProduct[] };
+type Props = {
+  id?: string;
+  customerId?: string;
+  anonymousCustomerId?: string;
+  items: CartItemWithProduct[];
+};
 
 export class CartFactory {
   static createOne(props: Props) {
@@ -18,6 +23,7 @@ export class CartFactory {
 const makeCart = (props: Props): CartWithItems => ({
   id: props?.id ?? chance.guid(),
   customerId: props?.customerId ?? chance.guid(),
+  anonymousCustomerId: props?.anonymousCustomerId ?? chance.guid(),
   items: props.items,
   createdAt: new Date(),
   updatedAt: new Date(),
