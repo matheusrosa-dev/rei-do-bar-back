@@ -213,7 +213,7 @@ model OrderItem {
 
 model Setting {
   id        String   @id @default(uuid())
-  key       String   @unique
+  key       SettingKey   @unique
   value     String
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -227,4 +227,8 @@ enum OrderStatus {
   shipped
   delivered
   cancelled
+}
+
+enum SettingKey {
+  DELIVERY_FEE
 }

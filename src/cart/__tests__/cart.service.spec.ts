@@ -75,7 +75,13 @@ describe("CartService", () => {
   ];
 
   describe("formatCart", () => {
-    it("should calculate total, subtotal, deliveryFee and productsCount correctly", () => {
+    const deliveryFee = 200;
+
+    beforeEach(() => {
+      prismaMock.setting.findUnique.mockResolvedValue({ value: "20000" });
+    });
+
+    it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
       const cartItems = [
         CartItemFactory.createOne({
           product: ProductFactory.createOne({ price: 10, stock: 20 }),
@@ -87,9 +93,8 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart(cartItems);
 
-      const deliveryFee = 200;
       let productsCount = 0;
       const subtotal = cartItems.reduce((sum, item) => {
         productsCount += item.quantity;
@@ -114,8 +119,8 @@ describe("CartService", () => {
       });
     });
 
-    it("should set deliveryFee to 0 when cart is empty", () => {
-      const result = (service as any).formatCart([]);
+    it("should set deliveryFee to 0 when cart is empty", async () => {
+      const result = await (service as any).formatCart([]);
 
       expect(result).toStrictEqual({
         products: [],
@@ -126,7 +131,7 @@ describe("CartService", () => {
       });
     });
 
-    it("should set remainingStock when product stock is 10 or less", () => {
+    it("should set remainingStock when product stock is 10 or less", async () => {
       const cartItems = [
         CartItemFactory.createOne({
           product: ProductFactory.createOne({ price: 10, stock: 5 }),
@@ -138,7 +143,7 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart(cartItems);
 
       expect(result.products[0].remainingStock).toBe(5);
       expect(result.products[1].remainingStock).toBeNull();

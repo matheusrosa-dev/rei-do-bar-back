@@ -1,6 +1,9 @@
-import { PrismaClient } from "../../src/shared/database/prisma/generated/client";
+import {
+  PrismaClient,
+  SettingKey,
+} from "../../src/shared/database/prisma/generated/client";
 
-export const settings = [{ key: "delivery_fee", value: "200" }];
+export const settings = [{ key: SettingKey.DELIVERY_FEE, value: "200" }];
 
 export async function seedSettings(prisma: PrismaClient) {
   console.log("Seeding settings...");

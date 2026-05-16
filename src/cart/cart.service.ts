@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
-import { CartItem, Product } from "@shared/database/prisma/generated/client";
+import {
+  CartItem,
+  Product,
+  SettingKey,
+} from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
 
@@ -310,14 +314,18 @@ export class CartService {
     };
   }
 
-  private formatCart(
+  private async formatCart(
     cartItems: Array<
       CartItem & {
         product: Product;
       }
     >,
   ) {
-    let deliveryFee = 200; //TODO: calcular frete real
+    const stringfiedDeliveryFee = await this.prisma.setting.findUnique({
+      where: { key: SettingKey.DELIVERY_FEE },
+    });
+
+    let deliveryFee = Number(stringfiedDeliveryFee!.value) / 100;
 
     if (!cartItems.length) {
       deliveryFee = 0;

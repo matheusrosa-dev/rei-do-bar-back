@@ -14,6 +14,9 @@ export const prismaMock = {
   cart: {
     update: jest.fn(),
   },
+  setting: {
+    findUnique: jest.fn(),
+  },
   category: {
     findMany: jest.fn(),
   },
