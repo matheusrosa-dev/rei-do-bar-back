@@ -1,5 +1,5 @@
 import Chance from "chance";
-import { CartWithItems, AnonymousCustomerWithCart } from "./types";
+import { CartWithItems, AnonymousCustomerWithRelations } from "./types";
 
 const chance = new Chance();
 
@@ -9,7 +9,9 @@ type Props = {
   cart: CartWithItems;
 };
 
-const makeAnonymousCustomer = (props: Props): AnonymousCustomerWithCart => ({
+const makeAnonymousCustomer = (
+  props: Props,
+): AnonymousCustomerWithRelations => ({
   id: props?.id ?? chance.guid(),
   deviceId: props?.deviceId ?? chance.guid(),
   cart: props.cart,

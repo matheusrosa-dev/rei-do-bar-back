@@ -1,5 +1,6 @@
 import Chance from "chance";
-import { CartWithItems, CustomerWithCart } from "./types";
+import { CartWithItems, CustomerWithRelations } from "./types";
+import type { Address } from "@shared/database/prisma/generated/client";
 
 const chance = new Chance();
 
@@ -8,15 +9,17 @@ type Props = {
   name?: string;
   phone?: string;
   isActive?: boolean;
-  cart: CartWithItems;
+  cart?: CartWithItems;
+  addresses?: Address[];
 };
 
-const makeCustomer = (props: Props): CustomerWithCart => ({
+const makeCustomer = (props: Props): CustomerWithRelations => ({
   id: props?.id ?? chance.guid(),
   name: props?.name === undefined ? chance.name() : props.name,
   phone: props?.phone ?? chance.phone(),
   isActive: props?.isActive ?? true,
-  cart: props.cart,
+  ...(props.cart !== undefined && { cart: props.cart }),
+  ...(props.addresses !== undefined && { addresses: props.addresses }),
   createdAt: new Date(),
   updatedAt: new Date(),
 });

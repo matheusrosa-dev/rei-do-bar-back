@@ -52,7 +52,7 @@ export class AuthService {
     };
   }
 
-  async sendOtpCode(deviceId: string, dto: SendOtpCodeDto) {
+  async sendOtpCode(deviceId: string, _dto: SendOtpCodeDto) {
     const anonymousCustomer = (await this.findAnonymousCustomer(deviceId, {
       throwIfNotFound: true,
     }))!;

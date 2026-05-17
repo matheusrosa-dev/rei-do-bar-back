@@ -1,4 +1,5 @@
 import {
+  Address,
   AnonymousCustomer,
   Cart,
   CartItem,
@@ -14,10 +15,11 @@ export type CartWithItems = Cart & {
   items: CartItemWithProduct[];
 };
 
-export type AnonymousCustomerWithCart = AnonymousCustomer & {
+export type AnonymousCustomerWithRelations = AnonymousCustomer & {
   cart: CartWithItems;
 };
 
-export type CustomerWithCart = Customer & {
-  cart: CartWithItems;
+export type CustomerWithRelations = Customer & {
+  cart?: CartWithItems;
+  addresses?: Address[];
 };

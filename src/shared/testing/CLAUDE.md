@@ -51,8 +51,8 @@ Each factory follows the same pattern: a `make<Model>` function and a class with
 
 ```typescript
 export class CustomerFactory {
-  static createOne(props: Props): CustomerWithCart { ... }
-  static createMany(count: number, props: Props): CustomerWithCart[] { ... }
+  static createOne(props: Props): CustomerWithRelations { ... }
+  static createMany(count: number, props: Props): CustomerWithRelations[] { ... }
 }
 ```
 
@@ -63,8 +63,8 @@ Composite types in `factories/types/index.ts` extend Prisma-generated types with
 ```typescript
 type CartItemWithProduct = CartItem & { product: Product };
 type CartWithItems = Cart & { items: CartItemWithProduct[] };
-type AnonymousCustomerWithCart = AnonymousCustomer & { cart: CartWithItems };
-type CustomerWithCart = Customer & { cart: CartWithItems };
+type AnonymousCustomerWithRelations = AnonymousCustomer & { cart: CartWithItems };
+type CustomerWithRelations = Customer & { cart: CartWithItems };
 ```
 
 These types reflect the exact shape returned by `findUnique/findMany` with `include` in production code, ensuring factories produce correctly typed test data.
