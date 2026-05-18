@@ -7,3 +7,4 @@ substituir include por selects
 futuramente adicionar opção para alterar número do usuario
 
 verificar os erros dos  throw new AppException
+corrigir order by no cart
