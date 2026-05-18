@@ -1,4 +1,4 @@
-# CLAUDE.md — src/products/
+# AGENTS.md — src/products/
 
 ## What belongs here
 

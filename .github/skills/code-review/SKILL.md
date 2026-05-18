@@ -26,7 +26,7 @@ For each changed file, analyze:
 ## Procedure
 
 ### 1. Read directory conventions
-Before reviewing files in any directory, read the `CLAUDE.md` in that directory if one exists. Always read the root `CLAUDE.md` first.
+Before reviewing files in any directory, read the `AGENTS.md` in that directory if one exists. Always read the root `AGENTS.md` first.
 
 ### 2. Read every provided file
 Read the full content of each file or directory explicitly passed. If a directory is provided, read all source files (`.ts`, `.tsx`) within it.

@@ -1,4 +1,4 @@
-# CLAUDE.md — src/shared/guards/
+# AGENTS.md — src/shared/guards/
 
 ## Guard Chain
 

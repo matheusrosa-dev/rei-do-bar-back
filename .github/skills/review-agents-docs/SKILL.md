@@ -1,20 +1,20 @@
 ---
-name: review-claude-docs
-description: "Reevaluate and audit CLAUDE.md documentation files in the project. Use when: CLAUDE.md files may be outdated, patterns changed, new conventions were added, dependencies were updated, directory structure changed, documentation is stale, or docs are out of sync with the codebase. Triggers: review CLAUDE.md, audit docs, update documentation, check if docs are outdated, CLAUDE.md outdated."
+name: review-agents-docs
+description: "Reevaluate and audit AGENTS.md documentation files in the project. Use when: AGENTS.md files may be outdated, patterns changed, new conventions were added, dependencies were updated, directory structure changed, documentation is stale, or docs are out of sync with the codebase. Triggers: review AGENTS.md, audit docs, update documentation, check if docs are outdated, AGENTS.md outdated."
 argument-hint: "Required: one or more files that were changed (e.g. src/me/me.service.ts src/me/dtos/add-address.dto.ts)"
 ---
 
-# Review CLAUDE.md Documentation
+# Review AGENTS.md Documentation
 
 ## Scope
 
-Only review `CLAUDE.md` files that are **directly relevant to the provided files**. For each provided file, check its parent directory for a `CLAUDE.md`. Do not search for, infer, or expand to other directories. Skip directories that do not contain a `CLAUDE.md` file.
+Only review `AGENTS.md` files that are **directly relevant to the provided files**. For each provided file, check its parent directory for a `AGENTS.md`. Do not search for, infer, or expand to other directories. Skip directories that do not contain a `AGENTS.md` file.
 
 ---
 
 ## Purpose
 
-Audit the `CLAUDE.md` files of the provided directories against the actual codebase state. Detect:
+Audit the `AGENTS.md` files of the provided directories against the actual codebase state. Detect:
 
 1. **Stale content** — things documented that no longer exist, are no longer used, or have changed
 2. **Missing content** — new patterns, libraries, conventions, or structural decisions not yet documented
@@ -36,9 +36,9 @@ Audit the `CLAUDE.md` files of the provided directories against the actual codeb
 
 ### Step 1 — Derive directories from provided files
 
-For each provided file, extract its parent directory. Deduplicate the resulting list. For each unique directory, check whether a `CLAUDE.md` file exists. Skip directories that do not have one and inform the user which were skipped.
+For each provided file, extract its parent directory. Deduplicate the resulting list. For each unique directory, check whether a `AGENTS.md` file exists. Skip directories that do not have one and inform the user which were skipped.
 
-### Step 2 — For each CLAUDE.md, explore its scope
+### Step 2 — For each AGENTS.md, explore its scope
 
 Identify the directory the file covers (its parent folder). Use a read-only subagent (Explore) to thoroughly examine the **actual current state** of that directory:
 
@@ -49,17 +49,17 @@ Identify the directory the file covers (its parent folder). Use a read-only suba
 - NestJS patterns (DI, decorators, guard/interceptor scope, module structure)
 - DTO patterns (`@Expose()`, `@Type()`, `@Serialize()`, class-validator decorators)
 - Export patterns (barrel files, named exports only)
-- Any patterns that differ from what the CLAUDE.md describes
+- Any patterns that differ from what the AGENTS.md describes
 
-Also check root config files (package.json, tsconfig.json, biome.json, jest.config.ts, etc.) when reviewing the root CLAUDE.md.
+Also check root config files (package.json, tsconfig.json, biome.json, jest.config.ts, etc.) when reviewing the root AGENTS.md.
 
-### Step 3 — Read each CLAUDE.md
+### Step 3 — Read each AGENTS.md
 
-Read the full content of each CLAUDE.md file being reviewed.
+Read the full content of each AGENTS.md file being reviewed.
 
 ### Step 4 — Cross-reference: identify discrepancies
 
-Compare the CLAUDE.md content against the actual codebase findings:
+Compare the AGENTS.md content against the actual codebase findings:
 
 **Stale content to flag:**
 - Libraries or tools documented that are no longer in `package.json`
@@ -75,10 +75,10 @@ Compare the CLAUDE.md content against the actual codebase findings:
 
 ### Step 5 — Report findings
 
-For each CLAUDE.md reviewed, produce a clear report:
+For each AGENTS.md reviewed, produce a clear report:
 
 ```
-## [directory]/CLAUDE.md
+## [directory]/AGENTS.md
 
 ### Stale (document says X, but reality is Y)
 - ...
@@ -94,15 +94,15 @@ For each CLAUDE.md reviewed, produce a clear report:
 
 After showing the report, ask the user if they want to apply the suggested changes. If confirmed:
 
-- Edit the CLAUDE.md files to remove stale content and add the missing documentation
+- Edit the AGENTS.md files to remove stale content and add the missing documentation
 - Follow the same writing style already in each file (same language, same level of detail, no file/path references that could become stale)
 - Do not add documentation for things that only appear in one file and may be incidental — only document stable patterns
 
 ---
 
-## Key Rules for CLAUDE.md Writing Style
+## Key Rules for AGENTS.md Writing Style
 
-When updating or extending CLAUDE.md files, follow these rules (consistent with the project's established style):
+When updating or extending AGENTS.md files, follow these rules (consistent with the project's established style):
 
 - Write in **English**
 - Do **not** reference specific file names, specific import paths, or concrete values — describe patterns, not instances
@@ -113,6 +113,6 @@ When updating or extending CLAUDE.md files, follow these rules (consistent with 
 ---
 
 ## Constraints
-- DO NOT search for or include CLAUDE.md files outside the directories derived from the provided files
-- DO NOT review a directory not derived from the provided file list, even if it contains a CLAUDE.md
+- DO NOT search for or include AGENTS.md files outside the directories derived from the provided files
+- DO NOT review a directory not derived from the provided file list, even if it contains a AGENTS.md
 - DO NOT apply updates without explicit user confirmation after the report

@@ -1,4 +1,4 @@
-# CLAUDE.md — src/shared/
+# AGENTS.md — src/shared/
 
 ## Purpose
 

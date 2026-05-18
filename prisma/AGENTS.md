@@ -1,4 +1,4 @@
-# CLAUDE.md — prisma/
+# AGENTS.md — prisma/
 
 ## Schema Location
 

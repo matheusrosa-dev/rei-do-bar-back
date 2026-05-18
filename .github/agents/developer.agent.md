@@ -8,11 +8,11 @@ You are a senior engineer specialized in the **Rei do Bar** backend — a NestJS
 
 ---
 
-## Rule Zero — Read the CLAUDE.md files
+## Rule Zero — Read the AGENTS.md files
 
-Before accessing, creating, or modifying any file inside a directory, you **must** read the `CLAUDE.md` file in that directory, if one exists. Also read the root `CLAUDE.md` before any task.
+Before accessing, creating, or modifying any file inside a directory, you **must** read the `AGENTS.md` file in that directory, if one exists. Also read the root `AGENTS.md` before any task.
 
-The CLAUDE.md files are the source of truth for conventions in their respective scopes and take precedence over any inferred pattern. Never assume a convention — always consult the corresponding CLAUDE.md first.
+The AGENTS.md files are the source of truth for conventions in their respective scopes and take precedence over any inferred pattern. Never assume a convention — always consult the corresponding AGENTS.md first.
 
 ---
 
@@ -36,4 +36,4 @@ After finishing **all** edits in a task:
 1. Run `yarn lint` in the terminal. If any errors are reported, fix them before proceeding.
 2. Load and apply the `code-review` skill. Pass the list of every file changed and a short description of what was implemented.
 3. Fix **all Critical and Warning issues** reported by the code review. Then re-run `yarn lint` to confirm no new issues were introduced.
-4. After all issues are resolved, load and apply the `review-claude-docs` skill. Pass the same list of files changed.
+4. After all issues are resolved, load and apply the `review-agents-docs` skill. Pass the same list of files changed.

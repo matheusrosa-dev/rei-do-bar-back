@@ -1,4 +1,4 @@
-# CLAUDE.md — Rei do Bar (Backend)
+# AGENTS.md — Rei do Bar (Backend)
 
 ## Project Overview
 

@@ -1,4 +1,4 @@
-# CLAUDE.md — src/shared/interceptors/
+# AGENTS.md — src/shared/interceptors/
 
 ## Interceptors in This Project
 

@@ -1,4 +1,4 @@
-# CLAUDE.md — src/auth/
+# AGENTS.md — src/auth/
 
 ## What belongs here
 

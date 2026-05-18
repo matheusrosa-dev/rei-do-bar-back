@@ -1,4 +1,4 @@
-# CLAUDE.md — src/me/
+# AGENTS.md — src/me/
 
 ## What belongs here
 

@@ -1,4 +1,4 @@
-# CLAUDE.md — src/shared/exceptions/
+# AGENTS.md — src/shared/exceptions/
 
 ## `AppException`
 

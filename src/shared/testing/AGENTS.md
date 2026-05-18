@@ -1,4 +1,4 @@
-# CLAUDE.md — src/shared/testing/
+# AGENTS.md — src/shared/testing/
 
 ## What belongs here
 
