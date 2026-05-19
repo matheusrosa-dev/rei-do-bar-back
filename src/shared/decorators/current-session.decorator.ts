@@ -15,6 +15,8 @@ export const CurrentSession = createParamDecorator(
 
     const isRefreshTokenRoute =
       request.url === "/auth/refresh" && request.method === "POST";
+    const isLogoutRoute =
+      request.url === "/auth/logout" && request.method === "POST";
 
     const user = {} as ICurrentSession;
 
@@ -25,7 +27,7 @@ export const CurrentSession = createParamDecorator(
     }
 
     // Se for rota de refresh token, o token precisa ser passado para o controller
-    if (isRefreshTokenRoute) {
+    if (isRefreshTokenRoute || isLogoutRoute) {
       user.token = token;
     }
 

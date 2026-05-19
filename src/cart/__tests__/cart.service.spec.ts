@@ -402,6 +402,7 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 1 }),
         ]);
+        prismaMock.setting.findUnique.mockResolvedValue({ value: "0" });
         prismaMock.cart.update.mockResolvedValue({ items: [] });
 
         await service.incrementProductQuantity(session, {
@@ -452,6 +453,31 @@ describe("CartService", () => {
           message: "Quantidade solicitada excede o estoque disponível",
           httpStatus: AppException.HttpStatus.BAD_REQUEST,
         });
+      });
+
+      it("should not check stock when stock is greater than 10", async () => {
+        const product = ProductFactory.createOne({ stock: 11 });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product, quantity: 11 }),
+        ]);
+        prismaMock.setting.findUnique.mockResolvedValue({ value: "0" });
+        prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+        await service.incrementProductQuantity(session, {
+          productId: product.id,
+        });
+
+        expect(prismaMock.cart.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              items: {
+                update: expect.objectContaining({
+                  data: { quantity: 12 },
+                }),
+              },
+            }),
+          }),
+        );
       });
     });
   });

@@ -14,6 +14,7 @@ import jwt from "jsonwebtoken";
 import { hashString } from "@shared/helpers/string";
 import { generateOtpCode } from "@shared/helpers/otp-code";
 import { CustomersService } from "../customers/customers.service";
+import { ICurrentSession } from "@shared/types/jwt";
 
 @Injectable()
 export class AuthService {
@@ -202,6 +203,16 @@ export class AuthService {
       accessToken: newTokens.accessToken,
       refreshToken: newTokens.refreshToken,
     };
+  }
+
+  // TODO: criar testes
+  async logout(session: ICurrentSession) {
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        customerId: session.customerId,
+        hashedToken: hashString(session.token!),
+      },
+    });
   }
 
   private async findAnonymousCustomer(

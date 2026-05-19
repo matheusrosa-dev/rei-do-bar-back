@@ -105,12 +105,14 @@ export class CartService {
       );
     }
 
-    if (cartItem.quantity + 1 > cartItem.product.stock) {
-      throw new AppException(
-        AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
-        "Quantidade solicitada excede o estoque disponível",
-        AppException.HttpStatus.BAD_REQUEST,
-      );
+    if (cartItem.product.stock <= 10) {
+      if (cartItem.quantity + 1 > cartItem.product.stock) {
+        throw new AppException(
+          AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
+          "Quantidade solicitada excede o estoque disponível",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
     }
 
     const updatedCart = await this.prisma.cart.update({
