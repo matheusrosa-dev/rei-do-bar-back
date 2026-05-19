@@ -6,13 +6,20 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from "@nestjs/common";
 import { MeService } from "./me.service";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import type { ICurrentSession } from "@shared/types/jwt";
 import { AccessTokenGuard } from "@shared/guards/access-token.guard";
-import { AddAddressDto, MeDto, RemoveAddressDto, UpdateMeDto } from "./dtos";
+import {
+  AddAddressDto,
+  InitMeDto,
+  MeDto,
+  RemoveAddressDto,
+  UpdateMeDto,
+} from "./dtos";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 
 @Controller("me")
@@ -22,15 +29,20 @@ export class MeController {
   constructor(private readonly meService: MeService) {}
 
   @Patch()
-  async updateMe(
+  updateMe(
     @CurrentSession() session: ICurrentSession,
     @Body() dto: UpdateMeDto,
   ) {
     return this.meService.updateMe(session.customerId!, dto);
   }
 
+  @Put("init")
+  initMe(@CurrentSession() session: ICurrentSession, @Body() dto: InitMeDto) {
+    return this.meService.initMe(session.customerId!, dto);
+  }
+
   @Post("address")
-  async addAddress(
+  addAddress(
     @CurrentSession() session: ICurrentSession,
     @Body() dto: AddAddressDto,
   ) {
@@ -38,7 +50,7 @@ export class MeController {
   }
 
   @Delete("address/:addressId")
-  async removeAddress(
+  removeAddress(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: RemoveAddressDto,
   ) {
@@ -46,7 +58,7 @@ export class MeController {
   }
 
   @Get()
-  async findMe(@CurrentSession() session: ICurrentSession) {
+  findMe(@CurrentSession() session: ICurrentSession) {
     return this.meService.findMe(session.customerId!);
   }
 

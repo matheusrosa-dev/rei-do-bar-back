@@ -3,8 +3,8 @@ import { Contains, IsOptional, IsString, Length } from "class-validator";
 
 export class UpdateMeDto {
   @IsOptional()
-  @Transform(({ value }) => value?.trim())
   @IsString()
+  @Transform(({ value }) => value?.trim())
   @Length(4, 80)
   @Contains(" ", { message: "name must contain first and last name" })
   name?: string;

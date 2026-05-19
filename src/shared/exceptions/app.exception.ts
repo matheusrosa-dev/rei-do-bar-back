@@ -36,6 +36,7 @@ export class AppException extends HttpException {
       NO_FIELDS_TO_UPDATE: "ME_002",
       ADDRESS_ALREADY_EXISTS: "ME_003",
       ADDRESS_NOT_FOUND: "ME_004",
+      ALREADY_INITIALIZED: "ME_005",
     },
   };
 

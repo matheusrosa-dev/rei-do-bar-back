@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AddAddressDto, RemoveAddressDto, UpdateMeDto } from "./dtos";
+import {
+  AddAddressDto,
+  InitMeDto,
+  RemoveAddressDto,
+  UpdateMeDto,
+} from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { Address } from "@shared/database/prisma/generated/client";
 
@@ -123,6 +128,41 @@ export class MeService {
     });
 
     return { addresses: customer.addresses };
+  }
+
+  // TODO: adicionar testes
+  async initMe(customerId: string, dto: InitMeDto) {
+    const me = await this.findMeOrThrow(customerId);
+
+    if (me.name) {
+      throw new AppException(
+        AppException.errorCodes.me.ALREADY_INITIALIZED,
+        "Dados do cliente já inicializados",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const updatedMe = await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        name: dto.name,
+        addresses: {
+          create: {
+            zipCode: dto.address.zipCode,
+            neighborhood: dto.address.neighborhood,
+            number: dto.address.number,
+            street: dto.address.street,
+            complement: dto.address.complement,
+            isMain: true,
+          },
+        },
+      },
+      include: {
+        addresses: true,
+      },
+    });
+
+    return updatedMe;
   }
 
   // TODO: adicionar testes
