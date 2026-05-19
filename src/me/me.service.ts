@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddAddressDto, RemoveAddressDto, UpdateMeDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
+import { Address } from "@shared/database/prisma/generated/client";
 
 @Injectable()
 export class MeService {
@@ -24,14 +25,14 @@ export class MeService {
 
     await this.findMeOrThrow(customerId);
 
-    const updatedCustomer = await this.prisma.customer.update({
+    const updatedMe = await this.prisma.customer.update({
       where: { id: customerId },
       data: {
         ...(dto?.name && { name: dto.name }),
       },
     });
 
-    return updatedCustomer;
+    return updatedMe;
   }
 
   async addAddress(customerId: string, dto: AddAddressDto) {
@@ -43,6 +44,8 @@ export class MeService {
       (address) =>
         address.zipCode === dto.zipCode && address.number === dto.number,
     );
+
+    // TODO: limitar 3 endereços por cliente
 
     if (existingAddress) {
       throw new AppException(
@@ -144,6 +147,15 @@ export class MeService {
       );
     }
 
+    if (options?.withAddress) {
+      me.addresses = this.sortAddresses(me.addresses);
+    }
+
     return me;
+  }
+
+  // TODO: adicionar testes aqui e tambem nos metodos que usam
+  sortAddresses(addresses: Address[]) {
+    return addresses.sort((a, b) => Number(b.isMain) - Number(a.isMain));
   }
 }
