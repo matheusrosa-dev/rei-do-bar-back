@@ -49,4 +49,9 @@ export class MeController {
   async findMe(@CurrentSession() session: ICurrentSession) {
     return this.meService.findMe(session.customerId!);
   }
+
+  @Delete()
+  async deleteMe(@CurrentSession() session: ICurrentSession) {
+    await this.meService.deleteMe(session.customerId!);
+  }
 }

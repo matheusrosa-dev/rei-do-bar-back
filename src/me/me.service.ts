@@ -125,6 +125,15 @@ export class MeService {
     return { addresses: customer.addresses };
   }
 
+  // TODO: adicionar testes
+  async deleteMe(customerId: string) {
+    await this.findMeOrThrow(customerId);
+
+    await this.prisma.customer.delete({
+      where: { id: customerId },
+    });
+  }
+
   private async findMeOrThrow(
     customerId: string,
     options?: { withAddress?: boolean },
@@ -155,7 +164,7 @@ export class MeService {
   }
 
   // TODO: adicionar testes aqui e tambem nos metodos que usam
-  sortAddresses(addresses: Address[]) {
+  private sortAddresses(addresses: Address[]) {
     return addresses.sort((a, b) => Number(b.isMain) - Number(a.isMain));
   }
 }

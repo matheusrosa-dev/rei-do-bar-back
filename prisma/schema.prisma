@@ -76,8 +76,7 @@ model Address {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  customer     Customer @relation(fields: [customerId], references: [id])
-  // orders       Order[]
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@map("addresses")
 }
@@ -171,7 +170,6 @@ model Product {
 // model Order {
 //   id           String      @id @default(uuid())
 //   customerId   String      @map("customer_id")
-//   addressId    String      @map("address_id")
 //   delivererId  String?     @map("deliverer_id")
 //   status       OrderStatus
 //   statusReason String?     @map("status_reason")
@@ -181,7 +179,6 @@ model Product {
 //   updatedAt    DateTime    @updatedAt @map("updated_at")
 
 //   customer     Customer    @relation(fields: [customerId], references: [id])
-//   address      Address     @relation(fields: [addressId], references: [id])
 //   deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
 //   items        OrderItem[]
 
