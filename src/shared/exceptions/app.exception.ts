@@ -38,6 +38,10 @@ export class AppException extends HttpException {
       ADDRESS_NOT_FOUND: "ME_004",
       ALREADY_INITIALIZED: "ME_005",
     },
+    order: {
+      CUSTOMER_NOT_FOUND: "ORDER_001",
+      CUSTOMER_NOT_INITIALIZED: "ORDER_002",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

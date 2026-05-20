@@ -12,6 +12,7 @@ import { ConfigService } from "@nestjs/config";
 import { IApiConfig } from "@shared/config/env-config.interface";
 import { CustomersModule } from "./customers/customers.module";
 import { MeModule } from "./me/me.module";
+import { OrdersModule } from "./orders/orders.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { MeModule } from "./me/me.module";
     CartModule,
     CustomersModule,
     MeModule,
+    OrdersModule,
   ],
   providers: [
     {

@@ -23,7 +23,7 @@ model Customer {
 
   cart      Cart?
   addresses Address[]
-  // orders    Order[]
+  orders    Order[]
   refreshTokens RefreshToken[]
 
   @@map("customers")
@@ -138,9 +138,46 @@ model Product {
 
   category    Category   @relation(fields: [categoryId], references: [id])
   cartItems   CartItem[]
-  // orderItems  OrderItem[]
+  orderItems  OrderItem[]
 
   @@map("products")
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  customerId   String      @map("customer_id")
+  // delivererId  String?     @map("deliverer_id")
+  address      String
+  status       OrderStatus
+  statusReason String?     @map("status_reason")
+  deliveryFee  Int?        @map("delivery_fee")
+  deliveryCode String      @unique @map("delivery_code")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  customer     Customer    @relation(fields: [customerId], references: [id])
+  // deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
+  items        OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String    @id @default(uuid())
+  orderId   String    @map("order_id")
+  productId String    @map("product_id")
+  name      String
+  imageKey  String?   @map("image_key")
+  quantity  Int
+  price     Int
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  order     Order     @relation(fields: [orderId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@unique([orderId, productId])
 }
 
 // model Deliverer {
@@ -167,41 +204,7 @@ model Product {
 //   @@map("deliverer_tokens")
 // }
 
-// model Order {
-//   id           String      @id @default(uuid())
-//   customerId   String      @map("customer_id")
-//   delivererId  String?     @map("deliverer_id")
-//   status       OrderStatus
-//   statusReason String?     @map("status_reason")
-//   deliveryFee  Int?        @map("delivery_fee")
-//   deliveryCode String      @unique @map("delivery_code")
-//   createdAt    DateTime    @default(now()) @map("created_at")
-//   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-//   customer     Customer    @relation(fields: [customerId], references: [id])
-//   deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
-//   items        OrderItem[]
-
-//   @@map("orders")
-// }
-
-// model OrderItem {
-//   id        String    @id @default(uuid())
-//   orderId   String    @map("order_id")
-//   productId String    @map("product_id")
-//   name      String
-//   imageKey  String?   @map("image_key")
-//   quantity  Int
-//   price     Int
-//   createdAt DateTime  @default(now()) @map("created_at")
-//   updatedAt DateTime  @updatedAt @map("updated_at")
-
-//   order     Order     @relation(fields: [orderId], references: [id])
-//   product   Product   @relation(fields: [productId], references: [id])
-
-//   @@map("order_items")
-//   @@unique([orderId, productId])
-// }
 
 model Setting {
   id        String   @id @default(uuid())
