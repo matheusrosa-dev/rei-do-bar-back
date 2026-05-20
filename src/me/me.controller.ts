@@ -28,6 +28,11 @@ import { Serialize } from "@shared/interceptors/serialize.interceptor";
 export class MeController {
   constructor(private readonly meService: MeService) {}
 
+  @Get()
+  findMe(@CurrentSession() session: ICurrentSession) {
+    return this.meService.findMe(session.customerId!);
+  }
+
   @Patch()
   updateMe(
     @CurrentSession() session: ICurrentSession,
@@ -55,11 +60,6 @@ export class MeController {
     @Param() dto: RemoveAddressDto,
   ) {
     return this.meService.removeAddress(session.customerId!, dto);
-  }
-
-  @Get()
-  findMe(@CurrentSession() session: ICurrentSession) {
-    return this.meService.findMe(session.customerId!);
   }
 
   @Delete()
