@@ -326,7 +326,7 @@ export class CartService {
       where: { key: SettingKey.DELIVERY_FEE },
     });
 
-    let deliveryFee = Number(stringfiedDeliveryFee!.value) / 100;
+    let deliveryFee = Number(stringfiedDeliveryFee!.value);
 
     if (!cartItems.length) {
       deliveryFee = 0;

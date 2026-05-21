@@ -75,10 +75,8 @@ describe("CartService", () => {
   ];
 
   describe("formatCart", () => {
-    const deliveryFee = 200;
-
     beforeEach(() => {
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "20000" });
+      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
     });
 
     it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
@@ -100,7 +98,7 @@ describe("CartService", () => {
         productsCount += item.quantity;
         return sum + item.product.price * item.quantity;
       }, 0);
-      const total = subtotal + deliveryFee;
+      const total = subtotal + 200;
 
       expect(result).toStrictEqual({
         products: cartItems.map((item) => ({
@@ -112,7 +110,7 @@ describe("CartService", () => {
           remainingStock: null,
           quantity: item.quantity,
         })),
-        deliveryFee,
+        deliveryFee: 200,
         subtotal,
         productsCount,
         total,
