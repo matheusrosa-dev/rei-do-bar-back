@@ -146,12 +146,14 @@ model Product {
 model Order {
   id           String      @id @default(uuid())
   customerId   String      @map("customer_id")
+  // TODO: adicionar um outro ID mais legivel para o cliente (orderNumber)
   // delivererId  String?     @map("deliverer_id")
   address      String
   status       OrderStatus
   statusReason String?     @map("status_reason")
-  deliveryFee  Int?        @map("delivery_fee")
-  deliveryCode String      @unique @map("delivery_code")
+  deliveryFee  Int        @map("delivery_fee")
+  paymentType  PaymentType @map("payment_type")
+  // deliveryCode String      @unique @map("delivery_code")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
@@ -167,7 +169,7 @@ model OrderItem {
   orderId   String    @map("order_id")
   productId String    @map("product_id")
   name      String
-  imageKey  String?   @map("image_key")
+  imageUrl  String   @map("image_url")
   quantity  Int
   price     Int
   createdAt DateTime  @default(now()) @map("created_at")
@@ -217,13 +219,19 @@ model Setting {
 }
 
 enum OrderStatus {
-  pending
-  preparing
-  shipped
-  delivered
-  cancelled
+  PENDING
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
 
 enum SettingKey {
   DELIVERY_FEE
+}
+
+enum PaymentType {
+  CASH
+  CARD
+  PIX
 }

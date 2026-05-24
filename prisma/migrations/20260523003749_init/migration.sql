@@ -1,8 +1,11 @@
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('pending', 'preparing', 'shipped', 'delivered', 'cancelled');
+CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PREPARING', 'SHIPPED', 'DELIVERED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "SettingKey" AS ENUM ('DELIVERY_FEE');
+
+-- CreateEnum
+CREATE TYPE "PaymentType" AS ENUM ('CASH', 'CARD', 'PIX');
 
 -- CreateTable
 CREATE TABLE "customers" (
@@ -122,8 +125,8 @@ CREATE TABLE "orders" (
     "address" TEXT NOT NULL,
     "status" "OrderStatus" NOT NULL,
     "status_reason" TEXT,
-    "delivery_fee" INTEGER,
-    "delivery_code" TEXT NOT NULL,
+    "delivery_fee" INTEGER NOT NULL,
+    "payment_type" "PaymentType" NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -136,7 +139,7 @@ CREATE TABLE "order_items" (
     "order_id" TEXT NOT NULL,
     "product_id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "image_key" TEXT,
+    "image_url" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "price" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -179,9 +182,6 @@ CREATE UNIQUE INDEX "cart_items_cart_id_product_id_key" ON "cart_items"("cart_id
 
 -- CreateIndex
 CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "orders_delivery_code_key" ON "orders"("delivery_code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");
