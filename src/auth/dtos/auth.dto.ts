@@ -5,6 +5,9 @@ export class AuthDto {
   deviceId?: string;
 
   @Expose()
+  hasToInitAccount?: boolean;
+
+  @Expose()
   accessToken?: string;
 
   @Expose()
