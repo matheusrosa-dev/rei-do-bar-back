@@ -223,11 +223,46 @@ describe("AuthService", () => {
       );
 
       prismaMock.customer.findUnique.mockResolvedValue(activeCustomer);
-      prismaMock.refreshToken.create.mockResolvedValue({});
 
       const result = await service.loginWithOtpCode(deviceId, dto);
 
       expect(result).toEqual({
+        hasToInitAccount: false,
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    });
+
+    it("should return hasToInitAccount true when customer does not have a name", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      prismaMock.customer.findUnique.mockResolvedValue({
+        ...activeCustomer,
+        name: null,
+      });
+
+      const result = await service.loginWithOtpCode(deviceId, dto);
+
+      expect(result).toEqual({
+        hasToInitAccount: true,
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    });
+
+    it("should return false for hasToInitAccount when a new customer has a name", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      prismaMock.customer.findUnique.mockResolvedValue(activeCustomer);
+
+      const result = await service.loginWithOtpCode(deviceId, dto);
+
+      expect(result).toEqual({
+        hasToInitAccount: false,
         accessToken: expect.any(String),
         refreshToken: expect.any(String),
       });
@@ -428,6 +463,21 @@ describe("AuthService", () => {
       ).rejects.toMatchObject({
         code: AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
         httpStatus: AppException.HttpStatus.UNAUTHORIZED,
+      });
+    });
+  });
+
+  describe("logout", () => {
+    it("should delete the refresh token associated with the current session", async () => {
+      await service.logout({
+        customerId: "customer-id",
+        token: "plain-refresh-token",
+      });
+      expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
+        where: {
+          customerId: "customer-id",
+          hashedToken: hashString("plain-refresh-token"),
+        },
       });
     });
   });
