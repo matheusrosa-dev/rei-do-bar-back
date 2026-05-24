@@ -117,6 +117,23 @@ describe("CartService", () => {
       });
     });
 
+    it("should set remainingStock to 0 when product is inactive", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 10,
+            stock: 20,
+            isActive: false,
+          }),
+          quantity: 2,
+        }),
+      ];
+
+      const result = await (service as any).formatCart(cartItems);
+
+      expect(result.products[0].remainingStock).toBe(0);
+    });
+
     it("should set deliveryFee to 0 when cart is empty", async () => {
       const result = await (service as any).formatCart([]);
 

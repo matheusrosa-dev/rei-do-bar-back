@@ -345,13 +345,23 @@ export class CartService {
       products: cartItems.map((cartItem) => {
         const { product, quantity } = cartItem;
 
+        let remainingStock: number | null = null;
+
+        if (product.stock <= 10) {
+          remainingStock = product.stock;
+        }
+
+        if (!product.isActive) {
+          remainingStock = 0;
+        }
+
         return {
           id: product.id,
           name: product.name,
           description: product.description,
           price: product.price * quantity,
           imageUrl: product.imageUrl,
-          remainingStock: product.stock <= 10 ? product.stock : null,
+          remainingStock,
           quantity,
         };
       }),
