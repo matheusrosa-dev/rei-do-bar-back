@@ -1,3 +1,5 @@
+/** biome-ignore-all lint/complexity/useLiteralKeys: <private methods has to be accessed by this way> */
+/** biome-ignore-all lint/suspicious/noExplicitAny: <some tests needs to use any> */
 import { Test, TestingModule } from "@nestjs/testing";
 import { MeService } from "../me.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
@@ -24,6 +26,8 @@ describe("MeService", () => {
 
   describe("findMe", () => {
     it("should return the customer with addresses", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
       const address = AddressFactory.createOne({ customerId });
       const customer = CustomerFactory.createOne({
         id: customerId,
@@ -35,6 +39,7 @@ describe("MeService", () => {
       const result = await service.findMe(customerId);
 
       expect(result).toEqual(customer);
+      expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
       expect(prismaMock.customer.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: customerId, isActive: true },
@@ -49,6 +54,74 @@ describe("MeService", () => {
       await expect(service.findMe(customerId)).rejects.toMatchObject({
         code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
       });
+    });
+  });
+
+  describe("initMe", () => {
+    const dto = {
+      name: "Maria Silva",
+      address: {
+        zipCode: "12345678",
+        neighborhood: "Bairro B",
+        number: "123",
+        street: "Rua A",
+      },
+    };
+
+    it("should throw ALREADY_INITIALIZED when customer already has a name", async () => {
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        name: "João da Silva",
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(service.initMe(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.me.ALREADY_INITIALIZED,
+        message: "Dados do cliente já inicializados",
+      });
+    });
+
+    it("should initialize customer data and return updated customer when name is not set", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        name: null,
+        addresses: [],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue({
+        ...customer,
+        name: dto.name,
+      });
+
+      const result = await service.initMe(customerId, dto);
+
+      expect(result).toEqual({
+        ...customer,
+        name: dto.name,
+      });
+      expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: customerId },
+          data: {
+            name: dto.name,
+            addresses: {
+              create: {
+                zipCode: dto.address.zipCode,
+                neighborhood: dto.address.neighborhood,
+                number: dto.address.number,
+                street: dto.address.street,
+                isMain: true,
+              },
+            },
+          },
+          include: { addresses: true },
+        }),
+      );
     });
   });
 
@@ -74,26 +147,55 @@ describe("MeService", () => {
     });
 
     it("should update and return the customer when name is provided", async () => {
-      const customer = CustomerFactory.createOne({ id: customerId });
-      const updatedCustomer = CustomerFactory.createOne({
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
+      const customer = CustomerFactory.createOne({
         id: customerId,
-        name: "Maria Silva",
+        addresses: [],
       });
 
       prismaMock.customer.findUnique.mockResolvedValue(customer);
-      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+      prismaMock.customer.update.mockResolvedValue({
+        ...customer,
+        name: "Maria Silva",
+      });
 
       const result = await service.updateMe(customerId, {
         name: "Maria Silva",
       });
 
-      expect(result).toEqual(updatedCustomer);
+      expect(result).toEqual({
+        ...customer,
+        name: "Maria Silva",
+      });
+      expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
       expect(prismaMock.customer.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: customerId },
           data: { name: "Maria Silva" },
         }),
       );
+    });
+  });
+
+  describe("deleteMe", () => {
+    it("should delete the customer when it exists", async () => {
+      const customer = CustomerFactory.createOne({ id: customerId });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(service.deleteMe(customerId)).resolves.toBeUndefined();
+    });
+
+    it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteMe(customerId)).rejects.toMatchObject({
+        code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
+        httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.customer.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -132,7 +234,25 @@ describe("MeService", () => {
       });
     });
 
+    it("should throw LIMITED_NUMBER_OF_ADDRESSES when customer already has 3 addresses", async () => {
+      const addresses = AddressFactory.createMany(3, { customerId });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses,
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(service.addAddress(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
+        message:
+          "Limite de endereços atingido. Remova um endereço existente para cadastrar um novo.",
+      });
+    });
+
     it("should demote existing main addresses and create new address as main", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
       const existingAddress = AddressFactory.createOne({
         customerId,
         id: "old-address",
@@ -158,6 +278,7 @@ describe("MeService", () => {
 
       const result = await service.addAddress(customerId, dto);
 
+      expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
       expect(prismaMock.address.updateMany).toHaveBeenCalledWith({
         where: { customerId, isMain: true },
         data: { isMain: false },
@@ -214,15 +335,41 @@ describe("MeService", () => {
       expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
+    it("should throw CANNOT_REMOVE_MAIN_ADDRESS when trying to remove the main address", async () => {
+      const mainAddress = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        isMain: true,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [mainAddress],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(
+        service.removeAddress(customerId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.CANNOT_REMOVE_MAIN_ADDRESS,
+        message:
+          "Não é permitido remover o endereço principal. Defina outro endereço como principal antes de remover este.",
+      });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
     it("should remove address and return remaining addresses", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
       const addressToRemove = AddressFactory.createOne({
         customerId,
         id: addressId,
+        isMain: false,
       });
       const remainingAddress = AddressFactory.createOne({
         customerId,
         id: "other-address",
-        isMain: false,
       });
       const customer = CustomerFactory.createOne({
         id: customerId,
@@ -239,6 +386,7 @@ describe("MeService", () => {
 
       const result = await service.removeAddress(customerId, dto);
 
+      expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
       expect(prismaMock.customer.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: customerId },
@@ -246,6 +394,23 @@ describe("MeService", () => {
         }),
       );
       expect(result).toEqual({ addresses: updatedCustomer.addresses });
+    });
+  });
+
+  describe("sortAddresses", () => {
+    it("should sort addresses with main address first", () => {
+      const addresses = AddressFactory.createMany(3, {
+        customerId,
+        isMain: false,
+      });
+
+      addresses[2].isMain = true;
+
+      const sorted = service["sortAddresses"](addresses);
+
+      expect(sorted[0].isMain).toBe(true);
+      expect(sorted[1].isMain).toBe(false);
+      expect(sorted[2].isMain).toBe(false);
     });
   });
 });

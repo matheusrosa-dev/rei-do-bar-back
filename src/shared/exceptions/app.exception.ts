@@ -37,10 +37,14 @@ export class AppException extends HttpException {
       ADDRESS_ALREADY_EXISTS: "ME_003",
       ADDRESS_NOT_FOUND: "ME_004",
       ALREADY_INITIALIZED: "ME_005",
+      CANNOT_REMOVE_MAIN_ADDRESS: "ME_006",
+      LIMITED_NUMBER_OF_ADDRESSES: "ME_007",
     },
     order: {
       CUSTOMER_NOT_FOUND: "ORDER_001",
       CUSTOMER_NOT_INITIALIZED: "ORDER_002",
+      CART_EMPTY: "ORDER_003",
+      PRODUCTS_OUT_OF_STOCK: "ORDER_005",
     },
   };
 

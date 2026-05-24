@@ -14,9 +14,11 @@ export class MeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findMe(customerId: string) {
-    return this.findMeOrThrow(customerId, {
+    const me = await this.findMeOrThrow(customerId, {
       withAddress: true,
     });
+
+    return { ...me, addresses: this.sortAddresses(me.addresses) };
   }
 
   async updateMe(customerId: string, dto: UpdateMeDto) {
@@ -35,9 +37,12 @@ export class MeService {
       data: {
         ...(dto?.name && { name: dto.name }),
       },
+      include: {
+        addresses: true,
+      },
     });
 
-    return updatedMe;
+    return { ...updatedMe, addresses: this.sortAddresses(updatedMe.addresses) };
   }
 
   async addAddress(customerId: string, dto: AddAddressDto) {
@@ -50,12 +55,18 @@ export class MeService {
         address.zipCode === dto.zipCode && address.number === dto.number,
     );
 
-    // TODO: limitar 3 endereços por cliente
-
     if (existingAddress) {
       throw new AppException(
         AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
         "Endereço já cadastrado. Remova o endereço existente para cadastrar um novo com os mesmos dados.",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
+
+    if (me?.addresses.length === 3) {
+      throw new AppException(
+        AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
+        "Limite de endereços atingido. Remova um endereço existente para cadastrar um novo.",
         AppException.HttpStatus.CONFLICT,
       );
     }
@@ -93,7 +104,7 @@ export class MeService {
       return result;
     });
 
-    return { addresses: customer.addresses };
+    return { addresses: this.sortAddresses(customer.addresses) };
   }
 
   async removeAddress(customerId: string, dto: RemoveAddressDto) {
@@ -113,6 +124,14 @@ export class MeService {
       );
     }
 
+    if (addressToRemove.isMain) {
+      throw new AppException(
+        AppException.errorCodes.me.CANNOT_REMOVE_MAIN_ADDRESS,
+        "Não é permitido remover o endereço principal. Defina outro endereço como principal antes de remover este.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const customer = await this.prisma.customer.update({
       where: { id: customerId },
       data: {
@@ -127,10 +146,9 @@ export class MeService {
       },
     });
 
-    return { addresses: customer.addresses };
+    return { addresses: this.sortAddresses(customer.addresses) };
   }
 
-  // TODO: adicionar testes
   async initMe(customerId: string, dto: InitMeDto) {
     const me = await this.findMeOrThrow(customerId);
 
@@ -162,10 +180,12 @@ export class MeService {
       },
     });
 
-    return updatedMe;
+    return {
+      ...updatedMe,
+      addresses: this.sortAddresses(updatedMe.addresses),
+    };
   }
 
-  // TODO: adicionar testes
   async deleteMe(customerId: string) {
     await this.findMeOrThrow(customerId);
 
@@ -196,14 +216,9 @@ export class MeService {
       );
     }
 
-    if (options?.withAddress) {
-      me.addresses = this.sortAddresses(me.addresses);
-    }
-
     return me;
   }
 
-  // TODO: adicionar testes aqui e tambem nos metodos que usam
   private sortAddresses(addresses: Address[]) {
     return addresses.sort((a, b) => Number(b.isMain) - Number(a.isMain));
   }

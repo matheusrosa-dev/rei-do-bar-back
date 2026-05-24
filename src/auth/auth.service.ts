@@ -80,8 +80,6 @@ export class AuthService {
     });
 
     //TODO: INTEGRAR COM SERVIÇO DE ENVIO DE SMS
-
-    // TODO: remover console.log
     console.log(`Código de verificação: ${code}`);
   }
 
