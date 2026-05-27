@@ -50,6 +50,12 @@ describe("CustomerFactory", () => {
 
       expect(customer.name).toBe("");
     });
+
+    it("should allow name to be set to null", () => {
+      const customer = CustomerFactory.createOne({ name: null, cart });
+
+      expect(customer.name).toBeNull();
+    });
   });
 
   describe("createMany", () => {

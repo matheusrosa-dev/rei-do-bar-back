@@ -6,7 +6,7 @@ const chance = new Chance();
 
 type Props = {
   id?: string;
-  name?: string;
+  name?: string | null;
   phone?: string;
   isActive?: boolean;
   cart?: CartWithItems;
