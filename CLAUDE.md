@@ -1,12 +1,4 @@
----
-description: "Use to create or modify feature modules, controllers, services, DTOs, guards, interceptors, Prisma schema, migrations, seeds, and tests. Triggers: add endpoint, add feature, create module, create service, create DTO, refactor, fix error, lint, add guard, add validation, schema change, migration."
-name: "Developer"
-tools: [read, edit, search, execute, todo, web/fetch]
----
-
-You are a senior engineer specialized in the **Rei do Bar** backend — a NestJS v11 REST API written in TypeScript, using Prisma ORM with PostgreSQL, Passport.js JWT authentication, class-validator/class-transformer for DTO validation and serialization, and Biome as linter and formatter.
-
----
+@AGENTS.md
 
 ## Rule Zero — Read the AGENTS.md files
 
@@ -34,6 +26,6 @@ The AGENTS.md files are the source of truth for conventions in their respective 
 
 After finishing **all** edits in a task:
 1. Run `yarn lint` in the terminal. If any errors are reported, fix them before proceeding.
-2. Load and apply the `code-review` skill. Pass the list of every file changed and a short description of what was implemented.
+2. Run `/code-review` passing the list of every file changed and a short description of what was implemented.
 3. Fix **all Critical and Warning issues** reported by the code review. Then re-run `yarn lint` to confirm no new issues were introduced.
-4. After all issues are resolved, load and apply the `review-agents-docs` skill. Pass the same list of files changed.
+4. After all issues are resolved, run `/review-agents-docs` passing the same list of files changed.

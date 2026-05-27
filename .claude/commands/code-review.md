@@ -1,5 +1,4 @@
 ---
-name: code-review
 description: 'Review code changes in the Rei do Bar app. Use when: reviewing changed files, checking for bugs, TypeScript errors, NestJS best practices, DTO validation/serialization issues, guard or interceptor misuse, Prisma query problems, missing error codes, or validating a finished implementation.'
 argument-hint: 'List the files changed and what was implemented (e.g. "added addAddress endpoint in src/me/me.controller.ts and src/me/me.service.ts")'
 ---

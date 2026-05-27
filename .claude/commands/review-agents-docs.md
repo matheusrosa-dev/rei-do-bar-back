@@ -1,5 +1,4 @@
 ---
-name: review-agents-docs
 description: "Reevaluate and audit AGENTS.md documentation files in the project. Use when: AGENTS.md files may be outdated, patterns changed, new conventions were added, dependencies were updated, directory structure changed, documentation is stale, or docs are out of sync with the codebase. Triggers: review AGENTS.md, audit docs, update documentation, check if docs are outdated, AGENTS.md outdated."
 argument-hint: "Required: one or more files that were changed (e.g. src/me/me.service.ts src/me/dtos/add-address.dto.ts)"
 ---
