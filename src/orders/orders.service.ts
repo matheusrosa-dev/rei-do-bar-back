@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
-import { CreateOrderDto } from "./dtos";
+import { CancelOrderDto, CreateOrderDto } from "./dtos";
 
 @Injectable()
 export class OrdersService {
@@ -128,12 +128,12 @@ export class OrdersService {
         },
       });
     });
+
+    // TODO: deve retornar as orders
   }
 
   async getOrders(customerId: string) {
     const customer = await this.findCustomerOrThrow(customerId);
-
-    // TODO: não deve ser possível fazer um pedido se já existe um pedido em andamento
 
     const orders = await this.prisma.order.findMany({
       where: { customerId: customer.id },
@@ -158,6 +158,54 @@ export class OrdersService {
     });
 
     return formattedOrders;
+  }
+
+  async cancelOrder(customerId: string, dto: CancelOrderDto) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: dto.orderId, customerId },
+      include: { items: true },
+    });
+
+    if (!order) {
+      throw new AppException(
+        AppException.errorCodes.order.ORDER_NOT_FOUND,
+        "Pedido não encontrado",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const cancellableStatuses: OrderStatus[] = [
+      OrderStatus.PENDING,
+      OrderStatus.PREPARING,
+    ];
+
+    if (!cancellableStatuses.includes(order.status)) {
+      throw new AppException(
+        AppException.errorCodes.order.ORDER_NOT_CANCELLABLE,
+        "Este pedido não pode mais ser cancelado.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Marca o pedido como cancelado
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.CANCELLED },
+      });
+
+      // Devolve o estoque dos produtos do pedido
+      await Promise.all(
+        order.items.map((item) =>
+          tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: { increment: item.quantity },
+            },
+          }),
+        ),
+      );
+    });
   }
 
   private async findCustomerOrThrow(customerId: string) {

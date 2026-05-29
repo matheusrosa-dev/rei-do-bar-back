@@ -48,6 +48,8 @@ export class AppException extends HttpException {
       ONGOING_ORDER: "ORDER_004",
       PRODUCTS_OUT_OF_STOCK: "ORDER_005",
       PRODUCT_INACTIVE: "ORDER_006",
+      ORDER_NOT_FOUND: "ORDER_007",
+      ORDER_NOT_CANCELLABLE: "ORDER_008",
     },
   };
 

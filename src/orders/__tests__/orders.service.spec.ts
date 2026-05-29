@@ -285,6 +285,90 @@ describe("OrdersService", () => {
     });
   });
 
+  describe("cancelOrder", () => {
+    const dto = { orderId: "order-uuid" };
+
+    it("should cancel the order, restore stock and set the status to CANCELLED", async () => {
+      const order = {
+        id: "order-uuid",
+        status: OrderStatus.PENDING,
+        items: [
+          { productId: "product-1", quantity: 2 },
+          { productId: "product-2", quantity: 3 },
+        ],
+      };
+      prismaMock.order.findFirst.mockResolvedValue(order);
+
+      await service.cancelOrder(customerId, dto);
+
+      expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
+        where: { id: "order-uuid", customerId },
+        include: { items: true },
+      });
+      expect(prismaMock.order.update).toHaveBeenCalledWith({
+        where: { id: "order-uuid" },
+        data: { status: OrderStatus.CANCELLED },
+      });
+      expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
+      expect(prismaMock.product.update).toHaveBeenCalledWith({
+        where: { id: "product-1" },
+        data: { stock: { increment: 2 } },
+      });
+      expect(prismaMock.product.update).toHaveBeenCalledWith({
+        where: { id: "product-2" },
+        data: { stock: { increment: 3 } },
+      });
+    });
+
+    it("should cancel the order when its status is PREPARING", async () => {
+      prismaMock.order.findFirst.mockResolvedValue({
+        id: "order-uuid",
+        status: OrderStatus.PREPARING,
+        items: [],
+      });
+
+      await service.cancelOrder(customerId, dto);
+
+      expect(prismaMock.order.update).toHaveBeenCalledWith({
+        where: { id: "order-uuid" },
+        data: { status: OrderStatus.CANCELLED },
+      });
+    });
+
+    it("should throw ORDER_NOT_FOUND when the order does not exist", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(null);
+
+      await expect(service.cancelOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ORDER_NOT_FOUND,
+        message: "Pedido não encontrado",
+        httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.order.update).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      OrderStatus.SHIPPED,
+      OrderStatus.DELIVERED,
+      OrderStatus.CANCELLED,
+    ])("should throw ORDER_NOT_CANCELLABLE when the status is %s", async (status) => {
+      prismaMock.order.findFirst.mockResolvedValue({
+        id: "order-uuid",
+        status,
+        items: [],
+      });
+
+      await expect(service.cancelOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ORDER_NOT_CANCELLABLE,
+        message: "Este pedido não pode mais ser cancelado.",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.update).not.toHaveBeenCalled();
+      expect(prismaMock.product.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("findCustomerOrThrow", () => {
     it("should query the customer with addresses and cart, and return it", async () => {
       const customer = buildCustomer([]);

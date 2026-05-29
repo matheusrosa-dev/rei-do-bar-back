@@ -43,6 +43,8 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `PRODUCT_NOT_FOUND_IN_CART` | `CART_005` | 400 |
 | `PRODUCT_OUT_OF_STOCK` | `CART_006` | 400 |
 | `CUSTOMER_NOT_FOUND` | `CART_007` | 400 |
+| `PRODUCT_INACTIVE` | `CART_008` | 400 |
+| `CUSTOMER_NOT_FOUND` | `CART_007` | 400 |
 
 ### `auth`
 
@@ -63,6 +65,22 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `NO_FIELDS_TO_UPDATE` | `ME_002` | 400 |
 | `ADDRESS_ALREADY_EXISTS` | `ME_003` | 409 |
 | `ADDRESS_NOT_FOUND` | `ME_004` | 404 |
+| `ALREADY_INITIALIZED` | `ME_005` | 400 |
+| `CANNOT_REMOVE_MAIN_ADDRESS` | `ME_006` | 400 |
+| `LIMITED_NUMBER_OF_ADDRESSES` | `ME_007` | 409 |
+
+### `order`
+
+| Constant | Code | HTTP |
+|---|---|---|
+| `CUSTOMER_NOT_FOUND` | `ORDER_001` | 404 |
+| `CUSTOMER_NOT_INITIALIZED` | `ORDER_002` | 400 |
+| `CART_EMPTY` | `ORDER_003` | 400 |
+| `ONGOING_ORDER` | `ORDER_004` | 400 |
+| `PRODUCTS_OUT_OF_STOCK` | `ORDER_005` | 400 |
+| `PRODUCT_INACTIVE` | `ORDER_006` | 400 |
+| `ORDER_NOT_FOUND` | `ORDER_007` | 404 |
+| `ORDER_NOT_CANCELLABLE` | `ORDER_008` | 400 |
 
 ---
 
