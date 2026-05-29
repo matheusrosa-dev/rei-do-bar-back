@@ -22,6 +22,7 @@ export class AppException extends HttpException {
       PRODUCT_NOT_FOUND_IN_CART: "CART_005",
       PRODUCT_OUT_OF_STOCK: "CART_006",
       CUSTOMER_NOT_FOUND: "CART_007",
+      PRODUCT_INACTIVE: "CART_008",
     },
     auth: {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",
@@ -46,6 +47,7 @@ export class AppException extends HttpException {
       CART_EMPTY: "ORDER_003",
       ONGOING_ORDER: "ORDER_004",
       PRODUCTS_OUT_OF_STOCK: "ORDER_005",
+      PRODUCT_INACTIVE: "ORDER_006",
     },
   };
 

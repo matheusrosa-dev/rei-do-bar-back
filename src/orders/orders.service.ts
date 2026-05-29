@@ -45,7 +45,15 @@ export class OrdersService {
       const productStock = cartItemExceedingStockOrInactive.product.stock;
       const producIsActive = cartItemExceedingStockOrInactive.product.isActive;
 
-      if (productStock === 0 || !producIsActive) {
+      if (!producIsActive) {
+        throw new AppException(
+          AppException.errorCodes.order.PRODUCT_INACTIVE,
+          `${productName} não está mais disponível. Remova o produto para finalizar o pedido.`,
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (productStock === 0) {
         throw new AppException(
           AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
           `${productName} está sem estoque no momento. Remova o produto para finalizar o pedido.`,

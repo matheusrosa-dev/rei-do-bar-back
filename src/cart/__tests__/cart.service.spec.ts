@@ -453,6 +453,28 @@ describe("CartService", () => {
         });
       });
 
+      it("should throw when product is inactive", async () => {
+        const product = ProductFactory.createOne({
+          stock: 20,
+          isActive: false,
+        });
+        const session = mockCustomerWithCart([
+          CartItemFactory.createOne({ product, quantity: 1 }),
+        ]);
+
+        await expect(
+          service.incrementProductQuantity(session, {
+            productId: product.id,
+          }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_INACTIVE,
+          message: "Produto não está mais disponível",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      });
+
       it("should throw when incrementing exceeds stock", async () => {
         const product = ProductFactory.createOne({ stock: 5 });
         const session = mockCustomerWithCart([

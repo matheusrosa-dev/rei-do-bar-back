@@ -105,6 +105,14 @@ export class CartService {
       );
     }
 
+    if (!cartItem.product.isActive) {
+      throw new AppException(
+        AppException.errorCodes.cart.PRODUCT_INACTIVE,
+        "Produto não está mais disponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     if (cartItem.product.stock <= 10) {
       if (cartItem.quantity + 1 > cartItem.product.stock) {
         throw new AppException(

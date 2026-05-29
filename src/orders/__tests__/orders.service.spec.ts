@@ -179,7 +179,7 @@ describe("OrdersService", () => {
         expect(prismaMock.order.create).not.toHaveBeenCalled();
       });
 
-      it("should throw PRODUCTS_OUT_OF_STOCK when the product is inactive", async () => {
+      it("should throw PRODUCT_INACTIVE when the product is inactive", async () => {
         const product = ProductFactory.createOne({
           name: "Cerveja",
           stock: 20,
@@ -191,10 +191,12 @@ describe("OrdersService", () => {
         await expect(
           service.createOrder(customerId, dto),
         ).rejects.toMatchObject({
-          code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
+          code: AppException.errorCodes.order.PRODUCT_INACTIVE,
           message:
-            "Cerveja está sem estoque no momento. Remova o produto para finalizar o pedido.",
+            "Cerveja não está mais disponível. Remova o produto para finalizar o pedido.",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
         });
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
       });
 
       it("should throw the plural low-stock message when stock is 10 or less", async () => {
