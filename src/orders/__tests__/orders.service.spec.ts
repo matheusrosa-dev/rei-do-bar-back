@@ -57,10 +57,18 @@ describe("OrdersService", () => {
   describe("createOrder", () => {
     const dto = { paymentType: PaymentType.CASH };
 
-    it("should create the order, decrement stock and clear the cart", async () => {
-      const findCustomerOrThrowSpy = jest.spyOn(
+    it("should create the order, decrement stock, clear the cart and return the orders", async () => {
+      const checkCustomerSpy = jest.spyOn(
         service as any,
-        "findCustomerOrThrow",
+        "checkIfCustomerIsAptToCreateOrder",
+      );
+      const checkItemsSpy = jest.spyOn(
+        service as any,
+        "checkIfThereAreInvalidItemsInCart",
+      );
+      const findAndFormatOrdersSpy = jest.spyOn(
+        service as any,
+        "findAndFormatOrders",
       );
 
       const product1 = ProductFactory.createOne({ price: 10, stock: 20 });
@@ -75,9 +83,26 @@ describe("OrdersService", () => {
       prismaMock.order.count.mockResolvedValue(0);
       prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
 
-      await service.createOrder(customerId, dto);
+      const createdOrder = {
+        id: "order-uuid",
+        orderNumber: 1000,
+        deliveryFee: 200,
+        items: [
+          { price: 10, quantity: 2 },
+          { price: 20, quantity: 3 },
+        ],
+      };
+      prismaMock.order.findMany.mockResolvedValue([createdOrder]);
 
-      expect(findCustomerOrThrowSpy).toHaveBeenCalledWith(customerId);
+      const result = await service.createOrder(customerId, dto);
+
+      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
+        where: { id: customerId, isActive: true },
+        include: {
+          addresses: true,
+          cart: { include: { items: { include: { product: true } } } },
+        },
+      });
       expect(prismaMock.order.create).toHaveBeenCalledWith({
         data: {
           customerId: customer.id,
@@ -119,6 +144,36 @@ describe("OrdersService", () => {
       expect(prismaMock.cartItem.deleteMany).toHaveBeenCalledWith({
         where: { cartId: "cart-uuid" },
       });
+      expect(checkCustomerSpy).toHaveBeenCalled();
+      expect(checkItemsSpy).toHaveBeenCalled();
+      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+      expect(result).toEqual([{ ...createdOrder, subtotal: 80, total: 280 }]);
+    });
+
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer does not exist", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
+        message: "Cliente não inicializado",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
+    });
+
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(
+        buildCustomer([], { name: null }),
+      );
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
+        message: "Cliente não inicializado",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
     });
 
     it("should throw CART_EMPTY when the cart has no items", async () => {
@@ -246,12 +301,10 @@ describe("OrdersService", () => {
 
   describe("getOrders", () => {
     it("should return the orders with computed subtotal and total", async () => {
-      const findCustomerOrThrowSpy = jest.spyOn(
+      const findAndFormatOrdersSpy = jest.spyOn(
         service as any,
-        "findCustomerOrThrow",
+        "findAndFormatOrders",
       );
-      prismaMock.customer.findUnique.mockResolvedValue(buildCustomer([]));
-
       const order = {
         id: "order-uuid",
         orderNumber: 1000,
@@ -265,7 +318,7 @@ describe("OrdersService", () => {
 
       const result = await service.getOrders(customerId);
 
-      expect(findCustomerOrThrowSpy).toHaveBeenCalledWith(customerId);
+      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(prismaMock.order.findMany).toHaveBeenCalledWith({
         where: { customerId },
         include: { items: true },
@@ -274,21 +327,23 @@ describe("OrdersService", () => {
       expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
     });
 
-    it("should propagate CUSTOMER_NOT_FOUND from findCustomerOrThrow", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+    it("should not query the customer before returning the orders", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
 
-      await expect(service.getOrders(customerId)).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CUSTOMER_NOT_FOUND,
-      });
+      await service.getOrders(customerId);
 
-      expect(prismaMock.order.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
     });
   });
 
   describe("cancelOrder", () => {
     const dto = { orderId: "order-uuid" };
 
-    it("should cancel the order, restore stock and set the status to CANCELLED", async () => {
+    it("should cancel the order, restore stock, set the status to CANCELLED and return the orders", async () => {
+      const findAndFormatOrdersSpy = jest.spyOn(
+        service as any,
+        "findAndFormatOrders",
+      );
       const order = {
         id: "order-uuid",
         status: OrderStatus.PENDING,
@@ -298,8 +353,9 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.findFirst.mockResolvedValue(order);
+      prismaMock.order.findMany.mockResolvedValue([]);
 
-      await service.cancelOrder(customerId, dto);
+      const result = await service.cancelOrder(customerId, dto);
 
       expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
         where: { id: "order-uuid", customerId },
@@ -318,6 +374,13 @@ describe("OrdersService", () => {
         where: { id: "product-2" },
         data: { stock: { increment: 3 } },
       });
+      expect(prismaMock.order.findMany).toHaveBeenCalledWith({
+        where: { customerId },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+      expect(result).toEqual([]);
     });
 
     it("should cancel the order when its status is PREPARING", async () => {
@@ -326,6 +389,7 @@ describe("OrdersService", () => {
         status: OrderStatus.PREPARING,
         items: [],
       });
+      prismaMock.order.findMany.mockResolvedValue([]);
 
       await service.cancelOrder(customerId, dto);
 
@@ -369,65 +433,226 @@ describe("OrdersService", () => {
     });
   });
 
-  describe("findCustomerOrThrow", () => {
-    it("should query the customer with addresses and cart, and return it", async () => {
-      const customer = buildCustomer([]);
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+  describe("findAndFormatOrders (private)", () => {
+    it("should query the customer orders and compute subtotal and total", async () => {
+      const order = {
+        id: "order-uuid",
+        orderNumber: 1000,
+        deliveryFee: 200,
+        items: [
+          { price: 10, quantity: 2 },
+          { price: 20, quantity: 1 },
+        ],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
 
-      const result = await (service as any).findCustomerOrThrow(customerId);
+      const result = await (service as any).findAndFormatOrders(customerId);
 
-      expect(result).toEqual(customer);
-      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
-        where: { id: customerId, isActive: true },
-        include: {
-          addresses: true,
-          cart: { include: { items: { include: { product: true } } } },
+      expect(prismaMock.order.findMany).toHaveBeenCalledWith({
+        where: { customerId },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
+    });
+
+    it("should return an empty array when the customer has no orders", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      const result = await (service as any).findAndFormatOrders(customerId);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("checkIfCustomerIsAptToCreateOrder (private)", () => {
+    const buildItems = () => [
+      CartItemFactory.createOne({
+        product: ProductFactory.createOne({ stock: 20 }),
+        quantity: 1,
+      }),
+    ];
+
+    it("should resolve when the customer has a name, items and no ongoing order", async () => {
+      prismaMock.order.count.mockResolvedValue(0);
+
+      await expect(
+        (service as any).checkIfCustomerIsAptToCreateOrder(
+          buildCustomer(buildItems()),
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(prismaMock.order.count).toHaveBeenCalledWith({
+        where: {
+          customerId,
+          status: { notIn: [OrderStatus.CANCELLED, OrderStatus.DELIVERED] },
         },
       });
     });
 
-    it("should throw CUSTOMER_NOT_FOUND when the customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
-
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer is null", async () => {
       await expect(
-        (service as any).findCustomerOrThrow(customerId),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CUSTOMER_NOT_FOUND,
-        message: "Cliente não encontrado",
-        httpStatus: AppException.HttpStatus.NOT_FOUND,
-      });
-    });
-
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", async () => {
-      const customer = CustomerFactory.createOne({
-        id: customerId,
-        name: null,
-        addresses: [AddressFactory.createOne({ customerId })],
-      });
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
-
-      await expect(
-        (service as any).findCustomerOrThrow(customerId),
+        (service as any).checkIfCustomerIsAptToCreateOrder(null),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
         message: "Cliente não inicializado",
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
+
+      expect(prismaMock.order.count).not.toHaveBeenCalled();
     });
 
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no addresses", async () => {
-      const customer = CustomerFactory.createOne({
-        id: customerId,
-        name: "João da Silva",
-        addresses: [],
-      });
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
-
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", async () => {
       await expect(
-        (service as any).findCustomerOrThrow(customerId),
+        (service as any).checkIfCustomerIsAptToCreateOrder(
+          buildCustomer(buildItems(), { name: null }),
+        ),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
       });
+
+      expect(prismaMock.order.count).not.toHaveBeenCalled();
+    });
+
+    it("should throw CART_EMPTY when the cart has no items", async () => {
+      await expect(
+        (service as any).checkIfCustomerIsAptToCreateOrder(buildCustomer([])),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.CART_EMPTY,
+        message: "O carrinho está vazio",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.count).not.toHaveBeenCalled();
+    });
+
+    it("should throw ONGOING_ORDER when there is an ongoing order", async () => {
+      prismaMock.order.count.mockResolvedValue(1);
+
+      await expect(
+        (service as any).checkIfCustomerIsAptToCreateOrder(
+          buildCustomer(buildItems()),
+        ),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ONGOING_ORDER,
+        message: "Você já tem um pedido em andamento.",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+  });
+
+  describe("checkIfThereAreInvalidItemsInCart (private)", () => {
+    it("should not throw when every item is active and within stock", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ stock: 20, isActive: true }),
+          quantity: 2,
+        }),
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ stock: 50, isActive: true }),
+          quantity: 5,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).not.toThrow();
+    });
+
+    it("should throw PRODUCT_INACTIVE when a product is inactive", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            name: "Cerveja",
+            stock: 20,
+            isActive: false,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.PRODUCT_INACTIVE,
+          message:
+            "Cerveja não está mais disponível. Remova o produto para finalizar o pedido.",
+        }),
+      );
+    });
+
+    it("should throw PRODUCTS_OUT_OF_STOCK when a product is out of stock", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ name: "Cerveja", stock: 0 }),
+          quantity: 1,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
+          message:
+            "Cerveja está sem estoque no momento. Remova o produto para finalizar o pedido.",
+        }),
+      );
+    });
+
+    it("should throw the plural low-stock message when stock is 10 or less", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ name: "Cerveja", stock: 5 }),
+          quantity: 6,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).toThrow(
+        expect.objectContaining({
+          message:
+            "Cerveja tem apenas 5 unidades restantes. Reduza a quantidade para finalizar o pedido.",
+        }),
+      );
+    });
+
+    it("should throw the singular low-stock message when only one unit remains", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ name: "Cerveja", stock: 1 }),
+          quantity: 2,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).toThrow(
+        expect.objectContaining({
+          message:
+            "Cerveja tem apenas 1 unidade restante. Reduza a quantidade para finalizar o pedido.",
+        }),
+      );
+    });
+
+    it("should throw the insufficient-stock message when stock is above 10 but quantity exceeds it", () => {
+      const items = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ name: "Cerveja", stock: 11 }),
+          quantity: 12,
+        }),
+      ];
+
+      expect(() =>
+        (service as any).checkIfThereAreInvalidItemsInCart(items),
+      ).toThrow(
+        expect.objectContaining({
+          message:
+            "Cerveja não tem estoque suficiente para a quantidade solicitada. Reduza a quantidade para finalizar o pedido.",
+        }),
+      );
     });
   });
 });
