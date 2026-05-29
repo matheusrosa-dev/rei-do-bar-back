@@ -6,6 +6,9 @@ export class OrdersDto {
   id!: string;
 
   @Expose()
+  orderNumber!: number;
+
+  @Expose()
   address!: string;
 
   @Expose()

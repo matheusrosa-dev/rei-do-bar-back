@@ -254,6 +254,7 @@ describe("OrdersService", () => {
 
       const order = {
         id: "order-uuid",
+        orderNumber: 1000,
         deliveryFee: 200,
         items: [
           { price: 10, quantity: 2 },

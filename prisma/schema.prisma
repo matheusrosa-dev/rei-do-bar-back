@@ -145,8 +145,8 @@ model Product {
 
 model Order {
   id           String      @id @default(uuid())
+  orderNumber  Int         @unique @default(autoincrement()) @map("order_number")
   customerId   String      @map("customer_id")
-  // TODO: adicionar um outro ID mais legivel para o cliente (orderNumber)
   // delivererId  String?     @map("deliverer_id")
   address      String
   status       OrderStatus

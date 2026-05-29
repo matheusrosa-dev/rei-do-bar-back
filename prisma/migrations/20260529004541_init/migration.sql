@@ -121,6 +121,7 @@ CREATE TABLE "products" (
 -- CreateTable
 CREATE TABLE "orders" (
     "id" TEXT NOT NULL,
+    "order_number" SERIAL NOT NULL,
     "customer_id" TEXT NOT NULL,
     "address" TEXT NOT NULL,
     "status" "OrderStatus" NOT NULL,
@@ -132,6 +133,9 @@ CREATE TABLE "orders" (
 
     CONSTRAINT "orders_pkey" PRIMARY KEY ("id")
 );
+
+-- Inicia a numeração de pedidos em 1000
+ALTER SEQUENCE "orders_order_number_seq" RESTART WITH 1000;
 
 -- CreateTable
 CREATE TABLE "order_items" (
@@ -182,6 +186,9 @@ CREATE UNIQUE INDEX "cart_items_cart_id_product_id_key" ON "cart_items"("cart_id
 
 -- CreateIndex
 CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "orders_order_number_key" ON "orders"("order_number");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");

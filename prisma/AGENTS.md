@@ -40,11 +40,13 @@ datasource db {
 | `CartItem` | `cart_items` | Junction of `Cart` and `Product`. Unique constraint on `[cartId, productId]`. Has `quantity` |
 | `Category` | `categories` | Has `name` (unique), `pluralName`, `isActive` |
 | `Product` | `products` | Has `price` (Int, cents), `stock`, `sortOrder?` (for best-sellers ordering), `isActive` |
+| `Order` | `orders` | Customer order. Has `orderNumber` — a human-friendly sequential Int (unique, backed by a Postgres sequence that starts at 1000) kept alongside the uuid `id`. Also `address` snapshot, `status` (`OrderStatus` enum), `deliveryFee`, `paymentType` (`PaymentType` enum). One customer has many orders |
+| `OrderItem` | `order_items` | Junction of `Order` and `Product`. Snapshots `name`, `imageUrl`, `price`, `quantity` at purchase time. Unique constraint on `[orderId, productId]` |
 | `Setting` | `settings` | Key-value store. Current key: `DELIVERY_FEE` (value stored as string, in cents) |
 
 ### Commented-Out Models (planned, not implemented)
 
-`Deliverer`, `DelivererToken`, `Order`, `OrderItem` are commented out in the schema. The `OrderStatus` enum exists but is unused. Do not implement these until the feature is prioritized.
+`Deliverer` and `DelivererToken` are commented out in the schema. Do not implement these until the feature is prioritized.
 
 ---
 
