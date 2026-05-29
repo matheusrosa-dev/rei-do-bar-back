@@ -44,6 +44,7 @@ export class AppException extends HttpException {
       CUSTOMER_NOT_FOUND: "ORDER_001",
       CUSTOMER_NOT_INITIALIZED: "ORDER_002",
       CART_EMPTY: "ORDER_003",
+      ONGOING_ORDER: "ORDER_004",
       PRODUCTS_OUT_OF_STOCK: "ORDER_005",
     },
   };

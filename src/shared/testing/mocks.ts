@@ -10,9 +10,18 @@ export const prismaMock = {
   product: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    update: jest.fn(),
   },
   cart: {
     update: jest.fn(),
+  },
+  cartItem: {
+    deleteMany: jest.fn(),
+  },
+  order: {
+    count: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
   },
   setting: {
     findUnique: jest.fn(),
