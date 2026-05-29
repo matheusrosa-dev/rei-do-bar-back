@@ -38,6 +38,6 @@ export class OrdersController {
     @CurrentSession() session: ICurrentSession,
     @Param() dto: CancelOrderDto,
   ) {
-    await this.ordersService.cancelOrder(session.customerId!, dto);
+    return this.ordersService.cancelOrder(session.customerId!, dto);
   }
 }
