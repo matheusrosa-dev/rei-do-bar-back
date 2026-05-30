@@ -263,14 +263,14 @@ export class OrdersService {
 
         throw new AppException(
           AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
-          `${productName} tem apenas ${productStock} ${unity} ${remainingText}. Reduza a quantidade para finalizar o pedido.`,
+          `${productName} tem apenas ${productStock} ${unity} ${remainingText}.`,
           AppException.HttpStatus.BAD_REQUEST,
         );
       }
 
       throw new AppException(
         AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
-        `${productName} não tem estoque suficiente para a quantidade solicitada. Reduza a quantidade para finalizar o pedido.`,
+        `${productName} não tem estoque suficiente para a quantidade solicitada.`,
         AppException.HttpStatus.BAD_REQUEST,
       );
     }

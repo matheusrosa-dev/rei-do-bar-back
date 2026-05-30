@@ -10,5 +10,3 @@ corrigir order by no cart
 
 limitar para que nao seja possivel pedir mais que 20 unidades do mesmo pedido
 no sistema admin deve ser possivel definir a quantidade maxima do item por carrinho
-
-deve ser possivel cancelar pedido

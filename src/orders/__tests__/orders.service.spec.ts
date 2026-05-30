@@ -263,8 +263,7 @@ describe("OrdersService", () => {
           service.createOrder(customerId, dto),
         ).rejects.toMatchObject({
           code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
-          message:
-            "Cerveja tem apenas 5 unidades restantes. Reduza a quantidade para finalizar o pedido.",
+          message: "Cerveja tem apenas 5 unidades restantes.",
         });
       });
 
@@ -276,8 +275,7 @@ describe("OrdersService", () => {
         await expect(
           service.createOrder(customerId, dto),
         ).rejects.toMatchObject({
-          message:
-            "Cerveja tem apenas 1 unidade restante. Reduza a quantidade para finalizar o pedido.",
+          message: "Cerveja tem apenas 1 unidade restante.",
         });
       });
 
@@ -293,7 +291,7 @@ describe("OrdersService", () => {
           service.createOrder(customerId, dto),
         ).rejects.toMatchObject({
           message:
-            "Cerveja não tem estoque suficiente para a quantidade solicitada. Reduza a quantidade para finalizar o pedido.",
+            "Cerveja não tem estoque suficiente para a quantidade solicitada.",
         });
       });
     });
@@ -613,8 +611,7 @@ describe("OrdersService", () => {
         (service as any).checkIfThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
-          message:
-            "Cerveja tem apenas 5 unidades restantes. Reduza a quantidade para finalizar o pedido.",
+          message: "Cerveja tem apenas 5 unidades restantes.",
         }),
       );
     });
@@ -631,8 +628,7 @@ describe("OrdersService", () => {
         (service as any).checkIfThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
-          message:
-            "Cerveja tem apenas 1 unidade restante. Reduza a quantidade para finalizar o pedido.",
+          message: "Cerveja tem apenas 1 unidade restante.",
         }),
       );
     });
@@ -650,7 +646,7 @@ describe("OrdersService", () => {
       ).toThrow(
         expect.objectContaining({
           message:
-            "Cerveja não tem estoque suficiente para a quantidade solicitada. Reduza a quantidade para finalizar o pedido.",
+            "Cerveja não tem estoque suficiente para a quantidade solicitada.",
         }),
       );
     });
