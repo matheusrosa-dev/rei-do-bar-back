@@ -1,12 +1,14 @@
-adicionar transactions onde for necessario
-adicionar meio de contato do suporte no app
+Baixa prioridade:
 criar cron que vai limpar os otp codes expirados
-remover seed de produtos ou fazer com que rode apenas em dev
+adicionar meio de contato do suporte no app
 adicionar basic auth na aplicação
 substituir include por selects
 futuramente adicionar opção para alterar número do usuario
 
-corrigir order by no cart
+Em produção:
+remover seed de produtos ou fazer com que rode apenas em dev
 
-limitar para que nao seja possivel pedir mais que 20 unidades do mesmo pedido
+Importante:
+corrigir order by no cart
 no sistema admin deve ser possivel definir a quantidade maxima do item por carrinho
+adicionar valor mínimo de pedido

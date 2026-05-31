@@ -245,8 +245,7 @@ describe("MeService", () => {
 
       await expect(service.addAddress(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
-        message:
-          "Limite de endereços atingido. Remova um endereço existente para cadastrar um novo.",
+        message: "Limite de endereços atingido.",
       });
     });
 
@@ -335,15 +334,15 @@ describe("MeService", () => {
       expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
-    it("should throw CANNOT_REMOVE_MAIN_ADDRESS when trying to remove the main address", async () => {
-      const mainAddress = AddressFactory.createOne({
+    it("should throw CANNOT_REMOVE_MAIN_ADDRESS when customer has only one address", async () => {
+      const address = AddressFactory.createOne({
         customerId,
         id: addressId,
         isMain: true,
       });
       const customer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [mainAddress],
+        addresses: [address],
       });
 
       prismaMock.customer.findUnique.mockResolvedValue(customer);
@@ -352,14 +351,13 @@ describe("MeService", () => {
         service.removeAddress(customerId, dto),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.me.CANNOT_REMOVE_MAIN_ADDRESS,
-        message:
-          "Não é permitido remover o endereço principal. Defina outro endereço como principal antes de remover este.",
+        message: "Não é possível remover o único endereço cadastrado.",
       });
 
       expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
-    it("should remove address and return remaining addresses", async () => {
+    it("should remove a non-main address and return remaining addresses", async () => {
       const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
 
       const addressToRemove = AddressFactory.createOne({
@@ -370,6 +368,7 @@ describe("MeService", () => {
       const remainingAddress = AddressFactory.createOne({
         customerId,
         id: "other-address",
+        isMain: true,
       });
       const customer = CustomerFactory.createOne({
         id: customerId,
@@ -382,7 +381,6 @@ describe("MeService", () => {
 
       prismaMock.customer.findUnique.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
-      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.removeAddress(customerId, dto);
 
@@ -391,6 +389,51 @@ describe("MeService", () => {
         expect.objectContaining({
           where: { id: customerId },
           data: { addresses: { delete: { id: addressId } } },
+        }),
+      );
+      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+    });
+
+    it("should remove the main address and promote the next address to main", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
+      const addressToRemove = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        isMain: true,
+      });
+      const nextAddress = AddressFactory.createOne({
+        customerId,
+        id: "other-address",
+        isMain: false,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [addressToRemove, nextAddress],
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [{ ...nextAddress, isMain: true }],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      const result = await service.removeAddress(customerId, dto);
+
+      expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: customerId },
+          data: {
+            addresses: {
+              delete: { id: addressId },
+              update: {
+                where: { id: nextAddress.id },
+                data: { isMain: true },
+              },
+            },
+          },
         }),
       );
       expect(result).toEqual({ addresses: updatedCustomer.addresses });

@@ -58,7 +58,7 @@ export class MeService {
     if (existingAddress) {
       throw new AppException(
         AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
-        "Endereço já cadastrado. Remova o endereço existente para cadastrar um novo com os mesmos dados.",
+        "Endereço já cadastrado.",
         AppException.HttpStatus.CONFLICT,
       );
     }
@@ -66,7 +66,7 @@ export class MeService {
     if (me?.addresses.length === 3) {
       throw new AppException(
         AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
-        "Limite de endereços atingido. Remova um endereço existente para cadastrar um novo.",
+        "Limite de endereços atingido.",
         AppException.HttpStatus.CONFLICT,
       );
     }
@@ -116,7 +116,7 @@ export class MeService {
       (address) => address.id === dto.addressId,
     );
 
-    if (!addressToRemove) {
+    if (!me?.addresses || !addressToRemove) {
       throw new AppException(
         AppException.errorCodes.me.ADDRESS_NOT_FOUND,
         "Endereço não encontrado",
@@ -124,13 +124,17 @@ export class MeService {
       );
     }
 
-    if (addressToRemove.isMain) {
+    if (me.addresses.length === 1) {
       throw new AppException(
         AppException.errorCodes.me.CANNOT_REMOVE_MAIN_ADDRESS,
-        "Não é permitido remover o endereço principal. Defina outro endereço como principal antes de remover este.",
+        "Não é possível remover o único endereço cadastrado.",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
+
+    const nextAddress = me.addresses.find(
+      (address) => address.id !== addressToRemove.id,
+    )!;
 
     const customer = await this.prisma.customer.update({
       where: { id: customerId },
@@ -139,6 +143,17 @@ export class MeService {
           delete: {
             id: dto.addressId,
           },
+          // Promove o próximo endereço para principal se o removido era o principal
+          ...(addressToRemove.isMain && {
+            update: {
+              where: {
+                id: nextAddress.id,
+              },
+              data: {
+                isMain: true,
+              },
+            },
+          }),
         },
       },
       include: {
