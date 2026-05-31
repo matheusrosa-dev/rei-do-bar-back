@@ -9,6 +9,7 @@ Em produção:
 remover seed de produtos ou fazer com que rode apenas em dev
 
 Importante:
+adicionar paginação no histórico de pedidos e evitar recarregar o histórico completo ao criar/cancelar pedido
 corrigir order by no cart
 no sistema admin deve ser possivel definir a quantidade maxima do item por carrinho
 adicionar valor mínimo de pedido

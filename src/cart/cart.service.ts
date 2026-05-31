@@ -1,17 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
-import {
-  CartItem,
-  Product,
-  SettingKey,
-} from "@shared/database/prisma/generated/client";
+import { CartItem, Product } from "@shared/database/prisma/generated/client";
+import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
 
   async getCart(session: ICurrentSession) {
     const customerOrAnonymous =
@@ -330,11 +330,7 @@ export class CartService {
       }
     >,
   ) {
-    const stringfiedDeliveryFee = await this.prisma.setting.findUnique({
-      where: { key: SettingKey.DELIVERY_FEE },
-    });
-
-    let deliveryFee = Number(stringfiedDeliveryFee!.value);
+    let deliveryFee = await this.settingsService.getDeliveryFee();
 
     if (!cartItems.length) {
       deliveryFee = 0;
