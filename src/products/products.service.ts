@@ -28,6 +28,14 @@ export class ProductsService {
                       mode: "insensitive",
                     },
                   },
+                  {
+                    category: {
+                      name: {
+                        contains: dto.searchTerm,
+                        mode: "insensitive",
+                      },
+                    },
+                  },
                 ],
               }
             : {}),

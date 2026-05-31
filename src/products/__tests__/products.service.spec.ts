@@ -207,7 +207,7 @@ describe("ProductsService", () => {
       });
 
       describe("searchTerm filtering", () => {
-        it("should filter by name and description when searchTerm is provided", async () => {
+        it("should filter by name, description, and category name when searchTerm is provided", async () => {
           prismaMock.product.findMany.mockResolvedValue([]);
           mockWithCart(customerWithEmptyCart);
 
@@ -219,6 +219,11 @@ describe("ProductsService", () => {
                 OR: [
                   { name: { contains: "burger", mode: "insensitive" } },
                   { description: { contains: "burger", mode: "insensitive" } },
+                  {
+                    category: {
+                      name: { contains: "burger", mode: "insensitive" },
+                    },
+                  },
                 ],
               }),
             }),
