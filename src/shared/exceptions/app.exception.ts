@@ -52,6 +52,9 @@ export class AppException extends HttpException {
       ORDER_NOT_FOUND: "ORDER_007",
       ORDER_NOT_CANCELLABLE: "ORDER_008",
     },
+    products: {
+      INVALID_SESSION: "PRODUCTS_001",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

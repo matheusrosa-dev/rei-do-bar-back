@@ -2,7 +2,7 @@
 
 ## What belongs here
 
-Product catalog queries for client-facing endpoints. Currently only the best-sellers listing with optional category filtering and cart-aware stock enrichment.
+Product catalog queries for client-facing endpoints. Currently only the best-sellers listing with optional category/search filtering and cart-aware stock enrichment.
 
 ## What does NOT belong here
 
@@ -14,9 +14,9 @@ Product catalog queries for client-facing endpoints. Currently only the best-sel
 
 ## Current Endpoints
 
-`GET /products/best-sellers?category=<name>`
+`GET /products/best-sellers?category=<name>&searchTerm=<term>`
 
-Returns products with `sortOrder IS NOT NULL` (all best-sellers) or filtered by `category.name`. Each product is enriched with:
+Both query params are optional and validated via `FindBestSellersDto`. Returns products enriched with:
 - `quantityInCart` — how many units are in the current session's cart (0 if not in cart)
 - `remainingStock` — `null` if stock > 10, otherwise the actual stock count (low-stock indicator)
 
@@ -46,15 +46,27 @@ const quantityInCart = this.calculateQuantityInCart(
 
 ---
 
-## Filtering by Category
+## Filtering
 
-When `category` query param is present, the query filters by `category.name` (relational filter). When absent, it filters by `sortOrder: { not: null }` — meaning only products explicitly marked as best-sellers (with a `sortOrder`) are returned.
+The service computes `hasFilter = !!(category || searchTerm)`. When no filter is active, the query adds `sortOrder: { not: null }` — returning only products explicitly marked as best-sellers. When any filter is present, that constraint is dropped and all active products matching the filter are returned.
 
-`sortOrder` is an `Int?` on the `Product` model — the lower the value, the earlier the product appears (`orderBy: { sortOrder: "asc" }`).
+| Param | Prisma clause |
+|---|---|
+| `category` | `{ category: { name: value } }` (relational filter) |
+| `searchTerm` | `{ OR: [{ name: { contains, insensitive } }, { description: { contains, insensitive } }] }` |
+
+`sortOrder` is an `Int?` on the `Product` model — the lower the value, the earlier the product appears (`orderBy: { sortOrder: "asc" }`). The `orderBy` is applied regardless of whether `sortOrder: { not: null }` is in the `where`.
 
 ---
 
 ## DTOs
+
+`FindBestSellersDto` (query params — validated with class-validator):
+
+| Field | Notes |
+|---|---|
+| `category` | Optional. Filters by `category.name`. |
+| `searchTerm` | Optional. Case-insensitive OR search on `name` and `description`. |
 
 `ProductsDto` (applied via `@Serialize(ProductsDto)` on the controller class):
 
@@ -63,3 +75,11 @@ When `category` query param is present, the query filters by `category.name` (re
 | `id`, `name`, `description`, `price`, `imageUrl` | Direct from DB |
 | `quantityInCart` | Computed in service |
 | `remainingStock` | `null` or actual stock ≤ 10 |
+
+---
+
+## Error Codes
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `products.INVALID_SESSION` | `PRODUCTS_001` | 500 | Session has neither or both `deviceId`/`customerId` — should never happen if guards are configured correctly |

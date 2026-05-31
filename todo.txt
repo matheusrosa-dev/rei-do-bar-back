@@ -1,6 +1,5 @@
 Baixa prioridade:
 criar cron que vai limpar os otp codes expirados
-adicionar meio de contato do suporte no app
 adicionar basic auth na aplicação
 substituir include por selects
 futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
@@ -12,5 +11,5 @@ remover seed de produtos ou fazer com que rode apenas em dev
 Importante:
 adicionar paginação no histórico de pedidos e evitar recarregar o histórico completo ao criar/cancelar pedido
 corrigir order by no cart
-no sistema admin deve ser possivel definir a quantidade maxima do item por carrinho
 adicionar valor mínimo de pedido
+adicionar meio de contato do suporte no app

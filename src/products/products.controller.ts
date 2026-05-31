@@ -2,7 +2,7 @@ import { Controller, Get, Query } from "@nestjs/common";
 import { ProductsService } from "./products.service";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
-import { ProductsDto } from "./dtos";
+import { FindBestSellersDto, ProductsDto } from "./dtos";
 import type { ICurrentSession } from "@shared/types/jwt";
 
 @Controller("products")
@@ -13,8 +13,8 @@ export class ProductsController {
   @Get("best-sellers")
   findBestSellers(
     @CurrentSession() session: ICurrentSession,
-    @Query("category") category?: string,
+    @Query() dto: FindBestSellersDto,
   ) {
-    return this.productsService.findBestSellers(session, category);
+    return this.productsService.findBestSellers(session, dto);
   }
 }

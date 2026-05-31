@@ -2,6 +2,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
 import {
   AnonymousCustomerFactory,
@@ -178,7 +179,7 @@ describe("ProductsService", () => {
           prismaMock.product.findMany.mockResolvedValue([]);
           mockWithCart(customerWithEmptyCart);
 
-          await service.findBestSellers(session, "Bebidas");
+          await service.findBestSellers(session, { category: "Bebidas" });
 
           expect(prismaMock.product.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -205,8 +206,41 @@ describe("ProductsService", () => {
         });
       });
 
+      describe("searchTerm filtering", () => {
+        it("should filter by name and description when searchTerm is provided", async () => {
+          prismaMock.product.findMany.mockResolvedValue([]);
+          mockWithCart(customerWithEmptyCart);
+
+          await service.findBestSellers(session, { searchTerm: "burger" });
+
+          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: expect.objectContaining({
+                OR: [
+                  { name: { contains: "burger", mode: "insensitive" } },
+                  { description: { contains: "burger", mode: "insensitive" } },
+                ],
+              }),
+            }),
+          );
+        });
+
+        it("should not include OR clause when searchTerm is not provided", async () => {
+          prismaMock.product.findMany.mockResolvedValue([]);
+          mockWithCart(customerWithEmptyCart);
+
+          await service.findBestSellers(session);
+
+          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: expect.not.objectContaining({ OR: expect.anything() }),
+            }),
+          );
+        });
+      });
+
       describe("sortOrder filtering", () => {
-        it("should filter products with sortOrder not null when category is not provided", async () => {
+        it("should filter products with sortOrder not null when no filter is provided", async () => {
           prismaMock.product.findMany.mockResolvedValue([]);
           mockWithCart(customerWithEmptyCart);
 
@@ -225,7 +259,22 @@ describe("ProductsService", () => {
           prismaMock.product.findMany.mockResolvedValue([]);
           mockWithCart(customerWithEmptyCart);
 
-          await service.findBestSellers(session, "Bebidas");
+          await service.findBestSellers(session, { category: "Bebidas" });
+
+          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: expect.not.objectContaining({
+                sortOrder: { not: null },
+              }),
+            }),
+          );
+        });
+
+        it("should not filter products by sortOrder when searchTerm is provided", async () => {
+          prismaMock.product.findMany.mockResolvedValue([]);
+          mockWithCart(customerWithEmptyCart);
+
+          await service.findBestSellers(session, { searchTerm: "burger" });
 
           expect(prismaMock.product.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -250,7 +299,7 @@ describe("ProductsService", () => {
         );
       });
 
-      it("should query only active non-deleted products", async () => {
+      it("should query only active products", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
         mockWithCart(null);
 
@@ -258,10 +307,9 @@ describe("ProductsService", () => {
 
         expect(prismaMock.product.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: {
+            where: expect.objectContaining({
               isActive: true,
-              sortOrder: { not: null },
-            },
+            }),
           }),
         );
       });
@@ -319,15 +367,15 @@ describe("ProductsService", () => {
       );
     });
 
-    it("should throw an error when session does not have deviceId or customerId", () => {
+    it("should throw AppException when session does not have deviceId or customerId", () => {
       const invalidSession = {};
 
       expect(() =>
         (service as any).findAnonymousOrCustomerWithCart(invalidSession),
-      ).toThrow("Session must have either deviceId or customerId");
+      ).toThrow(AppException);
     });
 
-    it("should throw an error when session has both deviceId and customerId", () => {
+    it("should throw AppException when session has both deviceId and customerId", () => {
       const invalidSession = {
         deviceId: "device-123",
         customerId: "customer-123",
@@ -335,7 +383,7 @@ describe("ProductsService", () => {
 
       expect(() =>
         (service as any).findAnonymousOrCustomerWithCart(invalidSession),
-      ).toThrow("Session must have either deviceId or customerId");
+      ).toThrow(AppException);
     });
   });
 

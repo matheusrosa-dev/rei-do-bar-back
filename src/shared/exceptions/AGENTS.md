@@ -44,7 +44,6 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `PRODUCT_OUT_OF_STOCK` | `CART_006` | 400 |
 | `CUSTOMER_NOT_FOUND` | `CART_007` | 400 |
 | `PRODUCT_INACTIVE` | `CART_008` | 400 |
-| `CUSTOMER_NOT_FOUND` | `CART_007` | 400 |
 
 ### `auth`
 
@@ -81,6 +80,12 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `PRODUCT_INACTIVE` | `ORDER_006` | 400 |
 | `ORDER_NOT_FOUND` | `ORDER_007` | 404 |
 | `ORDER_NOT_CANCELLABLE` | `ORDER_008` | 400 |
+
+### `products`
+
+| Constant | Code | HTTP |
+|---|---|---|
+| `INVALID_SESSION` | `PRODUCTS_001` | 500 |
 
 ---
 

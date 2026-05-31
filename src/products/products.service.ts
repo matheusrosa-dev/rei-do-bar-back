@@ -1,26 +1,36 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { AppException } from "@shared/exceptions/app.exception";
 import type { ICurrentSession } from "@shared/types/jwt";
+import { FindBestSellersDto } from "./dtos";
 
 @Injectable()
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findBestSellers(session: ICurrentSession, category?: string) {
+  async findBestSellers(session: ICurrentSession, dto?: FindBestSellersDto) {
+    const hasFilter = !!(dto?.category || dto?.searchTerm);
+
     const [bestSellers, customerOrAnonymous] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           isActive: true,
-          ...(category
+          ...(!hasFilter ? { sortOrder: { not: null } } : {}),
+          ...(dto?.category ? { category: { name: dto.category } } : {}),
+          ...(dto?.searchTerm
             ? {
-                category: { name: category },
+                OR: [
+                  { name: { contains: dto.searchTerm, mode: "insensitive" } },
+                  {
+                    description: {
+                      contains: dto.searchTerm,
+                      mode: "insensitive",
+                    },
+                  },
+                ],
               }
-            : {
-                sortOrder: {
-                  not: null,
-                },
-              }),
+            : {}),
         },
         select: {
           id: true,
@@ -65,7 +75,11 @@ export class ProductsService {
       (!session?.deviceId && !session?.customerId) ||
       (session?.deviceId && session?.customerId)
     ) {
-      throw new Error("Session must have either deviceId or customerId");
+      throw new AppException(
+        AppException.errorCodes.products.INVALID_SESSION,
+        "Sessão inválida",
+        AppException.HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
 
     if (session?.deviceId) {
