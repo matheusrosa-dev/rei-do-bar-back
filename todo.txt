@@ -3,6 +3,7 @@ criar cron que vai limpar os otp codes expirados
 adicionar meio de contato do suporte no app
 adicionar basic auth na aplicação
 substituir include por selects
+futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
 futuramente adicionar opção para alterar número do usuario
 
 Em produção:

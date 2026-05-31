@@ -2,8 +2,9 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CartService } from "../cart.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
-import { prismaMock } from "@shared/testing/mocks";
+import { prismaMock, settingsServiceMock } from "@shared/testing/mocks";
 import {
   CartFactory,
   CartItemFactory,
@@ -23,6 +24,7 @@ describe("CartService", () => {
       providers: [
         CartService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: SettingsService, useValue: settingsServiceMock },
       ],
     }).compile();
 
@@ -76,7 +78,7 @@ describe("CartService", () => {
 
   describe("formatCart", () => {
     beforeEach(() => {
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
+      settingsServiceMock.getDeliveryFee.mockResolvedValue(200);
     });
 
     it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
@@ -417,7 +419,7 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 1 }),
         ]);
-        prismaMock.setting.findUnique.mockResolvedValue({ value: "0" });
+        settingsServiceMock.getDeliveryFee.mockResolvedValue(0);
         prismaMock.cart.update.mockResolvedValue({ items: [] });
 
         await service.incrementProductQuantity(session, {
@@ -497,7 +499,7 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 11 }),
         ]);
-        prismaMock.setting.findUnique.mockResolvedValue({ value: "0" });
+        settingsServiceMock.getDeliveryFee.mockResolvedValue(0);
         prismaMock.cart.update.mockResolvedValue({ items: [] });
 
         await service.incrementProductQuantity(session, {

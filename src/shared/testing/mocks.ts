@@ -72,3 +72,7 @@ export const categoriesServiceMock = {
 export const productsServiceMock = {
   findBestSellers: jest.fn(),
 };
+
+export const settingsServiceMock = {
+  getDeliveryFee: jest.fn(),
+};
