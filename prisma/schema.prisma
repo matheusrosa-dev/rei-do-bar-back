@@ -48,6 +48,7 @@ model RefreshToken {
 
   customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([customerId])
   @@map("refresh_tokens")
 }
 
@@ -61,6 +62,7 @@ model OtpCode {
 
   anonymousCustomer   AnonymousCustomer  @relation(fields: [anonymousCustomerId], references: [id], onDelete: Cascade)
 
+  @@index([anonymousCustomerId])
   @@map("otp_codes")
 }
 
@@ -78,6 +80,7 @@ model Address {
 
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@index([customerId])
   @@map("addresses")
 }
 
@@ -140,6 +143,7 @@ model Product {
   cartItems   CartItem[]
   orderItems  OrderItem[]
 
+  @@index([categoryId])
   @@map("products")
 }
 
@@ -161,6 +165,7 @@ model Order {
   // deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
   items        OrderItem[]
 
+  @@index([customerId])
   @@map("orders")
 }
 
