@@ -3,9 +3,7 @@ import {
   Controller,
   Delete,
   Get,
-  Param,
   Patch,
-  Post,
   Put,
   UseGuards,
 } from "@nestjs/common";
@@ -13,14 +11,7 @@ import { MeService } from "./me.service";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import type { ICurrentSession } from "@shared/types/jwt";
 import { AccessTokenGuard } from "@shared/guards/access-token.guard";
-import {
-  AddAddressDto,
-  InitMeDto,
-  MeDto,
-  RemoveAddressDto,
-  SetMainAddressDto,
-  UpdateMeDto,
-} from "./dtos";
+import { InitMeDto, MeDto, UpdateMeDto } from "./dtos";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 
 @Controller("me")
@@ -45,30 +36,6 @@ export class MeController {
   @Put("init")
   initMe(@CurrentSession() session: ICurrentSession, @Body() dto: InitMeDto) {
     return this.meService.initMe(session.customerId!, dto);
-  }
-
-  @Post("address")
-  addAddress(
-    @CurrentSession() session: ICurrentSession,
-    @Body() dto: AddAddressDto,
-  ) {
-    return this.meService.addAddress(session.customerId!, dto);
-  }
-
-  @Put("address/:addressId/main")
-  setMainAddress(
-    @CurrentSession() session: ICurrentSession,
-    @Param() dto: SetMainAddressDto,
-  ) {
-    return this.meService.setMainAddress(session.customerId!, dto);
-  }
-
-  @Delete("address/:addressId")
-  removeAddress(
-    @CurrentSession() session: ICurrentSession,
-    @Param() dto: RemoveAddressDto,
-  ) {
-    return this.meService.removeAddress(session.customerId!, dto);
   }
 
   @Delete()

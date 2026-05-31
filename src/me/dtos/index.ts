@@ -4,3 +4,4 @@ export { AddAddressDto } from "./add-address.dto";
 export { RemoveAddressDto } from "./remove-address.dto";
 export { InitMeDto } from "./init-me.dto";
 export { SetMainAddressDto } from "./set-main-address.dto";
+export { UpdateAddressDto } from "./update-address.dto";

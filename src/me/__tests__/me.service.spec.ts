@@ -410,6 +410,167 @@ describe("MeService", () => {
     });
   });
 
+  describe("updateAddress", () => {
+    const addressId = "address-uuid";
+    const dto = {
+      zipCode: "87654321",
+      neighborhood: "Bairro Novo",
+      number: "456",
+      street: "Rua Nova",
+      complement: "Apto 1",
+    };
+
+    it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateAddress(customerId, addressId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
+      });
+    });
+
+    it("should throw ADDRESS_NOT_FOUND when address is not in customer's list", async () => {
+      const otherAddress = AddressFactory.createOne({
+        customerId,
+        id: "other-address",
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [otherAddress],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(
+        service.updateAddress(customerId, "non-existent", dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.ADDRESS_NOT_FOUND,
+      });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw ADDRESS_ALREADY_EXISTS when another address with same zipCode and number exists", async () => {
+      const addressToUpdate = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        zipCode: "11111111",
+        number: "100",
+      });
+      const conflictingAddress = AddressFactory.createOne({
+        customerId,
+        id: "other-address",
+        zipCode: dto.zipCode,
+        number: dto.number,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [addressToUpdate, conflictingAddress],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(
+        service.updateAddress(customerId, addressId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
+      });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
+    it("should update address with all provided fields and return addresses", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
+      const addressToUpdate = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        zipCode: "11111111",
+        number: "100",
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [addressToUpdate],
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [{ ...addressToUpdate, ...dto }],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      const result = await service.updateAddress(customerId, addressId, dto);
+
+      expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: customerId },
+          data: {
+            addresses: {
+              update: {
+                where: { id: addressId },
+                data: {
+                  zipCode: dto.zipCode,
+                  neighborhood: dto.neighborhood,
+                  number: dto.number,
+                  street: dto.street,
+                  complement: dto.complement,
+                },
+              },
+            },
+          },
+          include: { addresses: true },
+        }),
+      );
+      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+    });
+
+    it("should set complement to null when not provided", async () => {
+      const dtoWithoutComplement = {
+        zipCode: "87654321",
+        neighborhood: "Bairro Novo",
+        number: "456",
+        street: "Rua Nova",
+      };
+
+      const addressToUpdate = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        complement: "Apto 10",
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [addressToUpdate],
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [
+          { ...addressToUpdate, ...dtoWithoutComplement, complement: null },
+        ],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      await service.updateAddress(customerId, addressId, dtoWithoutComplement);
+
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            addresses: {
+              update: {
+                where: { id: addressId },
+                data: expect.objectContaining({ complement: null }),
+              },
+            },
+          },
+        }),
+      );
+    });
+  });
+
   describe("removeAddress", () => {
     const addressId = "address-uuid";
     const dto = { addressId };

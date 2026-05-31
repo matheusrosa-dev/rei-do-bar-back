@@ -5,6 +5,7 @@ import {
   InitMeDto,
   RemoveAddressDto,
   SetMainAddressDto,
+  UpdateAddressDto,
   UpdateMeDto,
 } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
@@ -147,6 +148,60 @@ export class MeService {
         },
         include: { addresses: true },
       });
+    });
+
+    return { addresses: this.sortAddresses(customer.addresses) };
+  }
+
+  async updateAddress(
+    customerId: string,
+    addressId: string,
+    dto: UpdateAddressDto,
+  ) {
+    const me = await this.findMeOrThrow(customerId, { withAddress: true });
+
+    const address = me.addresses?.find((a) => a.id === addressId);
+
+    if (!address) {
+      throw new AppException(
+        AppException.errorCodes.me.ADDRESS_NOT_FOUND,
+        "Endereço não encontrado",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    const duplicate = me.addresses?.find(
+      (a) =>
+        a.id !== addressId &&
+        a.zipCode === dto.zipCode &&
+        a.number === dto.number,
+    );
+
+    if (duplicate) {
+      throw new AppException(
+        AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
+        "Endereço já cadastrado.",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
+
+    const customer = await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        addresses: {
+          update: {
+            where: { id: addressId },
+            data: {
+              zipCode: dto.zipCode,
+              neighborhood: dto.neighborhood,
+              number: dto.number,
+              street: dto.street,
+              complement: dto.complement ?? null,
+            },
+          },
+        },
+      },
+      include: { addresses: true },
     });
 
     return { addresses: this.sortAddresses(customer.addresses) };
