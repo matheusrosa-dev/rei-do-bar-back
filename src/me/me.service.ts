@@ -4,6 +4,7 @@ import {
   AddAddressDto,
   InitMeDto,
   RemoveAddressDto,
+  SetMainAddressDto,
   UpdateMeDto,
 } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
@@ -102,6 +103,50 @@ export class MeService {
       });
 
       return result;
+    });
+
+    return { addresses: this.sortAddresses(customer.addresses) };
+  }
+
+  async setMainAddress(customerId: string, dto: SetMainAddressDto) {
+    const me = await this.findMeOrThrow(customerId, { withAddress: true });
+
+    const address = me.addresses?.find((a) => a.id === dto.addressId);
+
+    if (!address) {
+      throw new AppException(
+        AppException.errorCodes.me.ADDRESS_NOT_FOUND,
+        "Endereço não encontrado",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (address.isMain) {
+      throw new AppException(
+        AppException.errorCodes.me.ADDRESS_ALREADY_MAIN,
+        "Endereço já é o principal",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
+
+    const customer = await this.prisma.$transaction(async (tx) => {
+      await tx.address.updateMany({
+        where: { customerId, isMain: true },
+        data: { isMain: false },
+      });
+
+      return tx.customer.update({
+        where: { id: customerId },
+        data: {
+          addresses: {
+            update: {
+              where: { id: dto.addressId },
+              data: { isMain: true },
+            },
+          },
+        },
+        include: { addresses: true },
+      });
     });
 
     return { addresses: this.sortAddresses(customer.addresses) };

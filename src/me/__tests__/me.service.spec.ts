@@ -299,6 +299,117 @@ describe("MeService", () => {
     });
   });
 
+  describe("setMainAddress", () => {
+    const addressId = "address-uuid";
+    const dto = { addressId };
+
+    it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.setMainAddress(customerId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
+      });
+    });
+
+    it("should throw ADDRESS_NOT_FOUND when address is not in customer's list", async () => {
+      const otherAddress = AddressFactory.createOne({
+        customerId,
+        id: "other-address",
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [otherAddress],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(
+        service.setMainAddress(customerId, { addressId: "non-existent" }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.ADDRESS_NOT_FOUND,
+      });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw ADDRESS_ALREADY_MAIN when address is already the main address", async () => {
+      const address = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        isMain: true,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [address],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+
+      await expect(
+        service.setMainAddress(customerId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.me.ADDRESS_ALREADY_MAIN,
+        message: "Endereço já é o principal",
+      });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
+    it("should demote current main address, promote the given address, and return addresses", async () => {
+      const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
+
+      const currentMain = AddressFactory.createOne({
+        customerId,
+        id: "current-main",
+        isMain: true,
+      });
+      const targetAddress = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        isMain: false,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [currentMain, targetAddress],
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [
+          { ...currentMain, isMain: false },
+          { ...targetAddress, isMain: true },
+        ],
+      });
+
+      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      const result = await service.setMainAddress(customerId, dto);
+
+      expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
+      expect(prismaMock.address.updateMany).toHaveBeenCalledWith({
+        where: { customerId, isMain: true },
+        data: { isMain: false },
+      });
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: customerId },
+          data: {
+            addresses: {
+              update: {
+                where: { id: addressId },
+                data: { isMain: true },
+              },
+            },
+          },
+          include: { addresses: true },
+        }),
+      );
+      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+    });
+  });
+
   describe("removeAddress", () => {
     const addressId = "address-uuid";
     const dto = { addressId };

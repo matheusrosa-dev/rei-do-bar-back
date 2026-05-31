@@ -18,6 +18,7 @@ import {
   InitMeDto,
   MeDto,
   RemoveAddressDto,
+  SetMainAddressDto,
   UpdateMeDto,
 } from "./dtos";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
@@ -52,6 +53,14 @@ export class MeController {
     @Body() dto: AddAddressDto,
   ) {
     return this.meService.addAddress(session.customerId!, dto);
+  }
+
+  @Put("address/:addressId/main")
+  setMainAddress(
+    @CurrentSession() session: ICurrentSession,
+    @Param() dto: SetMainAddressDto,
+  ) {
+    return this.meService.setMainAddress(session.customerId!, dto);
   }
 
   @Delete("address/:addressId")
