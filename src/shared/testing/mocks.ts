@@ -47,6 +47,7 @@ export const prismaMock = {
     delete: jest.fn(),
   },
   refreshToken: {
+    findUnique: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
   },

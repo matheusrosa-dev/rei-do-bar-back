@@ -391,9 +391,10 @@ describe("AuthService", () => {
     });
 
     beforeEach(() => {
-      prismaMock.customer.findUnique.mockResolvedValue({
-        ...customer,
-        refreshTokens: [refreshTokenRecord],
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        ...refreshTokenRecord,
+        customerId: customer.id,
+        customer: { id: customer.id, phone: customer.phone, isActive: true },
       });
       prismaMock.refreshToken.delete.mockResolvedValue({});
       prismaMock.refreshToken.create.mockResolvedValue({});
@@ -405,13 +406,12 @@ describe("AuthService", () => {
         token,
       });
 
-      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
-        where: {
-          id: customer.id,
-          isActive: true,
-        },
+      expect(prismaMock.refreshToken.findUnique).toHaveBeenCalledWith({
+        where: { hashedToken },
         include: {
-          refreshTokens: true,
+          customer: {
+            select: { id: true, phone: true, isActive: true },
+          },
         },
       });
 
@@ -439,8 +439,8 @@ describe("AuthService", () => {
       );
     });
 
-    it("should throw INVALID_REFRESH_TOKEN if customer is not found", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+    it("should throw INVALID_REFRESH_TOKEN if the token is not found in the database", async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue(null);
 
       await expect(
         service.refreshTokens({ customerId: customer.id, token }),
@@ -450,12 +450,30 @@ describe("AuthService", () => {
       });
     });
 
-    it("should throw INVALID_REFRESH_TOKEN if no matching refresh token is found", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
-        ...customer,
-        refreshTokens: [
-          { id: "other-rt-id", hashedToken: hashString("other-token") },
-        ],
+    it("should throw INVALID_REFRESH_TOKEN if the token belongs to a different customer", async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        ...refreshTokenRecord,
+        customerId: "different-customer-id",
+        customer: {
+          id: "different-customer-id",
+          phone: customer.phone,
+          isActive: true,
+        },
+      });
+
+      await expect(
+        service.refreshTokens({ customerId: customer.id, token }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        httpStatus: AppException.HttpStatus.UNAUTHORIZED,
+      });
+    });
+
+    it("should throw INVALID_REFRESH_TOKEN if the customer is inactive", async () => {
+      prismaMock.refreshToken.findUnique.mockResolvedValue({
+        ...refreshTokenRecord,
+        customerId: customer.id,
+        customer: { id: customer.id, phone: customer.phone, isActive: false },
       });
 
       await expect(

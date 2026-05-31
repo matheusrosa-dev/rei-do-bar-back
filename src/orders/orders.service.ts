@@ -107,7 +107,6 @@ export class OrdersService {
     const orders = await this.getOrders(customerId);
 
     return orders;
-    // TODO: adicionar testes para esse retorno
   }
 
   async cancelOrder(customerId: string, dto: CancelOrderDto) {

@@ -143,29 +143,22 @@ export class AuthService {
   }
 
   async refreshTokens(data: { customerId: string; token: string }) {
-    const customer = await this.prisma.customer.findUnique({
+    const validToken = await this.prisma.refreshToken.findUnique({
       where: {
-        id: data.customerId,
-        isActive: true,
+        hashedToken: hashString(data.token),
       },
       include: {
-        refreshTokens: true,
+        customer: {
+          select: { id: true, phone: true, isActive: true },
+        },
       },
     });
 
-    if (!customer) {
-      throw new AppException(
-        AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
-        "Acesso negado. O token de atualização fornecido é inválido.",
-        AppException.HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    const validToken = customer.refreshTokens.find(
-      (rt) => rt.hashedToken === hashString(data.token),
-    );
-
-    if (!validToken) {
+    if (
+      !validToken ||
+      validToken.customerId !== data.customerId ||
+      !validToken.customer.isActive
+    ) {
       throw new AppException(
         AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
         "Acesso negado. O token de atualização fornecido é inválido.",
@@ -174,8 +167,8 @@ export class AuthService {
     }
 
     const newTokens = this.generateTokens({
-      customerId: customer.id,
-      phone: customer.phone,
+      customerId: validToken.customer.id,
+      phone: validToken.customer.phone,
     });
 
     await this.prisma.$transaction(async (tx) => {
@@ -191,7 +184,7 @@ export class AuthService {
         tx.refreshToken.create({
           data: {
             hashedToken: newTokens.hashedRefreshToken,
-            customerId: customer.id,
+            customerId: validToken.customer.id,
           },
         }),
       ]);
