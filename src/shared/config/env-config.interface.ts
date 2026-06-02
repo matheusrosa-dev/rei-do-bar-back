@@ -16,3 +16,8 @@ export interface IAuthConfig {
   jwtExpirationTime: SignOptions["expiresIn"];
   jwtRefreshExpirationTime: SignOptions["expiresIn"];
 }
+
+export interface IAdminConfig {
+  username: string;
+  password: string;
+}

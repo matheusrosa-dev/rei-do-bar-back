@@ -1,5 +1,6 @@
 import { registerAs } from "@nestjs/config";
 import {
+  IAdminConfig,
   IApiConfig,
   IAuthConfig,
   IDatabaseConfig,
@@ -29,6 +30,11 @@ export const authConfig = registerAs<IAuthConfig>("auth", () => ({
     .AUTH_JWT_REFRESH_EXPIRATION_TIME as SignOptions["expiresIn"],
 }));
 
+export const adminConfig = registerAs<IAdminConfig>("admin", () => ({
+  username: process.env.ADMIN_USERNAME!,
+  password: process.env.ADMIN_PASSWORD!,
+}));
+
 export const validationSchema = Joi.object({
   API_PORT: Joi.number().required(),
   API_DELAY: Joi.number().optional().default(0),
@@ -40,4 +46,7 @@ export const validationSchema = Joi.object({
   AUTH_JWT_REFRESH_SECRET: Joi.string().required(),
   AUTH_JWT_EXPIRATION_TIME: Joi.string().required(),
   AUTH_JWT_REFRESH_EXPIRATION_TIME: Joi.string().required(),
+
+  ADMIN_USERNAME: Joi.string().required(),
+  ADMIN_PASSWORD: Joi.string().required(),
 });
