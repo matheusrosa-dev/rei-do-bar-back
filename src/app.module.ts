@@ -13,6 +13,7 @@ import { IApiConfig } from "@shared/config/env-config.interface";
 import { CustomersModule } from "./customers/customers.module";
 import { MeModule } from "./me/me.module";
 import { OrdersModule } from "./orders/orders.module";
+import { AdminModule } from "./admin/admin.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { OrdersModule } from "./orders/orders.module";
     CustomersModule,
     MeModule,
     OrdersModule,
+    AdminModule,
   ],
   providers: [
     {
