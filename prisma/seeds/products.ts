@@ -16,7 +16,6 @@ const products: SeedProduct[] = [
     description: "330ml - Long Neck",
     price: 899,
     stock: 11,
-    sortOrder: 1,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/cervejas/corona-extra.png",
     category: "Cerveja",
@@ -26,7 +25,7 @@ const products: SeedProduct[] = [
     description: "330ml - Long Neck",
     price: 749,
     stock: 4,
-    sortOrder: 2,
+    sortOrder: 1,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/cervejas/heineken.png",
     category: "Cerveja",
@@ -36,7 +35,7 @@ const products: SeedProduct[] = [
     description: "350ml - Lata",
     price: 449,
     stock: 60,
-    sortOrder: 5,
+    sortOrder: 7,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/cervejas/brahma_duplo_malte.png",
     category: "Cerveja",
@@ -55,7 +54,6 @@ const products: SeedProduct[] = [
     description: "350ml - Lata",
     price: 449,
     stock: 24,
-    sortOrder: 3,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/cervejas/original.png",
     category: "Cerveja",
@@ -74,7 +72,6 @@ const products: SeedProduct[] = [
     description: "350ml - Lata",
     price: 549,
     stock: 7,
-    sortOrder: 12,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/cervejas/budweiser.png",
     category: "Cerveja",
@@ -93,7 +90,6 @@ const products: SeedProduct[] = [
     description: "750ml",
     price: 1490,
     stock: 6,
-    sortOrder: 4,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/vinhos/quinta-do-morgado.png",
     category: "Vinho",
@@ -112,7 +108,6 @@ const products: SeedProduct[] = [
     description: "750ml",
     price: 2790,
     stock: 9,
-    sortOrder: 2,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/vinhos/santa_helena_reservado.png",
     category: "Vinho",
@@ -131,7 +126,7 @@ const products: SeedProduct[] = [
     description: "750ml",
     price: 3290,
     stock: 12,
-    sortOrder: 7,
+    sortOrder: 9,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/vinhos/aurora-reserva-merlot.png",
     category: "Vinho",
@@ -150,7 +145,7 @@ const products: SeedProduct[] = [
     description: "750ml",
     price: 5490,
     stock: 5,
-    sortOrder: 1,
+    sortOrder: 5,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/vinhos/casillero_del_diablo_carmenere.png",
     category: "Vinho",
@@ -160,7 +155,6 @@ const products: SeedProduct[] = [
     description: "1L",
     price: 1690,
     stock: 8,
-    sortOrder: 6,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/destilados/velho-barreiro.png",
     category: "Destilado",
@@ -179,7 +173,7 @@ const products: SeedProduct[] = [
     description: "998ml",
     price: 3490,
     stock: 14,
-    sortOrder: 3,
+    sortOrder: 6,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/destilados/smirnoff_vodka.png",
     category: "Destilado",
@@ -198,7 +192,7 @@ const products: SeedProduct[] = [
     description: "1L",
     price: 8990,
     stock: 6,
-    sortOrder: 9,
+    sortOrder: 10,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/destilados/johnnie_walker_red_label.png",
     category: "Destilado",
@@ -217,7 +211,7 @@ const products: SeedProduct[] = [
     description: "1L",
     price: 12990,
     stock: 2,
-    sortOrder: 1,
+    sortOrder: 2,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/destilados/jack_daniels_old_no_7.png",
     category: "Destilado",
@@ -227,7 +221,7 @@ const products: SeedProduct[] = [
     description: "250ml",
     price: 890,
     stock: 50,
-    sortOrder: 1,
+    sortOrder: 4,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/energeticos/red_bull.png",
     category: "Energético",
@@ -255,7 +249,6 @@ const products: SeedProduct[] = [
     description: "250ml",
     price: 890,
     stock: 17,
-    sortOrder: 4,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/energeticos/red_bull_tropical.png",
     category: "Energético",
@@ -274,7 +267,7 @@ const products: SeedProduct[] = [
     description: "350ml - Lata",
     price: 450,
     stock: 80,
-    sortOrder: 1,
+    sortOrder: 3,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/products/refrigerantes/coca_cola_lata.png",
     category: "Refrigerante",

@@ -1,5 +1,5 @@
 import { Controller, Get } from "@nestjs/common";
-import { AdminAuth } from "@shared/decorators/admin-auth.decorator.js";
+import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import { CategoriesService } from "./categories.service";
 
 @Controller("admin/categories")
