@@ -33,6 +33,10 @@ export class FindAllProductsDto {
   isActive?: boolean;
 
   @IsOptional()
+  @IsIn(["sortOrder", "stock"])
+  sortKey?: "sortOrder" | "stock";
+
+  @IsOptional()
   @IsIn(["asc", "desc"])
-  stockOrder?: "asc" | "desc";
+  sortDirection?: "asc" | "desc";
 }

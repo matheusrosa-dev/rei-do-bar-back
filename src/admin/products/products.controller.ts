@@ -1,7 +1,7 @@
 import { Controller, Get, Query } from "@nestjs/common";
-import { AdminAuth } from "@shared/decorators/admin-auth.decorator.js";
+import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import { ProductsService } from "./products.service";
-import { FindAllProductsDto } from "./dtos/index.js";
+import { FindAllProductsDto } from "./dtos";
 
 @Controller("admin/products")
 @AdminAuth()

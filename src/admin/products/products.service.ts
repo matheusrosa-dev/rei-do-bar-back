@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { FindAllProductsDto } from "./dtos/index.js";
+import { FindAllProductsDto } from "./dtos";
 
 @Injectable()
 export class ProductsService {
@@ -16,12 +16,16 @@ export class ProductsService {
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
     };
 
+    const orderBy = {
+      ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection }),
+    };
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where,
         skip,
         take: limit,
-        orderBy: dto.stockOrder ? { stock: dto.stockOrder } : undefined,
+        orderBy: Object.keys(orderBy).length ? orderBy : { createdAt: "asc" },
       }),
       this.prisma.product.count({ where }),
     ]);
