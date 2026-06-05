@@ -129,7 +129,11 @@ export class CartService {
         items: {
           update: {
             where: { id: cartItem.id },
-            data: { quantity: cartItem.quantity + 1 },
+            data: {
+              quantity: {
+                increment: 1,
+              },
+            },
           },
         },
       },
@@ -187,7 +191,11 @@ export class CartService {
         items: {
           update: {
             where: { id: cartItem.id },
-            data: { quantity: cartItem.quantity - 1 },
+            data: {
+              quantity: {
+                decrement: 1,
+              },
+            },
           },
         },
       },

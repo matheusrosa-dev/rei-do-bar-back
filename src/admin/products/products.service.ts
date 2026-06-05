@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { FindAllProductsDto } from "./dtos";
+import { FindAllProductsDto, UpdateProductBodyDto } from "./dtos";
 
 @Injectable()
 export class ProductsService {
@@ -25,7 +25,7 @@ export class ProductsService {
         where,
         skip,
         take: limit,
-        orderBy: Object.keys(orderBy).length ? orderBy : { createdAt: "asc" },
+        orderBy: Object.keys(orderBy).length ? orderBy : { updatedAt: "desc" },
       }),
       this.prisma.product.count({ where }),
     ]);
@@ -39,5 +39,142 @@ export class ProductsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async findById(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    return product;
+  }
+
+  async updateProduct(productId: string, dto: UpdateProductBodyDto) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        price: dto.price,
+        imageUrl: dto.imageUrl,
+        categoryId: dto.categoryId,
+      },
+    });
+
+    return updatedProduct;
+  }
+
+  async activateProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        isActive: true,
+      },
+    });
+
+    return updatedProduct;
+  }
+
+  async deactivateProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return updatedProduct;
+  }
+
+  async incrementStock(productId: string, amount: number) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        stock: {
+          increment: amount,
+        },
+      },
+    });
+
+    return updatedProduct;
+  }
+
+  async decrementStock(productId: string, amount: number) {
+    const product = await this.prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException("Produto não encontrado");
+    }
+
+    const updatedProduct = await this.prisma.product.update({
+      where: {
+        id: productId,
+      },
+      data: {
+        stock: {
+          decrement: amount,
+        },
+      },
+    });
+
+    return updatedProduct;
   }
 }

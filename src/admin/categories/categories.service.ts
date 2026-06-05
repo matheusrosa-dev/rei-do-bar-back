@@ -6,7 +6,11 @@ export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {
-    const categories = await this.prisma.category.findMany();
+    const categories = await this.prisma.category.findMany({
+      where: {
+        isActive: true,
+      },
+    });
 
     return categories;
   }

@@ -4,7 +4,6 @@ import { CategoriesService } from "./categories.service";
 
 @Controller("admin/categories")
 @AdminAuth()
-// TODO: adicionar serialize
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
