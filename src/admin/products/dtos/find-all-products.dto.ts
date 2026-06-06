@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   Min,
@@ -31,6 +32,10 @@ export class FindAllProductsDto {
   @Transform(({ value }) => value === "true")
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  searchTerm?: string;
 
   @IsOptional()
   @IsIn(["sortOrder", "stock"])

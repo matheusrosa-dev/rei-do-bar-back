@@ -138,7 +138,6 @@ model Product {
   isActive    Boolean    @map("is_active")
   createdAt   DateTime   @default(now()) @map("created_at")
   updatedAt   DateTime   @updatedAt @map("updated_at")
-  // TODO: validar isso em toda a aplicação
   deletedAt   DateTime?  @map("deleted_at")
 
   category    Category   @relation(fields: [categoryId], references: [id])

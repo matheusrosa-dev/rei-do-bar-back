@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Put,
   Query,
 } from "@nestjs/common";
@@ -19,6 +20,7 @@ import {
   UpdateStockProductParamsDto,
   UpdateStockProductBodyDto,
   DeleteProductDto,
+  CreateProductDto,
 } from "./dtos";
 
 @Controller("admin/products")
@@ -42,6 +44,11 @@ export class ProductsController {
     @Body() bodyDto: UpdateProductBodyDto,
   ) {
     return this.productsService.updateProduct(productId, bodyDto);
+  }
+
+  @Post()
+  create(@Body() dto: CreateProductDto) {
+    return this.productsService.createProduct(dto);
   }
 
   @Patch(":productId/activate")

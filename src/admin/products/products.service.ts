@@ -1,8 +1,16 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
-import { FindAllProductsDto, UpdateProductBodyDto } from "./dtos";
+import {
+  CreateProductDto,
+  FindAllProductsDto,
+  UpdateProductBodyDto,
+} from "./dtos";
 
 @Injectable()
 export class ProductsService {
@@ -13,10 +21,31 @@ export class ProductsService {
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const where: Prisma.ProductWhereInput = {
+      deletedAt: null,
+
       ...(dto.categoryId && { categoryId: dto.categoryId }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      deletedAt: null,
+      ...(dto.searchTerm && {
+        OR: [
+          { name: { contains: dto.searchTerm, mode: "insensitive" } },
+          {
+            description: {
+              contains: dto.searchTerm,
+              mode: "insensitive",
+            },
+          },
+          { id: { contains: dto.searchTerm, mode: "insensitive" } },
+          {
+            category: {
+              name: {
+                contains: dto.searchTerm,
+                mode: "insensitive",
+              },
+            },
+          },
+        ],
+      }),
     };
 
     const orderBy = {
@@ -57,6 +86,34 @@ export class ProductsService {
     }
 
     return product;
+  }
+
+  async createProduct(dto: CreateProductDto) {
+    try {
+      const product = await this.prisma.product.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          price: dto.price,
+          imageUrl: dto.imageUrl,
+          isActive: false,
+          stock: 0,
+          category: {
+            connect: {
+              id: dto.categoryId,
+            },
+          },
+        },
+      });
+
+      return product;
+    } catch (error) {
+      if (this.isRecordNotFound(error)) {
+        throw new BadRequestException("Categoria inválida");
+      }
+
+      throw error;
+    }
   }
 
   async updateProduct(productId: string, dto: UpdateProductBodyDto) {

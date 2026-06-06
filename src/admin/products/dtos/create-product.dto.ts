@@ -7,12 +7,7 @@ import {
   IsUUID,
 } from "class-validator";
 
-export class UpdateProductParamsDto {
-  @IsUUID()
-  productId: string;
-}
-
-export class UpdateProductBodyDto {
+export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
   name: string;

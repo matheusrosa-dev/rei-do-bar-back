@@ -4,3 +4,4 @@ export * from "./find-by-id.dto";
 export * from "./toggle-status-product.dto";
 export * from "./update-stock-product.dto";
 export * from "./delete-product.dto";
+export * from "./create-product.dto";
