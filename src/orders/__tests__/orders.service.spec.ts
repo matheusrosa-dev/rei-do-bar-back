@@ -5,6 +5,7 @@ import {
   PaymentType,
 } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
   AddressFactory,
@@ -43,6 +44,7 @@ describe("OrdersService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
+        SettingsService,
         { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
@@ -79,8 +81,9 @@ describe("OrdersService", () => {
       ];
       const customer = buildCustomer(items);
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.order.count.mockResolvedValue(0);
+      prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
 
       const createdOrder = {
@@ -96,7 +99,7 @@ describe("OrdersService", () => {
 
       const result = await service.createOrder(customerId, dto);
 
-      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.customer.findFirst).toHaveBeenCalledWith({
         where: { id: customerId, isActive: true },
         include: {
           addresses: true,
@@ -132,13 +135,13 @@ describe("OrdersService", () => {
           },
         },
       });
-      expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
-      expect(prismaMock.product.update).toHaveBeenCalledWith({
-        where: { id: product1.id },
+      expect(prismaMock.product.updateMany).toHaveBeenCalledTimes(2);
+      expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
+        where: { id: product1.id, stock: { gte: 2 } },
         data: { stock: { decrement: 2 } },
       });
-      expect(prismaMock.product.update).toHaveBeenCalledWith({
-        where: { id: product2.id },
+      expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
+        where: { id: product2.id, stock: { gte: 3 } },
         data: { stock: { decrement: 3 } },
       });
       expect(prismaMock.cartItem.deleteMany).toHaveBeenCalledWith({
@@ -151,7 +154,7 @@ describe("OrdersService", () => {
     });
 
     it("should throw CUSTOMER_NOT_INITIALIZED when the customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
@@ -163,7 +166,7 @@ describe("OrdersService", () => {
     });
 
     it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(
+      prismaMock.customer.findFirst.mockResolvedValue(
         buildCustomer([], { name: null }),
       );
 
@@ -177,7 +180,7 @@ describe("OrdersService", () => {
     });
 
     it("should throw CART_EMPTY when the cart has no items", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(buildCustomer([]));
+      prismaMock.customer.findFirst.mockResolvedValue(buildCustomer([]));
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.order.CART_EMPTY,
@@ -195,7 +198,8 @@ describe("OrdersService", () => {
           quantity: 1,
         }),
       ];
-      prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+      prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
       prismaMock.order.count.mockResolvedValue(1);
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
@@ -221,7 +225,7 @@ describe("OrdersService", () => {
       it("should throw PRODUCTS_OUT_OF_STOCK when the product is out of stock", async () => {
         const product = ProductFactory.createOne({ name: "Cerveja", stock: 0 });
         const items = [CartItemFactory.createOne({ product, quantity: 1 })];
-        prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
         await expect(
           service.createOrder(customerId, dto),
@@ -241,7 +245,7 @@ describe("OrdersService", () => {
           isActive: false,
         });
         const items = [CartItemFactory.createOne({ product, quantity: 1 })];
-        prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
         await expect(
           service.createOrder(customerId, dto),
@@ -257,7 +261,7 @@ describe("OrdersService", () => {
       it("should throw the plural low-stock message when stock is 10 or less", async () => {
         const product = ProductFactory.createOne({ name: "Cerveja", stock: 5 });
         const items = [CartItemFactory.createOne({ product, quantity: 6 })];
-        prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
         await expect(
           service.createOrder(customerId, dto),
@@ -270,7 +274,7 @@ describe("OrdersService", () => {
       it("should throw the singular low-stock message when only one unit remains", async () => {
         const product = ProductFactory.createOne({ name: "Cerveja", stock: 1 });
         const items = [CartItemFactory.createOne({ product, quantity: 2 })];
-        prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
         await expect(
           service.createOrder(customerId, dto),
@@ -285,7 +289,7 @@ describe("OrdersService", () => {
           stock: 11,
         });
         const items = [CartItemFactory.createOne({ product, quantity: 12 })];
-        prismaMock.customer.findUnique.mockResolvedValue(buildCustomer(items));
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
         await expect(
           service.createOrder(customerId, dto),
@@ -330,7 +334,7 @@ describe("OrdersService", () => {
 
       await service.getOrders(customerId);
 
-      expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
     });
   });
 
@@ -351,6 +355,7 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.findFirst.mockResolvedValue(order);
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.order.findMany.mockResolvedValue([]);
 
       const result = await service.cancelOrder(customerId, dto);
@@ -359,8 +364,11 @@ describe("OrdersService", () => {
         where: { id: "order-uuid", customerId },
         include: { items: true },
       });
-      expect(prismaMock.order.update).toHaveBeenCalledWith({
-        where: { id: "order-uuid" },
+      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "order-uuid",
+          status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
+        },
         data: { status: OrderStatus.CANCELLED },
       });
       expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
@@ -387,12 +395,16 @@ describe("OrdersService", () => {
         status: OrderStatus.PREPARING,
         items: [],
       });
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.order.findMany.mockResolvedValue([]);
 
       await service.cancelOrder(customerId, dto);
 
-      expect(prismaMock.order.update).toHaveBeenCalledWith({
-        where: { id: "order-uuid" },
+      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: "order-uuid",
+          status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
+        },
         data: { status: OrderStatus.CANCELLED },
       });
     });
@@ -419,6 +431,7 @@ describe("OrdersService", () => {
         status,
         items: [],
       });
+      prismaMock.order.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.cancelOrder(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.order.ORDER_NOT_CANCELLABLE,
@@ -426,7 +439,6 @@ describe("OrdersService", () => {
         httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
 
-      expect(prismaMock.order.update).not.toHaveBeenCalled();
       expect(prismaMock.product.update).not.toHaveBeenCalled();
     });
   });
@@ -471,71 +483,48 @@ describe("OrdersService", () => {
       }),
     ];
 
-    it("should resolve when the customer has a name, items and no ongoing order", async () => {
-      prismaMock.order.count.mockResolvedValue(0);
-
-      await expect(
+    it("should not throw when the customer has a name and items", () => {
+      expect(() =>
         (service as any).checkIfCustomerIsAptToCreateOrder(
           buildCustomer(buildItems()),
         ),
-      ).resolves.toBeUndefined();
-
-      expect(prismaMock.order.count).toHaveBeenCalledWith({
-        where: {
-          customerId,
-          status: { notIn: [OrderStatus.CANCELLED, OrderStatus.DELIVERED] },
-        },
-      });
+      ).not.toThrow();
     });
 
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer is null", async () => {
-      await expect(
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer is null", () => {
+      expect(() =>
         (service as any).checkIfCustomerIsAptToCreateOrder(null),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
-        message: "Cliente não inicializado",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-
-      expect(prismaMock.order.count).not.toHaveBeenCalled();
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
+          message: "Cliente não inicializado",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        }),
+      );
     });
 
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", async () => {
-      await expect(
+    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", () => {
+      expect(() =>
         (service as any).checkIfCustomerIsAptToCreateOrder(
           buildCustomer(buildItems(), { name: null }),
         ),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
-      });
-
-      expect(prismaMock.order.count).not.toHaveBeenCalled();
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
+        }),
+      );
     });
 
-    it("should throw CART_EMPTY when the cart has no items", async () => {
-      await expect(
+    it("should throw CART_EMPTY when the cart has no items", () => {
+      expect(() =>
         (service as any).checkIfCustomerIsAptToCreateOrder(buildCustomer([])),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CART_EMPTY,
-        message: "O carrinho está vazio",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-
-      expect(prismaMock.order.count).not.toHaveBeenCalled();
-    });
-
-    it("should throw ONGOING_ORDER when there is an ongoing order", async () => {
-      prismaMock.order.count.mockResolvedValue(1);
-
-      await expect(
-        (service as any).checkIfCustomerIsAptToCreateOrder(
-          buildCustomer(buildItems()),
-        ),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.ONGOING_ORDER,
-        message: "Você já tem um pedido em andamento.",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.CART_EMPTY,
+          message: "O carrinho está vazio",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        }),
+      );
     });
   });
 

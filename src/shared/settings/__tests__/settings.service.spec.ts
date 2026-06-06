@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { SettingsService } from "../settings.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { SettingKey } from "@shared/database/prisma/generated/client";
+import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
 
 describe("SettingsService", () => {
@@ -77,6 +78,16 @@ describe("SettingsService", () => {
 
       expect(result).toBe(750);
       expect(typeof result).toBe("number");
+    });
+
+    it("should throw DELIVERY_FEE_NOT_CONFIGURED when the setting is missing", async () => {
+      prismaMock.setting.findUnique.mockResolvedValue(null);
+
+      await expect(service.getDeliveryFee()).rejects.toMatchObject({
+        code: AppException.errorCodes.settings.DELIVERY_FEE_NOT_CONFIGURED,
+        message: "Taxa de entrega não configurada.",
+        httpStatus: AppException.HttpStatus.INTERNAL_SERVER_ERROR,
+      });
     });
   });
 });

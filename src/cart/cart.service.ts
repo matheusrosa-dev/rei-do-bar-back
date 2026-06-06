@@ -1,7 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AddToCartDto, RemoveFromCartDto } from "./dtos";
-import { CartItem, Product } from "@shared/database/prisma/generated/client";
+import {
+  CartItem,
+  Prisma,
+  Product,
+} from "@shared/database/prisma/generated/client";
 import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
@@ -42,6 +46,7 @@ export class CartService {
       where: {
         id: productId,
         isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -65,26 +70,45 @@ export class CartService {
       );
     }
 
-    const updatedCart = await this.prisma.cart.update({
-      where: { id: customerOrAnonymous.cart.id },
-      data: {
-        items: {
-          create: {
-            productId: product.id,
-            quantity: 1,
+    try {
+      const updatedCart = await this.prisma.cart.update({
+        where: { id: customerOrAnonymous.cart.id },
+        data: {
+          items: {
+            create: {
+              productId: product.id,
+              quantity: 1,
+            },
           },
         },
-      },
-      select: {
-        items: {
-          include: {
-            product: true,
+        select: {
+          items: {
+            include: {
+              product: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return this.formatCart(updatedCart.items);
+      return this.formatCart(updatedCart.items);
+    } catch (error) {
+      // Em requisições concorrentes, a checagem em memória acima pode não
+      // enxergar o item recém-adicionado. A constraint única (cartId, productId)
+      // garante a unicidade e o conflito (P2002) é traduzido para o erro de
+      // negócio em vez de virar um 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new AppException(
+          AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+          "Produto já existe no carrinho",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      throw error;
+    }
   }
 
   async incrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
@@ -301,7 +325,7 @@ export class CartService {
       };
     }
 
-    const customer = await this.prisma.customer.findUnique({
+    const customer = await this.prisma.customer.findFirst({
       where: { id: session.customerId, isActive: true },
       include,
     });

@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { Prisma } from "@shared/database/prisma/generated/client";
+import { AppException } from "@shared/exceptions/app.exception";
 import { FindAllProductsDto, UpdateProductBodyDto } from "./dtos";
 
 @Injectable()
@@ -14,6 +16,7 @@ export class ProductsService {
     const where = {
       ...(dto.categoryId && { categoryId: dto.categoryId }),
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      deletedAt: null,
     };
 
     const orderBy = {
@@ -42,9 +45,10 @@ export class ProductsService {
   }
 
   async findById(productId: string) {
-    const product = await this.prisma.product.findUnique({
+    const product = await this.prisma.product.findFirst({
       where: {
         id: productId,
+        deletedAt: null,
       },
     });
 
@@ -56,125 +60,119 @@ export class ProductsService {
   }
 
   async updateProduct(productId: string, dto: UpdateProductBodyDto) {
-    const product = await this.prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
+    return this.updateProductOrThrow(productId, {
+      name: dto.name,
+      description: dto.description,
+      price: dto.price,
+      imageUrl: dto.imageUrl,
+      categoryId: dto.categoryId,
     });
+  }
 
-    if (!product) {
-      throw new NotFoundException("Produto não encontrado");
+  async removeProduct(productId: string) {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.product.update({
+          where: {
+            id: productId,
+            deletedAt: null,
+          },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
+
+        await tx.cartItem.deleteMany({
+          where: {
+            productId,
+          },
+        });
+      });
+    } catch (error) {
+      if (this.isRecordNotFound(error)) {
+        throw new NotFoundException("Produto não encontrado");
+      }
+
+      throw error;
     }
-
-    const updatedProduct = await this.prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data: {
-        name: dto.name,
-        description: dto.description,
-        price: dto.price,
-        imageUrl: dto.imageUrl,
-        categoryId: dto.categoryId,
-      },
-    });
-
-    return updatedProduct;
   }
 
   async activateProduct(productId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-    });
-
-    if (!product) {
-      throw new NotFoundException("Produto não encontrado");
-    }
-
-    const updatedProduct = await this.prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data: {
-        isActive: true,
-      },
-    });
-
-    return updatedProduct;
+    return this.updateProductOrThrow(productId, { isActive: true });
   }
 
   async deactivateProduct(productId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-    });
-
-    if (!product) {
-      throw new NotFoundException("Produto não encontrado");
-    }
-
-    const updatedProduct = await this.prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data: {
-        isActive: false,
-      },
-    });
-
-    return updatedProduct;
+    return this.updateProductOrThrow(productId, { isActive: false });
   }
 
   async incrementStock(productId: string, amount: number) {
-    const product = await this.prisma.product.findUnique({
-      where: {
-        id: productId,
+    return this.updateProductOrThrow(productId, {
+      stock: {
+        increment: amount,
       },
     });
-
-    if (!product) {
-      throw new NotFoundException("Produto não encontrado");
-    }
-
-    const updatedProduct = await this.prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data: {
-        stock: {
-          increment: amount,
-        },
-      },
-    });
-
-    return updatedProduct;
   }
 
   async decrementStock(productId: string, amount: number) {
-    const product = await this.prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-    });
-
-    if (!product) {
-      throw new NotFoundException("Produto não encontrado");
-    }
-
-    const updatedProduct = await this.prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data: {
-        stock: {
-          decrement: amount,
+    try {
+      // Decrementa de forma atômica somente se o produto existir e houver
+      // estoque suficiente, evitando uma busca prévia e estoque negativo.
+      return await this.prisma.product.update({
+        where: {
+          id: productId,
+          deletedAt: null,
+          stock: {
+            gte: amount,
+          },
         },
-      },
-    });
+        data: {
+          stock: {
+            decrement: amount,
+          },
+        },
+      });
+    } catch (error) {
+      if (this.isRecordNotFound(error)) {
+        // Nenhuma linha casou: ou o produto não existe, ou o estoque é
+        // insuficiente. A busca pontual distingue os dois casos.
+        await this.findById(productId);
 
-    return updatedProduct;
+        throw new AppException(
+          AppException.errorCodes.adminProducts.INSUFFICIENT_STOCK,
+          "Estoque insuficiente para realizar a operação.",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  private async updateProductOrThrow(
+    productId: string,
+    data: Prisma.ProductUncheckedUpdateInput,
+  ) {
+    try {
+      return await this.prisma.product.update({
+        where: {
+          id: productId,
+          deletedAt: null,
+        },
+        data,
+      });
+    } catch (error) {
+      if (this.isRecordNotFound(error)) {
+        throw new NotFoundException("Produto não encontrado");
+      }
+
+      throw error;
+    }
+  }
+
+  private isRecordNotFound(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    );
   }
 }

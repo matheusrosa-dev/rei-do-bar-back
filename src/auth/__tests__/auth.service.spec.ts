@@ -7,6 +7,7 @@ import { prismaMock } from "@shared/testing/mocks";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ConfigService } from "@nestjs/config";
 import { CustomersService } from "../../customers/customers.service";
+import { Prisma } from "@shared/database/prisma/generated/client";
 import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import { hashString } from "@shared/helpers/string";
@@ -193,8 +194,6 @@ describe("AuthService", () => {
     const deviceId = "device-id";
     const code = "ABC123";
 
-    const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
-
     const anonymousCustomer = AnonymousCustomerFactory.createOne({
       cart: CartFactory.createOne({
         items: [],
@@ -210,11 +209,7 @@ describe("AuthService", () => {
     const dto = { phone: activeCustomer.phone, code };
 
     beforeEach(() => {
-      prismaMock.otpCode.findFirst.mockResolvedValue({
-        id: "otp-id",
-        hashedCode,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      });
+      prismaMock.otpCode.deleteMany.mockResolvedValue({ count: 1 });
     });
 
     it("should return access and refresh tokens when customer already exists", async () => {
@@ -310,6 +305,51 @@ describe("AuthService", () => {
       });
     });
 
+    it("should recover the existing customer when a concurrent login already created it", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      // No primeiro lookup o cliente ainda não existe; entre a criação e o
+      // retorno, outra requisição concorrente cria o cliente com o mesmo telefone
+      prismaMock.customer.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(activeCustomer);
+
+      customersServiceMock.createCustomerFromAnonymous.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+          code: "P2002",
+          clientVersion: "test",
+        }),
+      );
+      prismaMock.refreshToken.create.mockResolvedValue({});
+
+      const result = await service.loginWithOtpCode(deviceId, dto);
+
+      expect(prismaMock.customer.findUnique).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        hasToInitAccount: !activeCustomer.name,
+        accessToken: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    });
+
+    it("should rethrow non-unique errors raised while creating the customer", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      const unexpectedError = new Error("unexpected");
+      customersServiceMock.createCustomerFromAnonymous.mockRejectedValue(
+        unexpectedError,
+      );
+
+      await expect(service.loginWithOtpCode(deviceId, dto)).rejects.toBe(
+        unexpectedError,
+      );
+    });
+
     it("should not call createCustomerFromAnonymous when customer already exists", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
         anonymousCustomer,
@@ -396,7 +436,7 @@ describe("AuthService", () => {
         customerId: customer.id,
         customer: { id: customer.id, phone: customer.phone, isActive: true },
       });
-      prismaMock.refreshToken.delete.mockResolvedValue({});
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
       prismaMock.refreshToken.create.mockResolvedValue({});
     });
 
@@ -424,7 +464,7 @@ describe("AuthService", () => {
     it("should delete the old refresh token and create a new one in a transaction", async () => {
       await service.refreshTokens({ customerId: customer.id, token });
 
-      expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith(
+      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: refreshTokenRecord.id },
         }),
@@ -437,6 +477,19 @@ describe("AuthService", () => {
           }),
         }),
       );
+    });
+
+    it("should throw INVALID_REFRESH_TOKEN and not create a new token when the old token was already rotated concurrently", async () => {
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.refreshTokens({ customerId: customer.id, token }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+        httpStatus: AppException.HttpStatus.UNAUTHORIZED,
+      });
+
+      expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
     });
 
     it("should throw INVALID_REFRESH_TOKEN if the token is not found in the database", async () => {
@@ -571,20 +624,16 @@ describe("AuthService", () => {
     const hashedCode = crypto.createHash("sha256").update(code).digest("hex");
     const anonymousCustomerId = "anonymous-customer-id";
 
-    it("should validate the OTP code successfully", async () => {
-      const dateNow = Date.now();
-
-      prismaMock.otpCode.findFirst.mockResolvedValue({
-        hashedCode,
-        expiresAt: new Date(dateNow + (service as any).otpExpirationMs),
-      });
+    it("should consume the matching, non-expired OTP code atomically", async () => {
+      prismaMock.otpCode.deleteMany.mockResolvedValue({ count: 1 });
 
       await (service as any).validateOtpCode({ anonymousCustomerId, code });
 
-      expect(prismaMock.otpCode.findFirst).toHaveBeenCalledWith(
+      expect(prismaMock.otpCode.deleteMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             anonymousCustomerId,
+            hashedCode,
             expiresAt: {
               gte: expect.any(Date),
             },
@@ -593,52 +642,13 @@ describe("AuthService", () => {
       );
     });
 
-    it("should delete all OTP codes of the anonymous customer after successful validation", async () => {
-      prismaMock.otpCode.findFirst.mockResolvedValue({
-        id: "otp-code-id",
-        hashedCode,
-        expiresAt: new Date(Date.now() + (service as any).otpExpirationMs),
-      });
-
-      await (service as any).validateOtpCode({ anonymousCustomerId, code });
-
-      expect(prismaMock.otpCode.deleteMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            anonymousCustomerId,
-          },
-        }),
-      );
-    });
-
-    it("should throw an error if no OTP code is found", async () => {
-      prismaMock.otpCode.findFirst.mockResolvedValue(null);
+    it("should throw an error when no valid OTP code is consumed", async () => {
+      prismaMock.otpCode.deleteMany.mockResolvedValue({ count: 0 });
 
       await expect(
         (service as any).validateOtpCode({
           anonymousCustomerId,
           code: "INVALID",
-        }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
-        message: "Código de verificação inválido ou expirado.",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should throw an error if the OTP code has different hash", async () => {
-      prismaMock.otpCode.findFirst.mockResolvedValue({
-        hashedCode: crypto
-          .createHash("sha256")
-          .update("different-code")
-          .digest("hex"),
-        expiresAt: new Date(Date.now() + (service as any).otpExpirationMs),
-      });
-
-      await expect(
-        (service as any).validateOtpCode({
-          anonymousCustomerId,
-          code,
         }),
       ).rejects.toMatchObject({
         code: AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,

@@ -9,6 +9,7 @@ import {
   Customer,
   Product,
 } from "@shared/database/prisma/generated/client";
+import { SettingsService } from "@shared/settings/settings.service";
 
 type CustomerWithCartItems = Customer & {
   cart:
@@ -20,7 +21,10 @@ type CustomerWithCartItems = Customer & {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
 
   async getOrders(customerId: string) {
     const orders = await this.findAndFormatOrders(customerId);
@@ -29,7 +33,7 @@ export class OrdersService {
   }
 
   async createOrder(customerId: string, dto: CreateOrderDto) {
-    const customer = await this.prisma.customer.findUnique({
+    const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, isActive: true },
       include: {
         addresses: true,
@@ -45,7 +49,7 @@ export class OrdersService {
       },
     });
 
-    await this.checkIfCustomerIsAptToCreateOrder(customer);
+    this.checkIfCustomerIsAptToCreateOrder(customer);
 
     const assuredCustomer = {
       ...customer!,
@@ -57,18 +61,46 @@ export class OrdersService {
     const mainAddress = assuredCustomer.addresses.find(
       (address) => address.isMain,
     );
-    const deliveryFeeSetting = await this.prisma.setting.findUnique({
-      where: { key: "DELIVERY_FEE" },
-    });
+
+    if (!mainAddress) {
+      throw new AppException(
+        AppException.errorCodes.order.NO_MAIN_ADDRESS,
+        "Nenhum endereço principal cadastrado.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const deliveryFee = await this.settingsService.getDeliveryFee();
 
     await this.prisma.$transaction(async (tx) => {
+      // Bloqueia a linha do cliente para serializar criações de pedido
+      // concorrentes e garantir a regra de apenas um pedido em andamento
+      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${assuredCustomer.id} FOR UPDATE`;
+
+      const ongoingOrdersCount = await tx.order.count({
+        where: {
+          customerId: assuredCustomer.id,
+          status: {
+            notIn: [OrderStatus.CANCELLED, OrderStatus.DELIVERED],
+          },
+        },
+      });
+
+      if (ongoingOrdersCount) {
+        throw new AppException(
+          AppException.errorCodes.order.ONGOING_ORDER,
+          "Você já tem um pedido em andamento.",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Cria o pedido com os itens do carrinho
       await tx.order.create({
         data: {
           customerId: assuredCustomer.id,
-          address: `${mainAddress?.street}, ${mainAddress?.number} - ${mainAddress?.neighborhood}/${mainAddress?.zipCode}`,
+          address: `${mainAddress.street}, ${mainAddress.number} - ${mainAddress.neighborhood}/${mainAddress.zipCode}`,
           status: OrderStatus.PENDING,
-          deliveryFee: Number(deliveryFeeSetting?.value),
+          deliveryFee: deliveryFee,
           paymentType: dto.paymentType,
           items: {
             createMany: {
@@ -85,16 +117,20 @@ export class OrdersService {
       });
 
       // Decrementa o estoque dos produtos do carrinho
-      await Promise.all(
-        assuredCustomer.cart.items.map((item) =>
-          tx.product.update({
-            where: { id: item.productId },
-            data: {
-              stock: { decrement: item.quantity },
-            },
-          }),
-        ),
-      );
+      for (const item of assuredCustomer.cart.items) {
+        const result = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+
+        if (result.count === 0) {
+          throw new AppException(
+            AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
+            `${item.product.name} não tem estoque suficiente para a quantidade solicitada.`,
+            AppException.HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
 
       // Limpa o carrinho do cliente
       await tx.cartItem.deleteMany({
@@ -123,37 +159,33 @@ export class OrdersService {
       );
     }
 
-    const cancellableStatuses: OrderStatus[] = [
-      OrderStatus.PENDING,
-      OrderStatus.PREPARING,
-    ];
-
-    if (!cancellableStatuses.includes(order.status)) {
-      throw new AppException(
-        AppException.errorCodes.order.ORDER_NOT_CANCELLABLE,
-        "Este pedido não pode mais ser cancelado.",
-        AppException.HttpStatus.BAD_REQUEST,
-      );
-    }
-
     await this.prisma.$transaction(async (tx) => {
+      const cancellableStatuses: OrderStatus[] = [
+        OrderStatus.PENDING,
+        OrderStatus.PREPARING,
+      ];
+
       // Marca o pedido como cancelado
-      await tx.order.update({
-        where: { id: order.id },
+      const result = await tx.order.updateMany({
+        where: { id: order.id, status: { in: cancellableStatuses } },
         data: { status: OrderStatus.CANCELLED },
       });
 
+      if (result.count === 0) {
+        throw new AppException(
+          AppException.errorCodes.order.ORDER_NOT_CANCELLABLE,
+          "Este pedido não pode mais ser cancelado.",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
       // Devolve o estoque dos produtos do pedido
-      await Promise.all(
-        order.items.map((item) =>
-          tx.product.update({
-            where: { id: item.productId },
-            data: {
-              stock: { increment: item.quantity },
-            },
-          }),
-        ),
-      );
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        });
+      }
     });
 
     const orders = await this.getOrders(customerId);
@@ -187,7 +219,7 @@ export class OrdersService {
     return formattedOrders;
   }
 
-  private async checkIfCustomerIsAptToCreateOrder(
+  private checkIfCustomerIsAptToCreateOrder(
     customer: CustomerWithCartItems | null,
   ) {
     if (!customer?.name) {
@@ -205,23 +237,6 @@ export class OrdersService {
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
-
-    const ongoingOrdersCount = await this.prisma.order.count({
-      where: {
-        customerId: customer.id,
-        status: {
-          notIn: [OrderStatus.CANCELLED, OrderStatus.DELIVERED],
-        },
-      },
-    });
-
-    if (ongoingOrdersCount) {
-      throw new AppException(
-        AppException.errorCodes.order.ONGOING_ORDER,
-        "Você já tem um pedido em andamento.",
-        AppException.HttpStatus.BAD_REQUEST,
-      );
-    }
   }
 
   private checkIfThereAreInvalidItemsInCart(
@@ -232,15 +247,20 @@ export class OrdersService {
     >,
   ) {
     const cartItemExceedingStockOrInactive = cartItems.find(
-      (item) => item.quantity > item.product.stock || !item.product.isActive,
+      (item) =>
+        item.quantity > item.product.stock ||
+        !item.product.isActive ||
+        item.product.deletedAt !== null,
     );
 
     if (cartItemExceedingStockOrInactive) {
       const productName = cartItemExceedingStockOrInactive.product.name;
       const productStock = cartItemExceedingStockOrInactive.product.stock;
       const producIsActive = cartItemExceedingStockOrInactive.product.isActive;
+      const productIsDeleted =
+        cartItemExceedingStockOrInactive.product.deletedAt !== null;
 
-      if (!producIsActive) {
+      if (!producIsActive || productIsDeleted) {
         throw new AppException(
           AppException.errorCodes.order.PRODUCT_INACTIVE,
           `${productName} não está mais disponível. Remova o produto para finalizar o pedido.`,

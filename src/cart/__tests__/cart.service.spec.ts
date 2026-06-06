@@ -5,6 +5,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock, settingsServiceMock } from "@shared/testing/mocks";
+import { Prisma } from "@shared/database/prisma/generated/client";
 import {
   CartFactory,
   CartItemFactory,
@@ -62,7 +63,7 @@ describe("CartService", () => {
       label: "customerId session",
       session: { customerId: "customer-123" },
       mockEmptyCart: () => {
-        prismaMock.customer.findUnique.mockResolvedValue({
+        prismaMock.customer.findFirst.mockResolvedValue({
           cart: { items: [] },
         });
       },
@@ -70,7 +71,7 @@ describe("CartService", () => {
         const customer = CustomerFactory.createOne({
           cart: CartFactory.createOne({ items }),
         });
-        prismaMock.customer.findUnique.mockResolvedValue(customer);
+        prismaMock.customer.findFirst.mockResolvedValue(customer);
         return { customerId: customer.id };
       },
     },
@@ -206,9 +207,9 @@ describe("CartService", () => {
     });
 
     it("should query customer with cart items when customerId is present in session", async () => {
-      const findUniqueSpy = jest.spyOn(prismaMock.customer, "findUnique");
+      const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
 
-      prismaMock.customer.findUnique.mockResolvedValue(
+      prismaMock.customer.findFirst.mockResolvedValue(
         CustomerFactory.createOne({
           cart: CartFactory.createOne({
             items: [],
@@ -220,7 +221,7 @@ describe("CartService", () => {
         customerId,
       });
 
-      expect(findUniqueSpy).toHaveBeenCalledWith({
+      expect(findFirstSpy).toHaveBeenCalledWith({
         where: { id: customerId, isActive: true },
         include: {
           cart: {
@@ -266,7 +267,7 @@ describe("CartService", () => {
     });
 
     it("should throw AppException when customer is not found", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(
         (service as any).findAnonymousOrCustomerWithCartOrThrow({
@@ -294,7 +295,7 @@ describe("CartService", () => {
     });
 
     it("should throw AppException when cart is not found for customer", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.customer.findFirst.mockResolvedValue({
         cart: null,
       });
 
@@ -323,7 +324,7 @@ describe("CartService", () => {
     });
 
     it("should call findAnonymousOrCustomerWithCartOrThrow and formatCart with customer", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue({
+      prismaMock.customer.findFirst.mockResolvedValue({
         cart,
       });
 
@@ -368,6 +369,27 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product }),
         ]);
+
+        await expect(
+          service.addToCart(session, { productId: product.id }),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+          message: "Produto já existe no carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+      });
+
+      it("should throw PRODUCT_ALREADY_IN_CART when a concurrent request already added the product", async () => {
+        const product = ProductFactory.createOne({ stock: 20 });
+
+        mockEmptyCart();
+        prismaMock.product.findFirst.mockResolvedValue(product);
+        prismaMock.cart.update.mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+            code: "P2002",
+            clientVersion: "test",
+          }),
+        );
 
         await expect(
           service.addToCart(session, { productId: product.id }),
@@ -433,7 +455,7 @@ describe("CartService", () => {
             data: expect.objectContaining({
               items: {
                 update: expect.objectContaining({
-                  data: { quantity: 2 },
+                  data: { quantity: { increment: 1 } },
                 }),
               },
             }),
@@ -511,7 +533,7 @@ describe("CartService", () => {
             data: expect.objectContaining({
               items: {
                 update: expect.objectContaining({
-                  data: { quantity: 12 },
+                  data: { quantity: { increment: 1 } },
                 }),
               },
             }),
@@ -545,7 +567,7 @@ describe("CartService", () => {
             data: expect.objectContaining({
               items: {
                 update: expect.objectContaining({
-                  data: { quantity: 2 },
+                  data: { quantity: { decrement: 1 } },
                 }),
               },
             }),

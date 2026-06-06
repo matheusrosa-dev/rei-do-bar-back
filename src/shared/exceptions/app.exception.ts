@@ -51,9 +51,16 @@ export class AppException extends HttpException {
       PRODUCT_INACTIVE: "ORDER_006",
       ORDER_NOT_FOUND: "ORDER_007",
       ORDER_NOT_CANCELLABLE: "ORDER_008",
+      NO_MAIN_ADDRESS: "ORDER_009",
     },
     products: {
       INVALID_SESSION: "PRODUCTS_001",
+    },
+    adminProducts: {
+      INSUFFICIENT_STOCK: "ADMIN_PRODUCTS_001",
+    },
+    settings: {
+      DELIVERY_FEE_NOT_CONFIGURED: "SETTINGS_001",
     },
   };
 

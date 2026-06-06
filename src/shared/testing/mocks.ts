@@ -2,6 +2,7 @@ export const prismaMock = {
   $transaction: jest
     .fn()
     .mockImplementation((callback) => callback(prismaMock)),
+  $queryRaw: jest.fn(),
   anonymousCustomer: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -11,6 +12,7 @@ export const prismaMock = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   cart: {
     update: jest.fn(),
@@ -24,6 +26,7 @@ export const prismaMock = {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   setting: {
     findUnique: jest.fn(),
@@ -38,10 +41,13 @@ export const prismaMock = {
     create: jest.fn(),
   },
   address: {
+    count: jest.fn(),
+    findFirst: jest.fn(),
     updateMany: jest.fn(),
   },
   customer: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -50,6 +56,7 @@ export const prismaMock = {
     findUnique: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 

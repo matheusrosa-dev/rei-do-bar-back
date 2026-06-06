@@ -34,13 +34,13 @@ describe("MeService", () => {
         addresses: [address],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       const result = await service.findMe(customerId);
 
       expect(result).toEqual(customer);
       expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
-      expect(prismaMock.customer.findUnique).toHaveBeenCalledWith(
+      expect(prismaMock.customer.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: customerId, isActive: true },
           include: { addresses: true },
@@ -49,7 +49,7 @@ describe("MeService", () => {
     });
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(service.findMe(customerId)).rejects.toMatchObject({
         code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
@@ -74,7 +74,7 @@ describe("MeService", () => {
         name: "João da Silva",
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(service.initMe(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.me.ALREADY_INITIALIZED,
@@ -91,7 +91,7 @@ describe("MeService", () => {
         addresses: [],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue({
         ...customer,
         name: dto.name,
@@ -131,11 +131,11 @@ describe("MeService", () => {
         code: AppException.errorCodes.me.NO_FIELDS_TO_UPDATE,
       });
 
-      expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
     });
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(
         service.updateMe(customerId, { name: "Maria Silva" }),
@@ -154,7 +154,7 @@ describe("MeService", () => {
         addresses: [],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue({
         ...customer,
         name: "Maria Silva",
@@ -182,13 +182,13 @@ describe("MeService", () => {
     it("should delete the customer when it exists", async () => {
       const customer = CustomerFactory.createOne({ id: customerId });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(service.deleteMe(customerId)).resolves.toBeUndefined();
     });
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(service.deleteMe(customerId)).rejects.toMatchObject({
         code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
@@ -209,7 +209,7 @@ describe("MeService", () => {
     };
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(service.addAddress(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.me.CUSTOMER_NOT_FOUND,
@@ -227,11 +227,14 @@ describe("MeService", () => {
         addresses: [existingAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.address.findFirst.mockResolvedValue(existingAddress);
 
       await expect(service.addAddress(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
       });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
     it("should throw LIMITED_NUMBER_OF_ADDRESSES when customer already has 3 addresses", async () => {
@@ -241,12 +244,16 @@ describe("MeService", () => {
         addresses,
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.address.findFirst.mockResolvedValue(null);
+      prismaMock.address.count.mockResolvedValue(3);
 
       await expect(service.addAddress(customerId, dto)).rejects.toMatchObject({
         code: AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
         message: "Limite de endereços atingido.",
       });
+
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
     it("should demote existing main addresses and create new address as main", async () => {
@@ -272,7 +279,9 @@ describe("MeService", () => {
         addresses: [{ ...existingAddress, isMain: false }, newAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.address.findFirst.mockResolvedValue(null);
+      prismaMock.address.count.mockResolvedValue(1);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.addAddress(customerId, dto);
@@ -304,7 +313,7 @@ describe("MeService", () => {
     const dto = { addressId };
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(
         service.setMainAddress(customerId, dto),
@@ -323,7 +332,7 @@ describe("MeService", () => {
         addresses: [otherAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.setMainAddress(customerId, { addressId: "non-existent" }),
@@ -345,7 +354,7 @@ describe("MeService", () => {
         addresses: [address],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.setMainAddress(customerId, dto),
@@ -382,7 +391,7 @@ describe("MeService", () => {
         ],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.setMainAddress(customerId, dto);
@@ -421,7 +430,7 @@ describe("MeService", () => {
     };
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(
         service.updateAddress(customerId, addressId, dto),
@@ -440,7 +449,7 @@ describe("MeService", () => {
         addresses: [otherAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.updateAddress(customerId, "non-existent", dto),
@@ -469,7 +478,7 @@ describe("MeService", () => {
         addresses: [addressToUpdate, conflictingAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.updateAddress(customerId, addressId, dto),
@@ -498,7 +507,7 @@ describe("MeService", () => {
         addresses: [{ ...addressToUpdate, ...dto }],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.updateAddress(customerId, addressId, dto);
@@ -551,7 +560,7 @@ describe("MeService", () => {
         ],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       await service.updateAddress(customerId, addressId, dtoWithoutComplement);
@@ -576,7 +585,7 @@ describe("MeService", () => {
     const dto = { addressId };
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
-      prismaMock.customer.findUnique.mockResolvedValue(null);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(
         service.removeAddress(customerId, dto),
@@ -595,7 +604,7 @@ describe("MeService", () => {
         addresses: [otherAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.removeAddress(customerId, { addressId: "non-existent" }),
@@ -617,7 +626,7 @@ describe("MeService", () => {
         addresses: [address],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(
         service.removeAddress(customerId, dto),
@@ -651,7 +660,7 @@ describe("MeService", () => {
         addresses: [remainingAddress],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.removeAddress(customerId, dto);
@@ -688,7 +697,7 @@ describe("MeService", () => {
         addresses: [{ ...nextAddress, isMain: true }],
       });
 
-      prismaMock.customer.findUnique.mockResolvedValue(customer);
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.customer.update.mockResolvedValue(updatedCustomer);
 
       const result = await service.removeAddress(customerId, dto);

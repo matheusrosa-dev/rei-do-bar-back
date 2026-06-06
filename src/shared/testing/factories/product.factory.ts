@@ -36,4 +36,5 @@ const makeProduct = (props: Props): Product => ({
   sortOrder: props?.sortOrder ?? null,
   createdAt: new Date(),
   updatedAt: new Date(),
+  deletedAt: null,
 });

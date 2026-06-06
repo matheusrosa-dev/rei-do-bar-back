@@ -23,25 +23,23 @@ export class CustomersService {
         },
       });
 
-      await Promise.all([
-        // Atribui o carrinho anônimo ao novo cliente
-        tx.cart.update({
-          where: {
-            id: data.anonymousCustomer.cartId,
-          },
-          data: {
-            anonymousCustomerId: null,
-            customerId: newCustomer.id,
-          },
-        }),
+      // Atribui o carrinho anônimo ao novo cliente
+      await tx.cart.update({
+        where: {
+          id: data.anonymousCustomer.cartId,
+        },
+        data: {
+          anonymousCustomerId: null,
+          customerId: newCustomer.id,
+        },
+      });
 
-        // Remove o cliente anônimo, já que não é mais necessário
-        tx.anonymousCustomer.delete({
-          where: {
-            id: data.anonymousCustomer.id,
-          },
-        }),
-      ]);
+      // Remove o cliente anônimo, já que não é mais necessário
+      await tx.anonymousCustomer.delete({
+        where: {
+          id: data.anonymousCustomer.id,
+        },
+      });
 
       return newCustomer;
     });

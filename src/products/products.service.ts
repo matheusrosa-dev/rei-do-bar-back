@@ -16,6 +16,7 @@ export class ProductsService {
       this.prisma.product.findMany({
         where: {
           isActive: true,
+          deletedAt: null,
           ...(!hasFilter ? { sortOrder: { not: null } } : {}),
           ...(dto?.category ? { category: { name: dto.category } } : {}),
           ...(dto?.searchTerm
@@ -97,7 +98,7 @@ export class ProductsService {
       });
     }
 
-    return this.prisma.customer.findUnique({
+    return this.prisma.customer.findFirst({
       where: { id: session.customerId, isActive: true },
       select,
     });

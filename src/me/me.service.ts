@@ -11,6 +11,8 @@ import {
 import { AppException } from "@shared/exceptions/app.exception";
 import { Address } from "@shared/database/prisma/generated/client";
 
+const MAX_ADDRESSES_PER_CUSTOMER = 3;
+
 @Injectable()
 export class MeService {
   constructor(private readonly prisma: PrismaService) {}
@@ -48,32 +50,42 @@ export class MeService {
   }
 
   async addAddress(customerId: string, dto: AddAddressDto) {
-    const me = await this.findMeOrThrow(customerId, {
-      withAddress: true,
-    });
-
-    const existingAddress = me.addresses?.find(
-      (address) =>
-        address.zipCode === dto.zipCode && address.number === dto.number,
-    );
-
-    if (existingAddress) {
-      throw new AppException(
-        AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
-        "Endereço já cadastrado.",
-        AppException.HttpStatus.CONFLICT,
-      );
-    }
-
-    if (me?.addresses.length === 3) {
-      throw new AppException(
-        AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
-        "Limite de endereços atingido.",
-        AppException.HttpStatus.CONFLICT,
-      );
-    }
+    await this.findMeOrThrow(customerId);
 
     const customer = await this.prisma.$transaction(async (tx) => {
+      // Bloqueia a linha do cliente para serializar inserções concorrentes e
+      // garantir, sob requisições simultâneas, tanto a unicidade do endereço
+      // quanto o limite de endereços.
+      await tx.$queryRaw`SELECT id FROM customers WHERE id = ${customerId} FOR UPDATE`;
+
+      const existingAddress = await tx.address.findFirst({
+        where: {
+          customerId,
+          zipCode: dto.zipCode,
+          number: dto.number,
+        },
+      });
+
+      if (existingAddress) {
+        throw new AppException(
+          AppException.errorCodes.me.ADDRESS_ALREADY_EXISTS,
+          "Endereço já cadastrado.",
+          AppException.HttpStatus.CONFLICT,
+        );
+      }
+
+      const addressCount = await tx.address.count({
+        where: { customerId },
+      });
+
+      if (addressCount >= MAX_ADDRESSES_PER_CUSTOMER) {
+        throw new AppException(
+          AppException.errorCodes.me.LIMITED_NUMBER_OF_ADDRESSES,
+          "Limite de endereços atingido.",
+          AppException.HttpStatus.CONFLICT,
+        );
+      }
+
       await tx.address.updateMany({
         where: {
           customerId,
@@ -313,7 +325,7 @@ export class MeService {
     customerId: string,
     options?: { withAddress?: boolean },
   ) {
-    const me = await this.prisma.customer.findUnique({
+    const me = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
         isActive: true,

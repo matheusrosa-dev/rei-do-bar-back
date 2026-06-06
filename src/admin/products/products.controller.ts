@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -17,6 +18,7 @@ import {
   UpdateProductParamsDto,
   UpdateStockProductParamsDto,
   UpdateStockProductBodyDto,
+  DeleteProductDto,
 } from "./dtos";
 
 @Controller("admin/products")
@@ -66,5 +68,10 @@ export class ProductsController {
     @Body() dto: UpdateStockProductBodyDto,
   ) {
     return this.productsService.decrementStock(productId, dto.amount);
+  }
+
+  @Delete(":productId")
+  removeProduct(@Param() { productId }: DeleteProductDto) {
+    return this.productsService.removeProduct(productId);
   }
 }

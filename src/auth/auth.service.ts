@@ -7,6 +7,7 @@ import {
   AnonymousCustomer,
   Cart,
   Customer,
+  Prisma,
 } from "@shared/database/prisma/generated/client";
 import { ConfigService } from "@nestjs/config";
 import { IAuthConfig } from "@shared/config/env-config.interface";
@@ -94,33 +95,26 @@ export class AuthService {
       code: dto.code,
     });
 
-    let customer: Customer | null;
-
     // Verifica se já existe um cliente associado a esse número de telefone
-    customer = await this.prisma.customer.findUnique({
+    let customer = await this.prisma.customer.findUnique({
       where: {
         phone: dto.phone,
       },
     });
 
-    if (customer && !customer.isActive) {
+    if (!customer) {
+      customer = await this.createCustomerOrRecoverOnConflict(
+        dto.phone,
+        anonymousCustomer,
+      );
+    }
+
+    if (!customer.isActive) {
       throw new AppException(
         AppException.errorCodes.auth.INACTIVE_CUSTOMER,
         "Este número de telefone está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
         AppException.HttpStatus.FORBIDDEN,
       );
-    }
-
-    if (!customer) {
-      customer = await this.customersService.createCustomerFromAnonymous({
-        newCustomer: {
-          phone: dto.phone,
-        },
-        anonymousCustomer: {
-          cartId: anonymousCustomer.cart!.id,
-          id: anonymousCustomer.id,
-        },
-      });
     }
 
     const tokens = this.generateTokens({
@@ -172,22 +166,30 @@ export class AuthService {
     });
 
     await this.prisma.$transaction(async (tx) => {
-      await Promise.all([
-        // Remove o refresh token antigo para evitar que seja reutilizado
-        tx.refreshToken.delete({
-          where: {
-            id: validToken.id,
-          },
-        }),
+      // Remove o refresh token antigo de forma atômica para evitar reuso. Em
+      // rotações concorrentes com o mesmo token, apenas uma requisição deleta a
+      // linha (count 1); as demais recebem count 0 e têm o acesso negado.
+      const { count } = await tx.refreshToken.deleteMany({
+        where: {
+          id: validToken.id,
+        },
+      });
 
-        // Armazena o novo refresh token
-        tx.refreshToken.create({
-          data: {
-            hashedToken: newTokens.hashedRefreshToken,
-            customerId: validToken.customer.id,
-          },
-        }),
-      ]);
+      if (count === 0) {
+        throw new AppException(
+          AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
+          "Acesso negado. O token de atualização fornecido é inválido.",
+          AppException.HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      // Armazena o novo refresh token
+      await tx.refreshToken.create({
+        data: {
+          hashedToken: newTokens.hashedRefreshToken,
+          customerId: validToken.customer.id,
+        },
+      });
     });
 
     return {
@@ -203,6 +205,41 @@ export class AuthService {
         hashedToken: hashString(data.token),
       },
     });
+  }
+
+  private async createCustomerOrRecoverOnConflict(
+    phone: string,
+    anonymousCustomer: AnonymousCustomer & { cart?: Cart },
+  ): Promise<Customer> {
+    try {
+      return await this.customersService.createCustomerFromAnonymous({
+        newCustomer: {
+          phone,
+        },
+        anonymousCustomer: {
+          cartId: anonymousCustomer.cart!.id,
+          id: anonymousCustomer.id,
+        },
+      });
+    } catch (error) {
+      // Em logins concorrentes com o mesmo telefone, outra requisição pode ter
+      // criado o cliente primeiro, violando a unicidade do telefone (P2002).
+      // Nesse caso, recupera o cliente já existente em vez de falhar.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        const existingCustomer = await this.prisma.customer.findUnique({
+          where: { phone },
+        });
+
+        if (existingCustomer) {
+          return existingCustomer;
+        }
+      }
+
+      throw error;
+    }
   }
 
   private async findAnonymousCustomer(
@@ -241,30 +278,27 @@ export class AuthService {
   }) {
     const { anonymousCustomerId, code } = props;
 
-    // Verifica se existe um código de verificação válido para o cliente anônimo
-    const verificationCode = await this.prisma.otpCode.findFirst({
+    // Valida e consome o código de forma atômica: o próprio delete só afeta a
+    // linha que casa com o hash e ainda está válida. Em requisições concorrentes
+    // com o mesmo código, apenas uma deleta a linha (count 1) e as demais
+    // recebem count 0, impedindo o reuso do mesmo código.
+    const { count } = await this.prisma.otpCode.deleteMany({
       where: {
         anonymousCustomerId,
+        hashedCode: hashString(code),
         expiresAt: {
           gte: new Date(),
         },
       },
     });
 
-    if (!verificationCode || hashString(code) !== verificationCode.hashedCode) {
+    if (count === 0) {
       throw new AppException(
         AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
         "Código de verificação inválido ou expirado.",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
-
-    // Remove o código de verificação após a validação bem-sucedida
-    await this.prisma.otpCode.deleteMany({
-      where: {
-        anonymousCustomerId,
-      },
-    });
   }
 
   private generateTokens(payload: { customerId: string; phone: string }) {
