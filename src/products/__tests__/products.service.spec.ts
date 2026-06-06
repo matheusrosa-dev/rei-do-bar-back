@@ -45,7 +45,7 @@ describe("ProductsService", () => {
         label: "customer",
         session: { customerId: "customer-123" },
         mockWithCart: (value: any) =>
-          prismaMock.customer.findUnique.mockResolvedValue(value),
+          prismaMock.customer.findFirst.mockResolvedValue(value),
         customerWithEmptyCart: CustomerFactory.createOne({
           cart: CartFactory.createOne({ items: [] }),
         }),
@@ -349,14 +349,14 @@ describe("ProductsService", () => {
     });
 
     it("should query customer with cart items when customerId is present in session", async () => {
-      const findUniqueSpy = jest.spyOn(prismaMock.customer, "findUnique");
+      const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
       const sessionWithCustomerId = { customerId: "customer-123" };
 
       await (service as any).findAnonymousOrCustomerWithCart(
         sessionWithCustomerId,
       );
 
-      expect(findUniqueSpy).toHaveBeenCalledWith(
+      expect(findFirstSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: sessionWithCustomerId.customerId, isActive: true },
           select: {
