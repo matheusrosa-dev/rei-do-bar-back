@@ -67,6 +67,7 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `ALREADY_INITIALIZED` | `ME_005` | 400 |
 | `CANNOT_REMOVE_MAIN_ADDRESS` | `ME_006` | 400 |
 | `LIMITED_NUMBER_OF_ADDRESSES` | `ME_007` | 409 |
+| `ADDRESS_ALREADY_MAIN` | `ME_008` | 400 |
 
 ### `order`
 
@@ -80,12 +81,35 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `PRODUCT_INACTIVE` | `ORDER_006` | 400 |
 | `ORDER_NOT_FOUND` | `ORDER_007` | 404 |
 | `ORDER_NOT_CANCELLABLE` | `ORDER_008` | 400 |
+| `NO_MAIN_ADDRESS` | `ORDER_009` | 400 |
 
 ### `products`
 
 | Constant | Code | HTTP |
 |---|---|---|
 | `INVALID_SESSION` | `PRODUCTS_001` | 500 |
+
+### `adminProducts`
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `INSUFFICIENT_STOCK` | `ADMIN_PRODUCTS_001` | 400 | Decrement amount exceeds current stock |
+| `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` | 404 | Product does not exist or is soft-deleted |
+| `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` | 400 | `categoryId` does not reference an existing category |
+
+### `adminCategories`
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `CATEGORY_NOT_FOUND` | `ADMIN_CATEGORIES_001` | 404 | Category does not exist |
+| `CATEGORY_HAS_PRODUCTS` | `ADMIN_CATEGORIES_002` | 409 | Attempted delete when products still reference this category |
+| `CATEGORY_ALREADY_EXISTS` | `ADMIN_CATEGORIES_003` | 409 | Name unique constraint violated on create |
+
+### `settings`
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `DELIVERY_FEE_NOT_CONFIGURED` | `SETTINGS_001` | 500 | `DELIVERY_FEE` key is absent from the `settings` table |
 
 ---
 

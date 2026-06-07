@@ -16,6 +16,7 @@ Cross-cutting infrastructure used by all feature modules. Nothing here is domain
 | `guards/` | `DeviceIdGuard`, `AccessTokenGuard`, `RefreshTokenGuard` |
 | `helpers/` | Pure utility functions: `hashString`, `generateOtpCode` |
 | `interceptors/` | `WrapperDataInterceptor`, `SerializeInterceptor`, `DelayInterceptor` |
+| `settings/` | `SettingsService` — reads `DELIVERY_FEE` from DB with a 5-min in-memory cache; consumed by `CartService` and `OrdersService` |
 | `testing/` | Test factories and mock objects — **only imported from `*.spec.ts` files** |
 | `types/` | `ICurrentSession` interface + Express `Request` augmentation |
 

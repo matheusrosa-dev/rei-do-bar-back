@@ -59,7 +59,7 @@ datasource db {
 | Table naming | `@@map("table_name")` uses `snake_case` plural |
 | Timestamps | `createdAt DateTime @default(now()) @map("created_at")`, `updatedAt DateTime @updatedAt @map("updated_at")` |
 | Monetary values | Stored as `Int` in cents (e.g. `price: 1500` = R$15,00) |
-| Soft delete | `isActive: Boolean` on `Customer` and `Category`/`Product` — never hard-delete customers |
+| Soft delete | `isActive: Boolean` on `Customer` and `Category` — never hard-delete customers. `Product` has BOTH `isActive` (availability flag for clients) AND `deletedAt DateTime?` (admin deletion — keeps the record in the DB but excludes it from all queries via `WHERE deletedAt IS NULL`) |
 
 ---
 

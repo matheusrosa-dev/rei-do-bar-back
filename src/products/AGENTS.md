@@ -6,7 +6,7 @@ Product catalog queries for client-facing endpoints. Currently only the best-sel
 
 ## What does NOT belong here
 
-- Product creation/editing (no admin API yet)
+- Product creation/editing/deletion → `src/admin/products/`
 - Cart operations → `src/cart/`
 - Category management → `src/categories/`
 
@@ -27,7 +27,7 @@ Both query params are optional and validated via `FindBestSellersDto`. Returns p
 `ProductsService.findBestSellers` fetches products and the session's cart in **parallel** (`Promise.all`). The cart lookup uses the same anonymous/customer duality as `CartService`:
 
 - `session.deviceId` → `anonymousCustomer.findUnique({ where: { deviceId } })`
-- `session.customerId` → `customer.findUnique({ where: { id, isActive: true } })`
+- `session.customerId` → `customer.findFirst({ where: { id, isActive: true } })` (`findFirst` is used instead of `findUnique` to allow the compound `isActive` filter)
 
 Both queries select only `cart.items.{ productId, quantity }`.
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, and cart management. Orders and delivery are modeled in the schema (commented out) but not yet implemented.
+REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products and categories via HTTP Basic Auth.
 
 ---
 
@@ -81,21 +81,24 @@ REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers all feature modules + global providers
+│   ├── admin/                   # Admin backoffice: product and category management (HTTP Basic Auth)
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
 │   ├── customers/               # Internal customer service (no public controller)
 │   ├── me/                      # Authenticated customer self-management
+│   ├── orders/                  # Order creation and cancellation (authenticated customers)
 │   ├── products/                # Product catalog (best-sellers listing)
 │   └── shared/                  # Cross-cutting concerns: config, DB, guards, interceptors, etc.
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
-│       ├── decorators/          # @Public(), @CurrentSession()
+│       ├── decorators/          # @Public(), @CurrentSession(), @AdminAuth()
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # GlobalExceptionFilter
-│       ├── guards/              # DeviceIdGuard, AccessTokenGuard, RefreshTokenGuard
+│       ├── guards/              # DeviceIdGuard, AccessTokenGuard, RefreshTokenGuard, BasicAuthGuard
 │       ├── helpers/             # Pure functions: hashString, generateOtpCode
 │       ├── interceptors/        # WrapperDataInterceptor, SerializeInterceptor, DelayInterceptor
+│       ├── settings/            # SettingsService: delivery fee with 5-min in-memory cache
 │       ├── testing/             # Test factories, mocks (only used in tests)
 │       └── types/               # Shared TypeScript interfaces (ICurrentSession)
 └── test/                        # E2E tests (supertest)
@@ -148,6 +151,8 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `AUTH_JWT_REFRESH_SECRET` | Refresh token signing secret |
 | `AUTH_JWT_EXPIRATION_TIME` | Access token TTL (e.g. `900s`) |
 | `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `14d`) |
+| `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
+| `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
 
 ### Language
 

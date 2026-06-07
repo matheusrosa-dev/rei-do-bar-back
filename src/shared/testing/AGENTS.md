@@ -11,10 +11,11 @@ testing/
     ├── index.ts          # Barrel re-export of all factories
     ├── types/
     │   └── index.ts      # Composite types used across factories
-    ├── customer.factory.ts
+    ├── address.factory.ts
     ├── anonymous-customer.factory.ts
     ├── cart.factory.ts
     ├── cart-item.factory.ts
+    ├── customer.factory.ts
     └── product.factory.ts
 ```
 
@@ -41,7 +42,7 @@ $transaction: jest.fn().mockImplementation((callback) => callback(prismaMock))
 
 **When adding a new Prisma method in a service**, add the corresponding `jest.fn()` to `prismaMock` in this file. `clearMocks: true` in `jest.config.ts` resets all mocks between tests.
 
-Also exports: `cartServiceMock`, `authServiceMock`, `categoriesServiceMock`, `productsServiceMock` — partial service mocks for controller tests.
+Also exports: `cartServiceMock`, `authServiceMock`, `categoriesServiceMock`, `productsServiceMock`, `settingsServiceMock` — partial service mocks for controller tests.
 
 ---
 
@@ -64,10 +65,10 @@ Composite types in `factories/types/index.ts` extend Prisma-generated types with
 type CartItemWithProduct = CartItem & { product: Product };
 type CartWithItems = Cart & { items: CartItemWithProduct[] };
 type AnonymousCustomerWithRelations = AnonymousCustomer & { cart: CartWithItems };
-type CustomerWithRelations = Customer & { cart: CartWithItems };
+type CustomerWithRelations = Customer & { cart?: CartWithItems; addresses?: Address[] };
 ```
 
-These types reflect the exact shape returned by `findUnique/findMany` with `include` in production code, ensuring factories produce correctly typed test data.
+`cart` is optional on `CustomerWithRelations` because not all test queries include the cart relation. `addresses` reflects the address management feature in `MeService`. These types reflect the exact shape returned by `findUnique/findMany` with `include` in production code, ensuring factories produce correctly typed test data.
 
 ### Creating Test Data
 
