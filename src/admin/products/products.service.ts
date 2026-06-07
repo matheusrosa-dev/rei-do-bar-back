@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
@@ -58,6 +54,9 @@ export class ProductsService {
         skip,
         take: limit,
         orderBy: Object.keys(orderBy).length ? orderBy : { updatedAt: "desc" },
+        include: {
+          category: true,
+        },
       }),
       this.prisma.product.count({ where }),
     ]);
@@ -79,10 +78,17 @@ export class ProductsService {
         id: productId,
         deletedAt: null,
       },
+      include: {
+        category: true,
+      },
     });
 
     if (!product) {
-      throw new NotFoundException("Produto não encontrado");
+      throw new AppException(
+        AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
+        "Produto não encontrado.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
     }
 
     return product;
@@ -104,12 +110,19 @@ export class ProductsService {
             },
           },
         },
+        include: {
+          category: true,
+        },
       });
 
       return product;
     } catch (error) {
       if (this.isRecordNotFound(error)) {
-        throw new BadRequestException("Categoria inválida");
+        throw new AppException(
+          AppException.errorCodes.adminProducts.INVALID_CATEGORY,
+          "Categoria inválida.",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
       }
 
       throw error;
@@ -147,7 +160,11 @@ export class ProductsService {
       });
     } catch (error) {
       if (this.isRecordNotFound(error)) {
-        throw new NotFoundException("Produto não encontrado");
+        throw new AppException(
+          AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
+          "Produto não encontrado.",
+          AppException.HttpStatus.NOT_FOUND,
+        );
       }
 
       throw error;
@@ -155,6 +172,27 @@ export class ProductsService {
   }
 
   async activateProduct(productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: { category: { select: { isActive: true } } },
+    });
+
+    if (!product) {
+      throw new AppException(
+        AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
+        "Produto não encontrado.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (!product.category.isActive) {
+      throw new AppException(
+        AppException.errorCodes.adminProducts.CATEGORY_INACTIVE,
+        "Não é possível ativar um produto com categoria inativa.",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
+
     return this.updateProductOrThrow(productId, { isActive: true });
   }
 
@@ -187,6 +225,9 @@ export class ProductsService {
             decrement: amount,
           },
         },
+        include: {
+          category: true,
+        },
       });
     } catch (error) {
       if (this.isRecordNotFound(error)) {
@@ -216,10 +257,17 @@ export class ProductsService {
           deletedAt: null,
         },
         data,
+        include: {
+          category: true,
+        },
       });
     } catch (error) {
       if (this.isRecordNotFound(error)) {
-        throw new NotFoundException("Produto não encontrado");
+        throw new AppException(
+          AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
+          "Produto não encontrado.",
+          AppException.HttpStatus.NOT_FOUND,
+        );
       }
 
       throw error;
