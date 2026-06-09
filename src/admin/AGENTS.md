@@ -128,8 +128,16 @@ All routes are under `@Controller("admin/customers")`.
 | `page` | `Int` (min 1) | Defaults to 1 |
 | `limit` | `Int` (1–100) | Defaults to 20 |
 | `isActive` | `Boolean` | Filter by active state; omitting returns all |
+| `searchTerm` | `String` | Case-insensitive OR search on name, phone, id |
+| `sortKey` | `"allOrdersCount"` \| `"deliveredOrdersCount"` | Field to sort by; omitting sorts by `createdAt desc` |
+| `sortDirection` | `"asc"` \| `"desc"` | Sort direction; defaults to `"desc"` when `sortKey` is present |
 
 Response: `{ items: Customer[], meta: { total, page, limit, totalPages } }`. Each item includes the customer's main address and order counts (`allOrdersCount`, `cancelledOrdersCount`, `deliveredOrdersCount`).
+
+### Sorting Strategy
+
+- `allOrdersCount`: sorted at the database level via Prisma relation-count ordering — DB pagination applies normally.
+- `deliveredOrdersCount`: sorted in application memory via a two-step query (lightweight fetch of all matching IDs + filtered count, then a second fetch for full data of the paginated slice). DB pagination does not apply to the ordering step; the full filtered set is loaded for sorting.
 
 ### Key Patterns
 

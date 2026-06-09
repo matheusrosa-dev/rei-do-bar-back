@@ -1,5 +1,13 @@
 import { Transform, Type } from "class-transformer";
-import { IsBoolean, IsInt, IsOptional, Max, Min } from "class-validator";
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
 
 export class FindAllCustomersDto {
   @IsOptional()
@@ -19,4 +27,16 @@ export class FindAllCustomersDto {
   @Transform(({ value }) => value === "true")
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  searchTerm?: string;
+
+  @IsOptional()
+  @IsIn(["allOrdersCount", "deliveredOrdersCount"])
+  sortKey?: "allOrdersCount" | "deliveredOrdersCount";
+
+  @IsOptional()
+  @IsIn(["asc", "desc"])
+  sortDirection?: "asc" | "desc";
 }

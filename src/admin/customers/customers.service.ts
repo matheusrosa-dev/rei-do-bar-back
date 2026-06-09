@@ -4,6 +4,10 @@ import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
 
+type CustomerWithRelations = Prisma.CustomerGetPayload<{
+  include: { addresses: true; orders: true };
+}>;
+
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -20,23 +24,42 @@ export class CustomersService {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
+    const direction = dto.sortDirection ?? "desc";
 
     const where: Prisma.CustomerWhereInput = {
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.searchTerm && {
+        OR: [
+          { name: { contains: dto.searchTerm, mode: "insensitive" } },
+          { phone: { contains: dto.searchTerm, mode: "insensitive" } },
+          { id: { contains: dto.searchTerm, mode: "insensitive" } },
+        ],
+      }),
     };
+
+    if (dto.sortKey === "deliveredOrdersCount") {
+      return this.findAllSortedByDeliveredOrders(
+        where,
+        page,
+        limit,
+        skip,
+        direction,
+      );
+    }
+
+    const orderBy: Prisma.CustomerOrderByWithRelationInput =
+      dto.sortKey === "allOrdersCount"
+        ? { orders: { _count: direction } }
+        : { createdAt: "desc" };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         include: {
-          addresses: {
-            where: {
-              isMain: true,
-            },
-          },
+          addresses: { where: { isMain: true } },
           orders: true,
         },
       }),
@@ -44,34 +67,7 @@ export class CustomersService {
     ]);
 
     return {
-      items: items.map(({ addresses, orders, ...item }) => {
-        const mainAddress = addresses[0];
-
-        const ordersCount = orders.reduce(
-          (acc, cur) => {
-            acc.allOrdersCount = orders.length;
-
-            if (cur.status === "CANCELLED") {
-              acc.cancelledOrdersCount += 1;
-            } else if (cur.status === "DELIVERED") {
-              acc.deliveredOrdersCount += 1;
-            }
-
-            return acc;
-          },
-          {
-            allOrdersCount: 0,
-            cancelledOrdersCount: 0,
-            deliveredOrdersCount: 0,
-          },
-        );
-
-        return {
-          ...item,
-          mainAddress,
-          ...ordersCount,
-        };
-      }),
+      items: items.map((item) => this.mapCustomerResult(item)),
       meta: {
         total,
         page,
@@ -79,6 +75,84 @@ export class CustomersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  private async findAllSortedByDeliveredOrders(
+    where: Prisma.CustomerWhereInput,
+    page: number,
+    limit: number,
+    skip: number,
+    direction: "asc" | "desc",
+  ) {
+    const allCustomers = await this.prisma.customer.findMany({
+      where,
+      select: {
+        id: true,
+        _count: {
+          select: {
+            orders: { where: { status: "DELIVERED" } },
+          },
+        },
+      },
+    });
+
+    allCustomers.sort((a, b) => {
+      const diff = a._count.orders - b._count.orders;
+      return direction === "asc" ? diff : -diff;
+    });
+
+    const total = allCustomers.length;
+    const paginatedIds = allCustomers
+      .slice(skip, skip + limit)
+      .map((c) => c.id);
+
+    if (paginatedIds.length === 0) {
+      return {
+        items: [],
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      };
+    }
+
+    const items = await this.prisma.customer.findMany({
+      where: { id: { in: paginatedIds } },
+      include: {
+        addresses: { where: { isMain: true } },
+        orders: true,
+      },
+    });
+
+    const itemMap = new Map(items.map((item) => [item.id, item]));
+    const sortedItems = paginatedIds.map((id) => itemMap.get(id)!);
+
+    return {
+      items: sortedItems.map((item) => this.mapCustomerResult(item)),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  private mapCustomerResult({
+    addresses,
+    orders,
+    ...item
+  }: CustomerWithRelations) {
+    const mainAddress = addresses[0];
+
+    const ordersCount = orders.reduce(
+      (acc, cur) => {
+        acc.allOrdersCount = orders.length;
+
+        if (cur.status === "CANCELLED") {
+          acc.cancelledOrdersCount += 1;
+        } else if (cur.status === "DELIVERED") {
+          acc.deliveredOrdersCount += 1;
+        }
+
+        return acc;
+      },
+      { allOrdersCount: 0, cancelledOrdersCount: 0, deliveredOrdersCount: 0 },
+    );
+
+    return { ...item, mainAddress, ...ordersCount };
   }
 
   private async updateCustomerOrThrow(
