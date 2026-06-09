@@ -401,24 +401,6 @@ describe("AuthService", () => {
         expect.objectContaining({ throwIfNotFound: true, includeCart: true }),
       );
     });
-
-    it("should throw INACTIVE_CUSTOMER if the customer exists but is inactive", async () => {
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
-        anonymousCustomer,
-      );
-
-      prismaMock.customer.findUnique.mockResolvedValue({
-        ...activeCustomer,
-        isActive: false,
-      });
-
-      await expect(
-        service.loginWithOtpCode(deviceId, dto),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.auth.INACTIVE_CUSTOMER,
-        httpStatus: AppException.HttpStatus.FORBIDDEN,
-      });
-    });
   });
 
   describe("refreshTokens", () => {

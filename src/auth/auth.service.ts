@@ -111,14 +111,6 @@ export class AuthService {
       );
     }
 
-    if (!customer.isActive) {
-      throw new AppException(
-        AppException.errorCodes.auth.INACTIVE_CUSTOMER,
-        "Este número de telefone está associado a um cliente inativo. Por favor, entre em contato com o suporte.",
-        AppException.HttpStatus.FORBIDDEN,
-      );
-    }
-
     const tokens = this.generateTokens({
       customerId: customer.id,
       phone: customer.phone,
@@ -145,16 +137,12 @@ export class AuthService {
       },
       include: {
         customer: {
-          select: { id: true, phone: true, isActive: true },
+          select: { id: true, phone: true },
         },
       },
     });
 
-    if (
-      !validToken ||
-      validToken.customerId !== data.customerId ||
-      !validToken.customer.isActive
-    ) {
+    if (!validToken || validToken.customerId !== data.customerId) {
       throw new AppException(
         AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
         "Acesso negado. O token de atualização fornecido é inválido.",

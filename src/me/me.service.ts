@@ -328,7 +328,6 @@ export class MeService {
     const me = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
-        isActive: true,
       },
       include: {
         addresses: !!options?.withAddress,

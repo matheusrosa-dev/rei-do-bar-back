@@ -99,7 +99,7 @@ export class ProductsService {
     }
 
     return this.prisma.customer.findFirst({
-      where: { id: session.customerId, isActive: true },
+      where: { id: session.customerId },
       select,
     });
   }

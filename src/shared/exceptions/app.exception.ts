@@ -27,7 +27,6 @@ export class AppException extends HttpException {
     auth: {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",
       INVALID_VERIFICATION_CODE: "AUTH_002",
-      INACTIVE_CUSTOMER: "AUTH_003",
       INVALID_REFRESH_TOKEN: "AUTH_004",
       CUSTOMER_NOT_FOUND: "AUTH_005",
       INVALID_TOKEN_IN_DECORATOR: "AUTH_006",
@@ -52,6 +51,7 @@ export class AppException extends HttpException {
       ORDER_NOT_FOUND: "ORDER_007",
       ORDER_NOT_CANCELLABLE: "ORDER_008",
       NO_MAIN_ADDRESS: "ORDER_009",
+      INACTIVE_CUSTOMER: "ORDER_010",
     },
     products: {
       INVALID_SESSION: "PRODUCTS_001",

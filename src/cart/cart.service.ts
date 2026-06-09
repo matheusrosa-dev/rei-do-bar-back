@@ -326,7 +326,7 @@ export class CartService {
     }
 
     const customer = await this.prisma.customer.findFirst({
-      where: { id: session.customerId, isActive: true },
+      where: { id: session.customerId },
       include,
     });
 

@@ -34,7 +34,7 @@ export class OrdersService {
 
   async createOrder(customerId: string, dto: CreateOrderDto) {
     const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, isActive: true },
+      where: { id: customerId },
       include: {
         addresses: true,
         cart: {
@@ -222,6 +222,14 @@ export class OrdersService {
   private checkIfCustomerIsAptToCreateOrder(
     customer: CustomerWithCartItems | null,
   ) {
+    if (!customer?.isActive) {
+      throw new AppException(
+        AppException.errorCodes.order.INACTIVE_CUSTOMER,
+        "Sua conta foi bloqueada. Por favor, entre em contato com o suporte.",
+        AppException.HttpStatus.FORBIDDEN,
+      );
+    }
+
     if (!customer?.name) {
       throw new AppException(
         AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
