@@ -5,6 +5,7 @@
 Admin backoffice operations protected by HTTP Basic Auth:
 - Product management (CRUD, stock, soft-delete, activate/deactivate)
 - Category management (create, activate/deactivate, delete)
+- Customer management (list, activate/deactivate)
 
 ## What does NOT belong here
 
@@ -37,6 +38,14 @@ admin/
 │       ├── delete-category.dto.ts
 │       ├── find-all-category.dto.ts
 │       └── toggle-status-category.dto.ts
+├── customers/
+│   ├── customers.module.ts
+│   ├── customers.controller.ts
+│   ├── customers.service.ts
+│   └── dtos/
+│       ├── index.ts
+│       ├── find-all-customers.dto.ts
+│       └── toggle-status-customer.dto.ts
 └── products/
     ├── products.module.ts
     ├── products.controller.ts
@@ -99,6 +108,39 @@ Response: `{ items: Product[], meta: { total, page, limit, totalPages } }`
 | `INSUFFICIENT_STOCK` | `ADMIN_PRODUCTS_001` | 400 | Decrement amount exceeds current stock |
 | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` | 404 | Product does not exist or is soft-deleted |
 | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` | 400 | `categoryId` does not reference an existing category |
+
+---
+
+## Admin Customers Endpoints
+
+All routes are under `@Controller("admin/customers")`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/admin/customers` | Paginated list with optional `isActive` filter |
+| `PATCH` | `/admin/customers/:customerId/activate` | Set `isActive: true` |
+| `PATCH` | `/admin/customers/:customerId/deactivate` | Set `isActive: false` |
+
+### List Query Params (`FindAllCustomersDto`)
+
+| Param | Type | Notes |
+|---|---|---|
+| `page` | `Int` (min 1) | Defaults to 1 |
+| `limit` | `Int` (1–100) | Defaults to 20 |
+| `isActive` | `Boolean` | Filter by active state; omitting returns all |
+
+Response: `{ items: Customer[], meta: { total, page, limit, totalPages } }`. Each item includes the customer's main address and order counts (`allOrdersCount`, `cancelledOrdersCount`, `deliveredOrdersCount`).
+
+### Key Patterns
+
+- Activate/deactivate returns only `{ id, isActive }` — no PII fields are exposed
+- `updateCustomerOrThrow` is a private helper shared by both toggle methods; converts Prisma `P2025` to `AppException`
+
+### Error Codes
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `CUSTOMER_NOT_FOUND` | `ADMIN_CUSTOMERS_001` | 404 | Customer does not exist |
 
 ---
 

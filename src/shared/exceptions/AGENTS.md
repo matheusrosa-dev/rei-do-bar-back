@@ -51,7 +51,6 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 |---|---|---|
 | `ANONYMOUS_CUSTOMER_NOT_FOUND` | `AUTH_001` | 403 |
 | `INVALID_VERIFICATION_CODE` | `AUTH_002` | 400 |
-| `INACTIVE_CUSTOMER` | `AUTH_003` | 403 |
 | `INVALID_REFRESH_TOKEN` | `AUTH_004` | 401 |
 | `CUSTOMER_NOT_FOUND` | `AUTH_005` | — |
 | `INVALID_TOKEN_IN_DECORATOR` | `AUTH_006` | 401 |
@@ -82,6 +81,7 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `ORDER_NOT_FOUND` | `ORDER_007` | 404 |
 | `ORDER_NOT_CANCELLABLE` | `ORDER_008` | 400 |
 | `NO_MAIN_ADDRESS` | `ORDER_009` | 400 |
+| `INACTIVE_CUSTOMER` | `ORDER_010` | 400 |
 
 ### `products`
 
@@ -96,6 +96,7 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `INSUFFICIENT_STOCK` | `ADMIN_PRODUCTS_001` | 400 | Decrement amount exceeds current stock |
 | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` | 404 | Product does not exist or is soft-deleted |
 | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` | 400 | `categoryId` does not reference an existing category |
+| `CATEGORY_INACTIVE` | `ADMIN_PRODUCTS_004` | 400 | Referenced category is inactive |
 
 ### `adminCategories`
 
@@ -104,6 +105,12 @@ Error codes are namespaced by domain on `AppException.errorCodes`. This is the *
 | `CATEGORY_NOT_FOUND` | `ADMIN_CATEGORIES_001` | 404 | Category does not exist |
 | `CATEGORY_HAS_PRODUCTS` | `ADMIN_CATEGORIES_002` | 409 | Attempted delete when products still reference this category |
 | `CATEGORY_ALREADY_EXISTS` | `ADMIN_CATEGORIES_003` | 409 | Name unique constraint violated on create |
+
+### `adminCustomers`
+
+| Constant | Code | HTTP | When |
+|---|---|---|---|
+| `CUSTOMER_NOT_FOUND` | `ADMIN_CUSTOMERS_001` | 404 | Customer does not exist |
 
 ### `settings`
 
