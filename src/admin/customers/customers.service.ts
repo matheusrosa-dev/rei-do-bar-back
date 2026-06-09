@@ -102,7 +102,7 @@ export class CustomersService {
     };
   }
 
-  async findById(customerId: string) {
+  async findCustomerById(customerId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: {
         id: customerId,
@@ -214,9 +214,6 @@ export class CustomersService {
       return await this.prisma.customer.update({
         where: { id: customerId },
         data,
-        include: {
-          addresses: true,
-        },
       });
     } catch (error) {
       if (

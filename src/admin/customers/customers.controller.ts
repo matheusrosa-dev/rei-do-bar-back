@@ -19,8 +19,8 @@ export class CustomersController {
   }
 
   @Get(":customerId")
-  findById(@Param() { customerId }: FindCustomerByIdDto) {
-    return this.customersService.findById(customerId);
+  findCustomerById(@Param() { customerId }: FindCustomerByIdDto) {
+    return this.customersService.findCustomerById(customerId);
   }
 
   @Patch(":customerId/activate")
