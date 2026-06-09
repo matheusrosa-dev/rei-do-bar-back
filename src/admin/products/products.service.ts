@@ -53,7 +53,7 @@ export class ProductsService {
         where,
         skip,
         take: limit,
-        orderBy: Object.keys(orderBy).length ? orderBy : { updatedAt: "desc" },
+        orderBy: Object.keys(orderBy).length ? orderBy : { createdAt: "desc" },
         include: {
           category: true,
         },

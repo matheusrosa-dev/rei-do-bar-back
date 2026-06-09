@@ -13,3 +13,4 @@ adicionar paginação no histórico de pedidos e evitar recarregar o histórico 
 corrigir order by no cart
 adicionar valor mínimo de pedido
 adicionar meio de contato do suporte no app
+deve ser possivel ordernar as categorias

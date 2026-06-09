@@ -17,6 +17,9 @@ export class CategoriesService {
       where: {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
+      orderBy: {
+        createdAt: "desc",
+      },
       include: {
         _count: {
           select: {
