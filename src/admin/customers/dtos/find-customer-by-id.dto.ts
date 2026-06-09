@@ -1,6 +1,6 @@
 import { IsUUID } from "class-validator";
 
-export class DeleteCustomerDto {
+export class FindCustomerByIdDto {
   @IsUUID()
   customerId!: string;
 }

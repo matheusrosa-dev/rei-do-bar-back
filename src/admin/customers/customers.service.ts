@@ -102,6 +102,32 @@ export class CustomersService {
     };
   }
 
+  async findById(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: {
+        id: customerId,
+      },
+      include: {
+        addresses: true,
+        orders: {
+          include: {
+            items: true,
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      throw new AppException(
+        AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    return customer;
+  }
+
   private async findAllSortedByDeliveredOrders(
     where: Prisma.CustomerWhereInput,
     page: number,

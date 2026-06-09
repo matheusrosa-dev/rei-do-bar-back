@@ -3,6 +3,7 @@ import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import {
   DeleteCustomerDto,
   FindAllCustomersDto,
+  FindCustomerByIdDto,
   ToggleStatusCustomerDto,
 } from "./dtos";
 import { CustomersService } from "./customers.service";
@@ -15,6 +16,11 @@ export class CustomersController {
   @Get()
   findAll(@Query() dto: FindAllCustomersDto) {
     return this.customersService.findAll(dto);
+  }
+
+  @Get(":customerId")
+  findById(@Param() { customerId }: FindCustomerByIdDto) {
+    return this.customersService.findById(customerId);
   }
 
   @Patch(":customerId/activate")
