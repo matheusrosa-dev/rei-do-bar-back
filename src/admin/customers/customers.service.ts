@@ -12,6 +12,31 @@ type CustomerWithRelations = Prisma.CustomerGetPayload<{
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async removeCustomer(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { _count: { select: { orders: true } } },
+    });
+
+    if (!customer) {
+      throw new AppException(
+        AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
+        "Cliente não encontrado.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (customer._count.orders > 0) {
+      throw new AppException(
+        AppException.errorCodes.adminCustomers.CUSTOMER_HAS_ORDERS,
+        "Não é possível excluir um cliente que possui pedidos.",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
+
+    await this.prisma.customer.delete({ where: { id: customerId } });
+  }
+
   async activateCustomer(customerId: string) {
     return this.updateCustomerOrThrow(customerId, { isActive: true });
   }

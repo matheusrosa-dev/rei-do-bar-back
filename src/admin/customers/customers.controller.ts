@@ -1,6 +1,10 @@
-import { Controller, Get, Param, Patch, Query } from "@nestjs/common";
+import { Controller, Delete, Get, Param, Patch, Query } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
-import { FindAllCustomersDto, ToggleStatusCustomerDto } from "./dtos";
+import {
+  DeleteCustomerDto,
+  FindAllCustomersDto,
+  ToggleStatusCustomerDto,
+} from "./dtos";
 import { CustomersService } from "./customers.service";
 
 @Controller("admin/customers")
@@ -21,5 +25,10 @@ export class CustomersController {
   @Patch(":customerId/deactivate")
   deactivateCustomer(@Param() { customerId }: ToggleStatusCustomerDto) {
     return this.customersService.deactivateCustomer(customerId);
+  }
+
+  @Delete(":customerId")
+  removeCustomer(@Param() { customerId }: DeleteCustomerDto) {
+    return this.customersService.removeCustomer(customerId);
   }
 }

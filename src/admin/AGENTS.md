@@ -44,6 +44,7 @@ admin/
 │   ├── customers.service.ts
 │   └── dtos/
 │       ├── index.ts
+│       ├── delete-customer.dto.ts
 │       ├── find-all-customers.dto.ts
 │       └── toggle-status-customer.dto.ts
 └── products/
@@ -120,6 +121,7 @@ All routes are under `@Controller("admin/customers")`.
 | `GET` | `/admin/customers` | Paginated list with optional `isActive` filter |
 | `PATCH` | `/admin/customers/:customerId/activate` | Set `isActive: true` |
 | `PATCH` | `/admin/customers/:customerId/deactivate` | Set `isActive: false` |
+| `DELETE` | `/admin/customers/:customerId` | Hard-delete (only if customer has no orders) |
 
 ### List Query Params (`FindAllCustomersDto`)
 
@@ -143,12 +145,14 @@ Response: `{ items: Customer[], meta: { total, page, limit, totalPages } }`. Eac
 
 - Activate/deactivate returns only `{ id, isActive }` — no PII fields are exposed
 - `updateCustomerOrThrow` is a private helper shared by both toggle methods; converts Prisma `P2025` to `AppException`
+- Customer deletion is blocked if the customer has any orders — a `findUnique` with `_count` pre-check runs before the delete; DB cascades handle cart, addresses, and refresh tokens automatically
 
 ### Error Codes
 
 | Constant | Code | HTTP | When |
 |---|---|---|---|
 | `CUSTOMER_NOT_FOUND` | `ADMIN_CUSTOMERS_001` | 404 | Customer does not exist |
+| `CUSTOMER_HAS_ORDERS` | `ADMIN_CUSTOMERS_002` | 409 | Attempted delete when customer has orders |
 
 ---
 
