@@ -1,11 +1,20 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
 
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async activateCustomer(customerId: string) {
+    return this.updateCustomerOrThrow(customerId, { isActive: true });
+  }
+
+  async deactivateCustomer(customerId: string) {
+    return this.updateCustomerOrThrow(customerId, { isActive: false });
+  }
 
   async findAll(dto: FindAllCustomersDto) {
     const page = dto.page ?? 1;
@@ -70,5 +79,33 @@ export class CustomersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  private async updateCustomerOrThrow(
+    customerId: string,
+    data: Prisma.CustomerUpdateInput,
+  ) {
+    try {
+      return await this.prisma.customer.update({
+        where: { id: customerId },
+        data,
+        include: {
+          addresses: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        throw new AppException(
+          AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
+          "Cliente não encontrado.",
+          AppException.HttpStatus.NOT_FOUND,
+        );
+      }
+
+      throw error;
+    }
   }
 }

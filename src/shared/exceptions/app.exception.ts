@@ -67,6 +67,9 @@ export class AppException extends HttpException {
       CATEGORY_HAS_PRODUCTS: "ADMIN_CATEGORIES_002",
       CATEGORY_ALREADY_EXISTS: "ADMIN_CATEGORIES_003",
     },
+    adminCustomers: {
+      CUSTOMER_NOT_FOUND: "ADMIN_CUSTOMERS_001",
+    },
     settings: {
       DELIVERY_FEE_NOT_CONFIGURED: "SETTINGS_001",
     },
