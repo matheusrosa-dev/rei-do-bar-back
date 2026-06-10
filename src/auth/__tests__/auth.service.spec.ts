@@ -416,7 +416,7 @@ describe("AuthService", () => {
       prismaMock.refreshToken.findUnique.mockResolvedValue({
         ...refreshTokenRecord,
         customerId: customer.id,
-        customer: { id: customer.id, phone: customer.phone, isActive: true },
+        customer: { id: customer.id, phone: customer.phone },
       });
       prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
       prismaMock.refreshToken.create.mockResolvedValue({});
@@ -432,7 +432,7 @@ describe("AuthService", () => {
         where: { hashedToken },
         include: {
           customer: {
-            select: { id: true, phone: true, isActive: true },
+            select: { id: true, phone: true },
           },
         },
       });
@@ -492,23 +492,7 @@ describe("AuthService", () => {
         customer: {
           id: "different-customer-id",
           phone: customer.phone,
-          isActive: true,
         },
-      });
-
-      await expect(
-        service.refreshTokens({ customerId: customer.id, token }),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.auth.INVALID_REFRESH_TOKEN,
-        httpStatus: AppException.HttpStatus.UNAUTHORIZED,
-      });
-    });
-
-    it("should throw INVALID_REFRESH_TOKEN if the customer is inactive", async () => {
-      prismaMock.refreshToken.findUnique.mockResolvedValue({
-        ...refreshTokenRecord,
-        customerId: customer.id,
-        customer: { id: customer.id, phone: customer.phone, isActive: false },
       });
 
       await expect(

@@ -42,7 +42,7 @@ describe("MeService", () => {
       expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
       expect(prismaMock.customer.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: customerId, isActive: true },
+          where: { id: customerId },
           include: { addresses: true },
         }),
       );

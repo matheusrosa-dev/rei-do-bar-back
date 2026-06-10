@@ -100,7 +100,7 @@ describe("OrdersService", () => {
       const result = await service.createOrder(customerId, dto);
 
       expect(prismaMock.customer.findFirst).toHaveBeenCalledWith({
-        where: { id: customerId, isActive: true },
+        where: { id: customerId },
         include: {
           addresses: true,
           cart: { include: { items: { include: { product: true } } } },
@@ -153,13 +153,29 @@ describe("OrdersService", () => {
       expect(result).toEqual([{ ...createdOrder, subtotal: 80, total: 280 }]);
     });
 
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer does not exist", async () => {
+    it("should throw INACTIVE_CUSTOMER when the customer is null (treated as inactive)", async () => {
       prismaMock.customer.findFirst.mockResolvedValue(null);
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
-        code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
-        message: "Cliente não inicializado",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
+        message:
+          "Sua conta foi bloqueada. Por favor, entre em contato com o suporte.",
+        httpStatus: AppException.HttpStatus.FORBIDDEN,
+      });
+
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
+    });
+
+    it("should throw INACTIVE_CUSTOMER when the customer is inactive", async () => {
+      prismaMock.customer.findFirst.mockResolvedValue(
+        buildCustomer([], { isActive: false }),
+      );
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
+        message:
+          "Sua conta foi bloqueada. Por favor, entre em contato com o suporte.",
+        httpStatus: AppException.HttpStatus.FORBIDDEN,
       });
 
       expect(prismaMock.order.create).not.toHaveBeenCalled();
@@ -367,7 +383,7 @@ describe("OrdersService", () => {
       expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
         where: {
           id: "order-uuid",
-          status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
+          status: OrderStatus.PENDING,
         },
         data: { status: OrderStatus.CANCELLED },
       });
@@ -387,26 +403,6 @@ describe("OrdersService", () => {
       });
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(result).toEqual([]);
-    });
-
-    it("should cancel the order when its status is PREPARING", async () => {
-      prismaMock.order.findFirst.mockResolvedValue({
-        id: "order-uuid",
-        status: OrderStatus.PREPARING,
-        items: [],
-      });
-      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.order.findMany.mockResolvedValue([]);
-
-      await service.cancelOrder(customerId, dto);
-
-      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: "order-uuid",
-          status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING] },
-        },
-        data: { status: OrderStatus.CANCELLED },
-      });
     });
 
     it("should throw ORDER_NOT_FOUND when the order does not exist", async () => {
@@ -491,14 +487,27 @@ describe("OrdersService", () => {
       ).not.toThrow();
     });
 
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer is null", () => {
+    it("should throw INACTIVE_CUSTOMER when the customer is null", () => {
       expect(() =>
         (service as any).checkIfCustomerIsAptToCreateOrder(null),
       ).toThrow(
         expect.objectContaining({
-          code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
-          message: "Cliente não inicializado",
-          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+          code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
+          message:
+            "Sua conta foi bloqueada. Por favor, entre em contato com o suporte.",
+          httpStatus: AppException.HttpStatus.FORBIDDEN,
+        }),
+      );
+    });
+
+    it("should throw INACTIVE_CUSTOMER when the customer is inactive", () => {
+      expect(() =>
+        (service as any).checkIfCustomerIsAptToCreateOrder(
+          buildCustomer(buildItems(), { isActive: false }),
+        ),
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
         }),
       );
     });

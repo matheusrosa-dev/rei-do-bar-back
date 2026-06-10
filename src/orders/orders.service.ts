@@ -160,14 +160,9 @@ export class OrdersService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      const cancellableStatuses: OrderStatus[] = [
-        OrderStatus.PENDING,
-        OrderStatus.PREPARING,
-      ];
-
       // Marca o pedido como cancelado
       const result = await tx.order.updateMany({
-        where: { id: order.id, status: { in: cancellableStatuses } },
+        where: { id: order.id, status: OrderStatus.PENDING },
         data: { status: OrderStatus.CANCELLED },
       });
 

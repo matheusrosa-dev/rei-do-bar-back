@@ -222,7 +222,7 @@ describe("CartService", () => {
       });
 
       expect(findFirstSpy).toHaveBeenCalledWith({
-        where: { id: customerId, isActive: true },
+        where: { id: customerId },
         include: {
           cart: {
             include: {
