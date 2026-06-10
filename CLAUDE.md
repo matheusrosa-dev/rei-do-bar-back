@@ -29,9 +29,9 @@ For the stable API contract (response envelope, error response shape, the error-
 
 After finishing **all** edits in a task:
 
-1. Run `yarn lint` in the terminal. Fix every reported error before proceeding.
+1. Run `yarn lint` and `yarn typecheck` in the terminal. Fix every reported lint and type error before proceeding.
 2. Launch an **independent subagent** with `.claude/commands/review-changes.md` (the `/review-changes` command), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
-3. Fix **all Critical and Warning** issues from the report, then re-run `yarn lint` to confirm no new issues were introduced.
+3. Fix **all Critical and Warning** issues from the report, then re-run `yarn lint` and `yarn typecheck` to confirm no new issues were introduced.
 4. Run `.claude/commands/review-agents-docs.md` (the `/review-agents-docs` command) with the same list of changed files to audit the affected documentation.
 
 > **Review severity levels.** **Critical** = broken contract, bug, security risk, or a violation of a structural project convention. **Warning** = style inconsistency, a pattern applied incompletely, or a decision that will accrue debt. **Suggestion** = optional improvement with no immediate impact.
