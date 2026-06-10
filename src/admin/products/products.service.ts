@@ -7,6 +7,7 @@ import {
   FindAllProductsDto,
   UpdateProductBodyDto,
 } from "./dtos";
+import { ProductOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 
 @Injectable()
 export class ProductsService {
@@ -44,8 +45,9 @@ export class ProductsService {
       }),
     };
 
-    const orderBy = {
+    const orderBy: ProductOrderByWithRelationInput = {
       ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection }),
+      ...(!dto.sortKey && { createdAt: "desc" }),
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -53,7 +55,7 @@ export class ProductsService {
         where,
         skip,
         take: limit,
-        orderBy: Object.keys(orderBy).length ? orderBy : { createdAt: "desc" },
+        orderBy,
         include: {
           category: true,
         },
