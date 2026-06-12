@@ -9,8 +9,9 @@ Em produção:
 remover seed de produtos ou fazer com que rode apenas em dev
 
 Importante:
-adicionar paginação no histórico de pedidos e evitar recarregar o histórico completo ao criar/cancelar pedido
+adicionar listagem de TODOS os pedidos
 corrigir order by no cart
 adicionar valor mínimo de pedido
 adicionar meio de contato do suporte no app
 deve ser possivel ordernar as categorias
+disparar notificação para o usuário nas alterações de status de pedido
