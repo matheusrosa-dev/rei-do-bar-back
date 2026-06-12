@@ -42,8 +42,8 @@ export const validationSchema = Joi.object({
   DATABASE_URL: Joi.string().uri().required(),
 
   AUTH_OTP_EXPIRATION_MINUTES: Joi.number().required(),
-  AUTH_JWT_SECRET: Joi.string().required(),
-  AUTH_JWT_REFRESH_SECRET: Joi.string().required(),
+  AUTH_JWT_SECRET: Joi.string().min(32).required(),
+  AUTH_JWT_REFRESH_SECRET: Joi.string().min(32).required(),
   AUTH_JWT_EXPIRATION_TIME: Joi.string().required(),
   AUTH_JWT_REFRESH_EXPIRATION_TIME: Joi.string().required(),
 
