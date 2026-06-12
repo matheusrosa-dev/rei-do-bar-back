@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { hashString } from "../string";
+import { hashString, safeCompare } from "../string";
 
 describe("String Helpers", () => {
   describe("hashString", () => {
@@ -13,6 +13,20 @@ describe("String Helpers", () => {
       const result = hashString(code);
 
       expect(result).toBe(expectedHash);
+    });
+  });
+
+  describe("safeCompare", () => {
+    it("should return true for equal strings", () => {
+      expect(safeCompare("s3cr3t", "s3cr3t")).toBe(true);
+    });
+
+    it("should return false for different strings", () => {
+      expect(safeCompare("s3cr3t", "wrong")).toBe(false);
+    });
+
+    it("should return false for strings of different lengths", () => {
+      expect(safeCompare("abc", "abcdef")).toBe(false);
     });
   });
 });

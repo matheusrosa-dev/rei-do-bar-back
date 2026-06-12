@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Request } from "express";
 import { IAdminConfig } from "@shared/config/env-config.interface";
+import { safeCompare } from "@shared/helpers/string";
 
 @Injectable()
 export class BasicAuthGuard implements CanActivate {
@@ -23,6 +24,9 @@ export class BasicAuthGuard implements CanActivate {
     const username = decoded.slice(0, colonIndex);
     const password = decoded.slice(colonIndex + 1);
 
-    return username === admin.username && password === admin.password;
+    const usernameMatches = safeCompare(username, admin.username);
+    const passwordMatches = safeCompare(password, admin.password);
+
+    return usernameMatches && passwordMatches;
   }
 }
