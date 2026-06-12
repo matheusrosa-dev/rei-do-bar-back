@@ -113,6 +113,9 @@ export class CustomersService {
           include: {
             items: true,
           },
+          orderBy: {
+            createdAt: "desc",
+          },
         },
       },
     });

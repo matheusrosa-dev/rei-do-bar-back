@@ -71,6 +71,11 @@ export class AppException extends HttpException {
       CUSTOMER_NOT_FOUND: "ADMIN_CUSTOMERS_001",
       CUSTOMER_HAS_ORDERS: "ADMIN_CUSTOMERS_002",
     },
+    adminOrders: {
+      ORDER_NOT_FOUND: "ADMIN_ORDERS_001",
+      ORDER_ALREADY_FINALIZED: "ADMIN_ORDERS_002",
+      ORDER_INVALID_STATUS_TRANSITION: "ADMIN_ORDERS_003",
+    },
     settings: {
       DELIVERY_FEE_NOT_CONFIGURED: "SETTINGS_001",
     },
