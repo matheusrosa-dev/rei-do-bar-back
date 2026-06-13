@@ -1,8 +1,12 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
-import { Order } from "@shared/database/prisma/generated/client";
+import {
+  Order,
+  OrderItem,
+  Product,
+} from "@shared/database/prisma/generated/client";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { UpdateOrderStatusBodyDto } from "./dtos";
+import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 
 const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
@@ -11,6 +15,10 @@ const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
   [OrderStatus.DELIVERED]: [],
   [OrderStatus.CANCELLED]: [],
+};
+
+type OrderWithItems = Order & {
+  items: Array<OrderItem & { product: Product }>;
 };
 
 @Injectable()
@@ -65,30 +73,69 @@ export class OrdersService {
       }),
     ]);
 
+    const formattedOngoingOrders = this.calculateOrdersTotals(ongoingOrders);
+    const formattedCompletedOrders =
+      this.calculateOrdersTotals(completedOrders);
+
     const ordersByStatus = {
       [OrderStatus.PENDING]: this.filterOrdersByStatus(
-        ongoingOrders,
+        formattedOngoingOrders,
         OrderStatus.PENDING,
       ),
       [OrderStatus.PREPARING]: this.filterOrdersByStatus(
-        ongoingOrders,
+        formattedOngoingOrders,
         OrderStatus.PREPARING,
       ),
       [OrderStatus.SHIPPED]: this.filterOrdersByStatus(
-        ongoingOrders,
+        formattedOngoingOrders,
         OrderStatus.SHIPPED,
       ),
       [OrderStatus.DELIVERED]: this.filterOrdersByStatus(
-        completedOrders,
+        formattedCompletedOrders,
         OrderStatus.DELIVERED,
       ),
       [OrderStatus.CANCELLED]: this.filterOrdersByStatus(
-        completedOrders,
+        formattedCompletedOrders,
         OrderStatus.CANCELLED,
       ),
     };
 
     return ordersByStatus;
+  }
+
+  async findAll(dto: FindAllOrdersDto) {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          customer: true,
+          items: {
+            include: {
+              product: true,
+            },
+          },
+        },
+      }),
+      this.prisma.order.count(),
+    ]);
+
+    return {
+      items: this.calculateOrdersTotals(items),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async updateOrderStatus(orderId: string, dto: UpdateOrderStatusBodyDto) {
@@ -161,6 +208,22 @@ export class OrdersService {
     });
 
     return this.listOrdersManagement();
+  }
+
+  private calculateOrdersTotals(orders: OrderWithItems[]) {
+    return orders.map((order) => {
+      const subtotal = order.items.reduce((sum, item) => {
+        return sum + item.price * item.quantity;
+      }, 0);
+
+      const total = subtotal + order.deliveryFee;
+
+      return {
+        ...order,
+        subtotal,
+        total,
+      };
+    });
   }
 
   private canMoveOrder(from: OrderStatus, to: OrderStatus) {
