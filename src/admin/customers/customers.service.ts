@@ -52,6 +52,7 @@ export class CustomersService {
     const direction = dto.sortDirection ?? "desc";
 
     const where: Prisma.CustomerWhereInput = {
+      deletedAt: null,
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       ...(dto.searchTerm && {
         OR: [

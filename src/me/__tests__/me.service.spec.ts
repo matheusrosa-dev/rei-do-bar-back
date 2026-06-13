@@ -42,7 +42,7 @@ describe("MeService", () => {
       expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
       expect(prismaMock.customer.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: customerId },
+          where: { id: customerId, deletedAt: null },
           include: { addresses: true },
         }),
       );
@@ -179,12 +179,36 @@ describe("MeService", () => {
   });
 
   describe("deleteMe", () => {
-    it("should delete the customer when it exists", async () => {
+    it("should anonymize the customer and remove its PII while keeping orders", async () => {
       const customer = CustomerFactory.createOne({ id: customerId });
 
       prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       await expect(service.deleteMe(customerId)).resolves.toBeUndefined();
+
+      expect(prismaMock.address.deleteMany).toHaveBeenCalledWith({
+        where: { customerId },
+      });
+      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { customerId },
+      });
+      expect(prismaMock.cart.deleteMany).toHaveBeenCalledWith({
+        where: { customerId },
+      });
+
+      expect(prismaMock.customer.update).toHaveBeenCalledWith({
+        where: { id: customerId },
+        data: {
+          name: null,
+          phone: `deleted:${customerId}`,
+          isActive: false,
+          deletedAt: expect.any(Date),
+        },
+      });
+
+      expect(prismaMock.customer.delete).not.toHaveBeenCalled();
+      expect(prismaMock.order.update).not.toHaveBeenCalled();
+      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
     });
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
@@ -195,7 +219,7 @@ describe("MeService", () => {
         httpStatus: AppException.HttpStatus.NOT_FOUND,
       });
 
-      expect(prismaMock.customer.delete).not.toHaveBeenCalled();
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
   });
 

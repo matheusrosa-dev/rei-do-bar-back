@@ -16,6 +16,7 @@ export const prismaMock = {
   },
   cart: {
     update: jest.fn(),
+    deleteMany: jest.fn(),
   },
   cartItem: {
     deleteMany: jest.fn(),
@@ -44,6 +45,7 @@ export const prismaMock = {
     count: jest.fn(),
     findFirst: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
   customer: {
     findUnique: jest.fn(),

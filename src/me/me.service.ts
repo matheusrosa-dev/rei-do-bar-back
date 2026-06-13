@@ -316,8 +316,23 @@ export class MeService {
   async deleteMe(customerId: string) {
     await this.findMeOrThrow(customerId);
 
-    await this.prisma.customer.delete({
-      where: { id: customerId },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.address.deleteMany({ where: { customerId } });
+      await tx.refreshToken.deleteMany({ where: { customerId } });
+      await tx.cart.deleteMany({ where: { customerId } });
+
+      // Anonimiza o cliente em vez de excluí-lo, preservando os pedidos. O
+      // telefone vira um placeholder único para liberar o número real para um
+      // futuro recadastro sem violar a unicidade.
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          name: null,
+          phone: `deleted:${customerId}`,
+          isActive: false,
+          deletedAt: new Date(),
+        },
+      });
     });
   }
 
@@ -328,6 +343,7 @@ export class MeService {
     const me = await this.prisma.customer.findFirst({
       where: {
         id: customerId,
+        deletedAt: null,
       },
       include: {
         addresses: !!options?.withAddress,

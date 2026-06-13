@@ -9,6 +9,7 @@ type Props = {
   name?: string | null;
   phone?: string;
   isActive?: boolean;
+  deletedAt?: Date | null;
   cart?: CartWithItems;
   addresses?: Address[];
 };
@@ -18,6 +19,7 @@ const makeCustomer = (props: Props): CustomerWithRelations => ({
   name: props?.name === undefined ? chance.name() : props.name,
   phone: props?.phone ?? chance.phone(),
   isActive: props?.isActive ?? true,
+  deletedAt: props?.deletedAt ?? null,
   ...(props.cart !== undefined && { cart: props.cart }),
   ...(props.addresses !== undefined && { addresses: props.addresses }),
   createdAt: new Date(),
