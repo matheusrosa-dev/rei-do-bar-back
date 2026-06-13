@@ -10,6 +10,7 @@ import {
 } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { Address } from "@shared/database/prisma/generated/client";
+import { OrderStatus } from "@shared/database/prisma/generated/enums";
 
 const MAX_ADDRESSES_PER_CUSTOMER = 3;
 
@@ -315,6 +316,23 @@ export class MeService {
 
   async deleteMe(customerId: string) {
     await this.findMeOrThrow(customerId);
+
+    const activeOrdersCount = await this.prisma.order.count({
+      where: {
+        customerId,
+        status: {
+          in: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.SHIPPED],
+        },
+      },
+    });
+
+    if (activeOrdersCount) {
+      throw new AppException(
+        AppException.errorCodes.me.CANNOT_DELETE_WITH_ACTIVE_ORDER,
+        "Não é possível excluir a conta pois você tem pedidos em andamento.",
+        AppException.HttpStatus.CONFLICT,
+      );
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.address.deleteMany({ where: { customerId } });

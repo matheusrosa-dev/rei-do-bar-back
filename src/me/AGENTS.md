@@ -33,7 +33,7 @@ Each service method first calls a private "load me or throw" helper to confirm t
 
 **Profile update**: the name is trimmed before validation and must contain a full name; an update with no recognized fields is rejected.
 
-**Account deletion**: deletion is a soft delete by anonymization — the customer row is kept (preserving linked order history) while personal data is scrubbed and the account is marked with a deletion timestamp; personal relations are removed and sessions revoked, all in a single transaction.
+**Account deletion**: deletion is blocked when the customer has an order still in progress (status `PENDING`, `PREPARING`, or `SHIPPED`) — checked before any write. Otherwise it is a soft delete by anonymization — the customer row is kept (preserving linked order history) while personal data is scrubbed and the account is marked with a deletion timestamp; personal relations are removed and sessions revoked, all in a single transaction.
 
 ---
 

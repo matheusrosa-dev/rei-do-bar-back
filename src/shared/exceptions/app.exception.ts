@@ -40,6 +40,7 @@ export class AppException extends HttpException {
       CANNOT_REMOVE_MAIN_ADDRESS: "ME_006",
       LIMITED_NUMBER_OF_ADDRESSES: "ME_007",
       ADDRESS_ALREADY_MAIN: "ME_008",
+      CANNOT_DELETE_WITH_ACTIVE_ORDER: "ME_009",
     },
     order: {
       CUSTOMER_NOT_FOUND: "ORDER_001",

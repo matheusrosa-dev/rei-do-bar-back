@@ -6,6 +6,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { prismaMock } from "@shared/testing/mocks";
 import { AppException } from "@shared/exceptions/app.exception";
 import { AddressFactory, CustomerFactory } from "@shared/testing/factories";
+import { OrderStatus } from "@shared/database/prisma/generated/enums";
 
 const customerId = "customer-uuid";
 
@@ -183,6 +184,7 @@ describe("MeService", () => {
       const customer = CustomerFactory.createOne({ id: customerId });
 
       prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.order.count.mockResolvedValue(0);
 
       await expect(service.deleteMe(customerId)).resolves.toBeUndefined();
 
@@ -219,6 +221,32 @@ describe("MeService", () => {
         httpStatus: AppException.HttpStatus.NOT_FOUND,
       });
 
+      expect(prismaMock.customer.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw CANNOT_DELETE_WITH_ACTIVE_ORDER when the customer has an order in progress", async () => {
+      const customer = CustomerFactory.createOne({ id: customerId });
+
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.order.count.mockResolvedValue(1);
+
+      await expect(service.deleteMe(customerId)).rejects.toMatchObject({
+        code: AppException.errorCodes.me.CANNOT_DELETE_WITH_ACTIVE_ORDER,
+        httpStatus: AppException.HttpStatus.CONFLICT,
+      });
+
+      expect(prismaMock.order.count).toHaveBeenCalledWith({
+        where: {
+          customerId,
+          status: {
+            in: [
+              OrderStatus.PENDING,
+              OrderStatus.PREPARING,
+              OrderStatus.SHIPPED,
+            ],
+          },
+        },
+      });
       expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
   });
