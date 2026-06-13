@@ -31,8 +31,6 @@ export class AuthService {
   async syncDeviceId(dto: SyncDeviceIdDto) {
     let deviceId = dto?.deviceId;
 
-    console.log(deviceId);
-
     if (!deviceId) {
       deviceId = randomUUID();
     }
