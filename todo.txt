@@ -13,6 +13,7 @@ adicionar valor mínimo de pedido
 adicionar meio de contato do suporte no app
 deve ser possivel ordernar as categorias
 deve ser possivel ordernar os produtos
+ocultar opção de pagar no dinheiro
 disparar notificação para o usuário nas alterações de status de pedido
 
 
