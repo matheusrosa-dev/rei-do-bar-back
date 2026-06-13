@@ -28,7 +28,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Table naming | Tables mapped to `snake_case`, pluralized |
 | Timestamps | `createdAt` / `updatedAt` on entities, mapped to snake_case columns |
 | Monetary values | Stored as integer cents — never floats |
-| Soft delete | Availability is an active flag; admin deletion of catalog entities is a nullable deletion timestamp, and all reads filter it out |
+| Soft delete | Availability is an `isActive` flag. Logical deletion uses a nullable deletion timestamp that all reads filter out — applied wherever a row must survive deletion (e.g. to preserve linked history); on records holding personal data, deletion also scrubs that data (anonymization) |
 | Sequences | Human-friendly sequential numbers (where present) are backed by a Postgres sequence alongside the UUID id |
 
 Planned-but-commented-out models must not be implemented until the feature is prioritized.
