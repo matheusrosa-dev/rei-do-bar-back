@@ -5,16 +5,11 @@ futuramente adicionar opção para alterar número do usuario
 Em produção:
 remover seed de produtos ou fazer com que rode apenas em dev
 
-
 Importante:
-adicionar listagem de TODOS os pedidos
 corrigir order by no cart
 adicionar valor mínimo de pedido
 adicionar meio de contato do suporte no app
-deve ser possivel ordernar as categorias
-deve ser possivel ordernar os produtos
-ocultar opção de pagar no dinheiro
 disparar notificação para o usuário nas alterações de status de pedido
 
-
-Sem rate limiting / proteção a brute force — não há @nestjs/throttler. Não há contador de tentativas no OTP nem no Basic Auth do admin (chute ilimitado de senha). Depois do SMS, send-otp-code sem throttle vira vetor de SMS bombing/custo.
+Sem rate limiting / proteção a brute force — não há @nestjs/throttler. Não há contador de tentativas no OTP 
+nem no Basic Auth do admin (chute ilimitado de senha). Depois do SMS, send-otp-code sem throttle vira vetor de SMS bombing/custo.
