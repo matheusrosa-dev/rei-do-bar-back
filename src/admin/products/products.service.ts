@@ -6,6 +6,7 @@ import {
   CreateProductDto,
   FindAllProductsDto,
   UpdateProductBodyDto,
+  UpdateProductsOrderDto,
 } from "./dtos";
 import { ProductOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 
@@ -74,6 +75,51 @@ export class ProductsService {
     };
   }
 
+  async findAllToSort() {
+    const products = await this.prisma.product.findMany({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        sortOrder: "asc",
+      },
+    });
+
+    return products;
+  }
+
+  async updateProductsOrder(dto: UpdateProductsOrderDto) {
+    const existingProducts = await this.prisma.product.findMany({
+      where: { deletedAt: null },
+      select: { id: true },
+    });
+
+    const existingIds = new Set(existingProducts.map((p) => p.id));
+    const isValid =
+      dto.orderedIds.length === existingIds.size &&
+      new Set(dto.orderedIds).size === dto.orderedIds.length &&
+      dto.orderedIds.every((id) => existingIds.has(id));
+
+    if (!isValid) {
+      throw new AppException(
+        AppException.errorCodes.adminProducts.INVALID_PRODUCTS_ORDER,
+        "Lista de produtos inválida.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.prisma.$transaction(
+      dto.orderedIds.map((id, index) =>
+        this.prisma.product.update({
+          where: { id },
+          data: { sortOrder: index },
+        }),
+      ),
+    );
+
+    return this.findAllToSort();
+  }
+
   async findById(productId: string) {
     const product = await this.prisma.product.findFirst({
       where: {
@@ -98,6 +144,12 @@ export class ProductsService {
 
   async createProduct(dto: CreateProductDto) {
     try {
+      const last = await this.prisma.product.findFirst({
+        where: { deletedAt: null },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
+
       const product = await this.prisma.product.create({
         data: {
           name: dto.name,
@@ -106,6 +158,7 @@ export class ProductsService {
           imageUrl: dto.imageUrl,
           isActive: false,
           stock: 0,
+          sortOrder: (last?.sortOrder ?? 0) + 1,
           category: {
             connect: {
               id: dto.categoryId,
@@ -151,6 +204,7 @@ export class ProductsService {
           },
           data: {
             deletedAt: new Date(),
+            sortOrder: 9999,
           },
         });
 

@@ -21,6 +21,7 @@ import {
   UpdateStockProductBodyDto,
   DeleteProductDto,
   CreateProductDto,
+  UpdateProductsOrderDto,
 } from "./dtos";
 
 @Controller("admin/products")
@@ -31,6 +32,16 @@ export class ProductsController {
   @Get()
   findAll(@Query() dto: FindAllProductsDto) {
     return this.productsService.findAll(dto);
+  }
+
+  @Get("sort-order")
+  findAllToSort() {
+    return this.productsService.findAllToSort();
+  }
+
+  @Put("sort-order")
+  updateProductsOrder(@Body() dto: UpdateProductsOrderDto) {
+    return this.productsService.updateProductsOrder(dto);
   }
 
   @Get(":productId")

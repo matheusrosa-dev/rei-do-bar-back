@@ -69,6 +69,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
 | adminProducts | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` |
 | adminProducts | `CATEGORY_INACTIVE` | `ADMIN_PRODUCTS_004` |
+| adminProducts | `INVALID_PRODUCTS_ORDER` | `ADMIN_PRODUCTS_005` |
 | adminCategories | `CATEGORY_NOT_FOUND` | `ADMIN_CATEGORIES_001` |
 | adminCategories | `CATEGORY_HAS_PRODUCTS` | `ADMIN_CATEGORIES_002` |
 | adminCategories | `CATEGORY_ALREADY_EXISTS` | `ADMIN_CATEGORIES_003` |
