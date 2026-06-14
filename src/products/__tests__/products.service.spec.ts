@@ -199,7 +199,8 @@ describe("ProductsService", () => {
           expect(prismaMock.product.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
               where: expect.objectContaining({
-                sortOrder: { not: null },
+                deletedAt: null,
+                isActive: true,
               }),
             }),
           );
@@ -239,53 +240,6 @@ describe("ProductsService", () => {
           expect(prismaMock.product.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
               where: expect.not.objectContaining({ OR: expect.anything() }),
-            }),
-          );
-        });
-      });
-
-      describe("sortOrder filtering", () => {
-        it("should filter products with sortOrder not null when no filter is provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session);
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.objectContaining({
-                sortOrder: { not: null },
-              }),
-            }),
-          );
-        });
-
-        it("should not filter products by sortOrder when category is provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { category: "Bebidas" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.not.objectContaining({
-                sortOrder: { not: null },
-              }),
-            }),
-          );
-        });
-
-        it("should not filter products by sortOrder when searchTerm is provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { searchTerm: "burger" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.not.objectContaining({
-                sortOrder: { not: null },
-              }),
             }),
           );
         });

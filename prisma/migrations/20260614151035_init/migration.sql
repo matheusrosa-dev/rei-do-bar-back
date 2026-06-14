@@ -15,6 +15,7 @@ CREATE TABLE "customers" (
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
 );
@@ -110,10 +111,11 @@ CREATE TABLE "products" (
     "price" INTEGER NOT NULL,
     "stock" INTEGER NOT NULL,
     "image_url" TEXT NOT NULL,
-    "sort_order" INTEGER,
+    "sort_order" INTEGER NOT NULL,
     "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "products_pkey" PRIMARY KEY ("id")
 );
@@ -173,7 +175,16 @@ CREATE UNIQUE INDEX "anonymous_customers_device_id_key" ON "anonymous_customers"
 CREATE UNIQUE INDEX "refresh_tokens_hashedToken_key" ON "refresh_tokens"("hashedToken");
 
 -- CreateIndex
+CREATE INDEX "refresh_tokens_customer_id_idx" ON "refresh_tokens"("customer_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "otp_codes_hashedCode_key" ON "otp_codes"("hashedCode");
+
+-- CreateIndex
+CREATE INDEX "otp_codes_anonymous_customer_id_idx" ON "otp_codes"("anonymous_customer_id");
+
+-- CreateIndex
+CREATE INDEX "addresses_customer_id_idx" ON "addresses"("customer_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "cart_customer_id_key" ON "cart"("customer_id");
@@ -188,7 +199,13 @@ CREATE UNIQUE INDEX "cart_items_cart_id_product_id_key" ON "cart_items"("cart_id
 CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
 
 -- CreateIndex
+CREATE INDEX "products_category_id_idx" ON "products"("category_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "orders_order_number_key" ON "orders"("order_number");
+
+-- CreateIndex
+CREATE INDEX "orders_customer_id_idx" ON "orders"("customer_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");

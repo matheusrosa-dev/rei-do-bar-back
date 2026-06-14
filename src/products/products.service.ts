@@ -10,14 +10,11 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findBestSellers(session: ICurrentSession, dto?: FindBestSellersDto) {
-    const hasFilter = !!(dto?.category || dto?.searchTerm);
-
     const [bestSellers, customerOrAnonymous] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           isActive: true,
           deletedAt: null,
-          ...(!hasFilter ? { sortOrder: { not: null } } : {}),
           ...(dto?.category ? { category: { name: dto.category } } : {}),
           ...(dto?.searchTerm
             ? {

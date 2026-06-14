@@ -33,7 +33,7 @@ const makeProduct = (props: Props): Product => ({
   isActive: props?.isActive ?? true,
   stock: props.stock,
   categoryId: props?.categoryId ?? chance.guid(),
-  sortOrder: props?.sortOrder ?? null,
+  sortOrder: props.sortOrder ?? 1,
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedAt: null,
