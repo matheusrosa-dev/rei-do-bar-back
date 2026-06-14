@@ -112,7 +112,7 @@ export class ProductsService {
       dto.orderedIds.map((id, index) =>
         this.prisma.product.update({
           where: { id },
-          data: { sortOrder: index },
+          data: { sortOrder: index + 1 },
         }),
       ),
     );
