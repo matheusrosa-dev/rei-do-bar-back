@@ -1,11 +1,11 @@
 import { PrismaClient } from "../../src/shared/database/prisma/generated/client";
 
 export const categories = [
-  { name: "Cerveja", pluralName: "Cervejas" },
-  { name: "Vinho", pluralName: "Vinhos" },
-  { name: "Destilado", pluralName: "Destilados" },
-  { name: "Energético", pluralName: "Energéticos" },
-  { name: "Refrigerante", pluralName: "Refrigerantes" },
+  { name: "Cerveja", pluralName: "Cervejas", sortOrder: 1 },
+  { name: "Vinho", pluralName: "Vinhos", sortOrder: 2 },
+  { name: "Destilado", pluralName: "Destilados", sortOrder: 3 },
+  { name: "Energético", pluralName: "Energéticos", sortOrder: 4 },
+  { name: "Refrigerante", pluralName: "Refrigerantes", sortOrder: 5 },
 ];
 
 export async function seedCategories(prisma: PrismaClient) {
@@ -26,6 +26,7 @@ export async function seedCategories(prisma: PrismaClient) {
       name: category.name,
       pluralName: category.pluralName,
       isActive: true,
+      sortOrder: category.sortOrder,
     })),
   });
 

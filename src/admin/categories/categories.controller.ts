@@ -16,6 +16,7 @@ import {
   DeleteCategoryDto,
   FindAllCategory,
   ToggleStatusCategoryDto,
+  UpdateCategoriesOrderDto,
   UpdateCategoryBodyDto,
   UpdateCategoryParamsDto,
 } from "./dtos";
@@ -28,6 +29,16 @@ export class CategoriesController {
   @Get()
   findAll(@Query() dto: FindAllCategory) {
     return this.categoriesService.findAll(dto);
+  }
+
+  @Get("sort-order")
+  findAllToSort() {
+    return this.categoriesService.findAllToSort();
+  }
+
+  @Put("sort-order")
+  updateCategoriesOrder(@Body() dto: UpdateCategoriesOrderDto) {
+    return this.categoriesService.updateCategoriesOrder(dto);
   }
 
   @Post()

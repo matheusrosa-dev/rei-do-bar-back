@@ -15,6 +15,9 @@ export class CategoriesService {
         name: true,
         pluralName: true,
       },
+      orderBy: {
+        sortOrder: "asc",
+      },
     });
   }
 }

@@ -5,6 +5,7 @@ import { Prisma } from "@shared/database/prisma/generated/client";
 import {
   CreateCategoryDto,
   FindAllCategory,
+  UpdateCategoriesOrderDto,
   UpdateCategoryBodyDto,
 } from "./dtos";
 
@@ -39,13 +40,60 @@ export class CategoriesService {
     });
   }
 
+  async findAllToSort() {
+    const categories = await this.prisma.category.findMany({
+      orderBy: {
+        sortOrder: "asc",
+      },
+    });
+
+    return categories;
+  }
+
+  async updateCategoriesOrder(dto: UpdateCategoriesOrderDto) {
+    const existingCategories = await this.prisma.category.findMany({
+      select: { id: true },
+    });
+
+    const existingIds = new Set(existingCategories.map((p) => p.id));
+    const isValid =
+      dto.orderedIds.length === existingIds.size &&
+      new Set(dto.orderedIds).size === dto.orderedIds.length &&
+      dto.orderedIds.every((id) => existingIds.has(id));
+
+    if (!isValid) {
+      throw new AppException(
+        AppException.errorCodes.adminCategories.INVALID_CATEGORIES_ORDER,
+        "Lista de categorias inválida.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.prisma.$transaction(
+      dto.orderedIds.map((id, index) =>
+        this.prisma.category.update({
+          where: { id },
+          data: { sortOrder: index + 1 },
+        }),
+      ),
+    );
+
+    return this.findAllToSort();
+  }
+
   async createCategory(dto: CreateCategoryDto) {
     try {
+      const last = await this.prisma.category.findFirst({
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
+
       return await this.prisma.category.create({
         data: {
           name: dto.name,
           pluralName: dto.pluralName,
           isActive: false,
+          sortOrder: (last?.sortOrder ?? 0) + 1,
         },
       });
     } catch (error) {
