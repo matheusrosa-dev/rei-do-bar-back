@@ -25,7 +25,10 @@ describe("SettingsService", () => {
 
   describe("getDeliveryFee", () => {
     it("should fetch from database on first call (cache miss)", async () => {
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "500" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "500",
+        isActive: true,
+      });
 
       const result = await service.getDeliveryFee();
 
@@ -37,7 +40,10 @@ describe("SettingsService", () => {
     });
 
     it("should return cached value on subsequent calls within TTL", async () => {
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "300" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "300",
+        isActive: true,
+      });
 
       await service.getDeliveryFee();
       await service.getDeliveryFee();
@@ -59,10 +65,16 @@ describe("SettingsService", () => {
         .mockReturnValueOnce(2 * TTL_MS + 2) // 2nd call: check (> TTL_MS + 1) → fetches again
         .mockReturnValueOnce(2 * TTL_MS + 2); // 2nd call: set deliveryFeeLoadedAt
 
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "200",
+        isActive: true,
+      });
       await service.getDeliveryFee();
 
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "400" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "400",
+        isActive: true,
+      });
       const result = await service.getDeliveryFee();
 
       expect(prismaMock.setting.findUnique).toHaveBeenCalledTimes(2);
@@ -72,12 +84,26 @@ describe("SettingsService", () => {
     });
 
     it("should convert the setting string value to a number", async () => {
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "750" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "750",
+        isActive: true,
+      });
 
       const result = await service.getDeliveryFee();
 
       expect(result).toBe(750);
       expect(typeof result).toBe("number");
+    });
+
+    it("should return 0 when the setting is inactive", async () => {
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "750",
+        isActive: false,
+      });
+
+      const result = await service.getDeliveryFee();
+
+      expect(result).toBe(0);
     });
 
     it("should throw DELIVERY_FEE_NOT_CONFIGURED when the setting is missing", async () => {

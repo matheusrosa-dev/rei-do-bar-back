@@ -84,7 +84,10 @@ describe("OrdersService", () => {
       prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.order.count.mockResolvedValue(0);
       prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "200",
+        isActive: true,
+      });
 
       const createdOrder = {
         id: "order-uuid",
@@ -215,7 +218,10 @@ describe("OrdersService", () => {
         }),
       ];
       prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-      prismaMock.setting.findUnique.mockResolvedValue({ value: "200" });
+      prismaMock.setting.findUnique.mockResolvedValue({
+        value: "200",
+        isActive: true,
+      });
       prismaMock.order.count.mockResolvedValue(1);
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({

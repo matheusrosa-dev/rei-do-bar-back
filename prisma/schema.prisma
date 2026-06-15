@@ -219,11 +219,33 @@ model OrderItem {
 model Setting {
   id        String   @id @default(uuid())
   key       SettingKey   @unique
+  type      SettingType
   value     String
+  isActive  Boolean  @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
+}
+
+enum SettingKey {
+  DELIVERY_FEE
+  ALERT_MESSAGE
+  MIN_ORDER_VALUE
+  
+  OUTSIDE_BUSINESS_HOURS
+  ON_BREAK
+}
+
+enum SettingType {
+  CURRENCY
+  TEXT
+}
+
+enum PaymentType {
+  CASH
+  CARD
+  PIX
 }
 
 enum OrderStatus {
@@ -232,14 +254,4 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
-}
-
-enum SettingKey {
-  DELIVERY_FEE
-}
-
-enum PaymentType {
-  CASH
-  CARD
-  PIX
 }

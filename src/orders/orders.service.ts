@@ -100,7 +100,7 @@ export class OrdersService {
           customerId: assuredCustomer.id,
           address: `${mainAddress.street}, ${mainAddress.number} - ${mainAddress.neighborhood}/${mainAddress.zipCode}`,
           status: OrderStatus.PENDING,
-          deliveryFee: deliveryFee,
+          deliveryFee,
           paymentType: dto.paymentType,
           items: {
             createMany: {

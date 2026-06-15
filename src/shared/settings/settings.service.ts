@@ -3,7 +3,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { SettingKey } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
 
-const DELIVERY_FEE_TTL_MS = 5 * 60 * 1000;
+const DELIVERY_FEE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 @Injectable()
 export class SettingsService {
@@ -26,7 +26,11 @@ export class SettingsService {
         );
       }
 
-      this.deliveryFee = Number(setting.value);
+      if (setting.isActive) {
+        this.deliveryFee = Number(setting.value);
+      } else {
+        this.deliveryFee = 0;
+      }
 
       this.deliveryFeeLoadedAt = Date.now();
     }

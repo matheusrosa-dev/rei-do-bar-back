@@ -1,9 +1,41 @@
 import {
   PrismaClient,
   SettingKey,
+  SettingType,
 } from "../../src/shared/database/prisma/generated/client";
 
-export const settings = [{ key: SettingKey.DELIVERY_FEE, value: "200" }];
+export const settings = [
+  {
+    key: SettingKey.DELIVERY_FEE,
+    type: SettingType.CURRENCY,
+    value: "0",
+    isActive: false,
+  },
+  {
+    key: SettingKey.MIN_ORDER_VALUE,
+    type: SettingType.CURRENCY,
+    value: "0",
+    isActive: false,
+  },
+  {
+    key: SettingKey.ALERT_MESSAGE,
+    type: SettingType.TEXT,
+    value: "",
+    isActive: false,
+  },
+  {
+    key: SettingKey.OUTSIDE_BUSINESS_HOURS,
+    type: SettingType.TEXT,
+    value: "",
+    isActive: false,
+  },
+  {
+    key: SettingKey.ON_BREAK,
+    type: SettingType.TEXT,
+    value: "",
+    isActive: false,
+  },
+];
 
 export async function seedSettings(prisma: PrismaClient) {
   console.log("Seeding settings...");
@@ -21,7 +53,9 @@ export async function seedSettings(prisma: PrismaClient) {
   await prisma.setting.createMany({
     data: nonExistingSettings.map((setting) => ({
       key: setting.key,
+      type: setting.type,
       value: setting.value,
+      isActive: setting.isActive,
     })),
   });
 

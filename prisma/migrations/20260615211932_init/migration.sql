@@ -1,11 +1,14 @@
 -- CreateEnum
-CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PREPARING', 'SHIPPED', 'DELIVERED', 'CANCELLED');
+CREATE TYPE "SettingKey" AS ENUM ('DELIVERY_FEE', 'ALERT_MESSAGE', 'MIN_ORDER_VALUE', 'OUTSIDE_BUSINESS_HOURS', 'ON_BREAK');
 
 -- CreateEnum
-CREATE TYPE "SettingKey" AS ENUM ('DELIVERY_FEE');
+CREATE TYPE "SettingType" AS ENUM ('CURRENCY', 'TEXT');
 
 -- CreateEnum
 CREATE TYPE "PaymentType" AS ENUM ('CASH', 'CARD', 'PIX');
+
+-- CreateEnum
+CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PREPARING', 'SHIPPED', 'DELIVERED', 'CANCELLED');
 
 -- CreateTable
 CREATE TABLE "customers" (
@@ -159,7 +162,9 @@ CREATE TABLE "order_items" (
 CREATE TABLE "settings" (
     "id" TEXT NOT NULL,
     "key" "SettingKey" NOT NULL,
+    "type" "SettingType" NOT NULL,
     "value" TEXT NOT NULL,
+    "is_active" BOOLEAN NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
