@@ -14,12 +14,14 @@ import { CustomersModule } from "./customers/customers.module";
 import { MeModule } from "./me/me.module";
 import { OrdersModule } from "./orders/orders.module";
 import { AdminModule } from "./admin/admin.module";
+import { SettingsModule } from "./settings/settings.module";
 
 @Module({
   imports: [
     ConfigModule,
     DatabaseModule,
     AuthModule,
+    SettingsModule,
     CategoriesModule,
     ProductsModule,
     CartModule,

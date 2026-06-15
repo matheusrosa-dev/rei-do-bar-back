@@ -9,7 +9,7 @@ import {
   Customer,
   Product,
 } from "@shared/database/prisma/generated/client";
-import { SettingsService } from "@shared/settings/settings.service";
+import { SettingsService } from "../settings/settings.service";
 
 type CustomerWithCartItems = Customer & {
   cart:

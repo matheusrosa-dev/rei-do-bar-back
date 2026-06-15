@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { OrdersService } from "./orders.service";
 import { OrdersController } from "./orders.controller";
-import { SettingsModule } from "@shared/settings/settings.module";
+import { SettingsModule } from "../settings/settings.module";
 
 @Module({
   imports: [SettingsModule],

@@ -2,7 +2,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CartService } from "../cart.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock, settingsServiceMock } from "@shared/testing/mocks";
 import { Prisma } from "@shared/database/prisma/generated/client";
@@ -13,6 +12,7 @@ import {
   ProductFactory,
   CustomerFactory,
 } from "@shared/testing/factories";
+import { SettingsService } from "../../settings/settings.service";
 
 describe("CartService", () => {
   let service: CartService;

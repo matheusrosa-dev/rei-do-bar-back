@@ -5,7 +5,6 @@ import {
   PaymentType,
 } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
   AddressFactory,
@@ -16,6 +15,7 @@ import {
 } from "@shared/testing/factories";
 import { prismaMock } from "@shared/testing/mocks";
 import { OrdersService } from "../orders.service";
+import { SettingsService } from "../../settings/settings.service";
 
 const customerId = "customer-uuid";
 

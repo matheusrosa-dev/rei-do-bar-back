@@ -6,9 +6,9 @@ import {
   Prisma,
   Product,
 } from "@shared/database/prisma/generated/client";
-import { SettingsService } from "@shared/settings/settings.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
+import { SettingsService } from "../settings/settings.service";
 
 @Injectable()
 export class CartService {

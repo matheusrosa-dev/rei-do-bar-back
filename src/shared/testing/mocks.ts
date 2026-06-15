@@ -31,6 +31,7 @@ export const prismaMock = {
   },
   setting: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   category: {
     findMany: jest.fn(),

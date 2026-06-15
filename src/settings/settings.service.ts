@@ -12,7 +12,7 @@ export class SettingsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDeliveryFee(): Promise<number> {
+  async getDeliveryFee() {
     if (Date.now() - this.deliveryFeeLoadedAt > DELIVERY_FEE_TTL_MS) {
       const setting = await this.prisma.setting.findUnique({
         where: { key: SettingKey.DELIVERY_FEE },
@@ -35,5 +35,17 @@ export class SettingsService {
       this.deliveryFeeLoadedAt = Date.now();
     }
     return this.deliveryFee;
+  }
+
+  async findAll() {
+    const settings = await this.prisma.setting.findMany();
+
+    return settings.reduce<Record<string, string>>((acc, setting) => {
+      if (setting.isActive) {
+        acc[setting.key] = setting.value;
+      }
+
+      return acc;
+    }, {});
   }
 }
