@@ -1,5 +1,6 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: <any is necessary to access private methods> */
 import { Test, TestingModule } from "@nestjs/testing";
+import { SettingKey } from "@shared/database/prisma/generated/client";
 import {
   OrderStatus,
   PaymentType,
@@ -84,10 +85,9 @@ describe("OrdersService", () => {
       prismaMock.customer.findFirst.mockResolvedValue(customer);
       prismaMock.order.count.mockResolvedValue(0);
       prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.setting.findUnique.mockResolvedValue({
-        value: "200",
-        isActive: true,
-      });
+      prismaMock.setting.findMany.mockResolvedValue([
+        { key: SettingKey.DELIVERY_FEE, value: "200", isActive: true },
+      ]);
 
       const createdOrder = {
         id: "order-uuid",
@@ -218,10 +218,9 @@ describe("OrdersService", () => {
         }),
       ];
       prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-      prismaMock.setting.findUnique.mockResolvedValue({
-        value: "200",
-        isActive: true,
-      });
+      prismaMock.setting.findMany.mockResolvedValue([
+        { key: SettingKey.DELIVERY_FEE, value: "200", isActive: true },
+      ]);
       prismaMock.order.count.mockResolvedValue(1);
 
       await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({

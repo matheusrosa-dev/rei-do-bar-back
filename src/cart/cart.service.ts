@@ -362,7 +362,8 @@ export class CartService {
       }
     >,
   ) {
-    let deliveryFee = await this.settingsService.getDeliveryFee();
+    const settings = await this.settingsService.findAll();
+    let deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
     if (!cartItems.length) {
       deliveryFee = 0;

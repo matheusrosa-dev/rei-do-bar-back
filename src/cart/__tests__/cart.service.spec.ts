@@ -79,7 +79,7 @@ describe("CartService", () => {
 
   describe("formatCart", () => {
     beforeEach(() => {
-      settingsServiceMock.getDeliveryFee.mockResolvedValue(200);
+      settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "200" });
     });
 
     it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
@@ -441,7 +441,7 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 1 }),
         ]);
-        settingsServiceMock.getDeliveryFee.mockResolvedValue(0);
+        settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "0" });
         prismaMock.cart.update.mockResolvedValue({ items: [] });
 
         await service.incrementProductQuantity(session, {
@@ -521,7 +521,7 @@ describe("CartService", () => {
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 11 }),
         ]);
-        settingsServiceMock.getDeliveryFee.mockResolvedValue(0);
+        settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "0" });
         prismaMock.cart.update.mockResolvedValue({ items: [] });
 
         await service.incrementProductQuantity(session, {

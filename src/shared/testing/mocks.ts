@@ -84,5 +84,5 @@ export const productsServiceMock = {
 };
 
 export const settingsServiceMock = {
-  getDeliveryFee: jest.fn(),
+  findAll: jest.fn(),
 };

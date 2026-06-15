@@ -70,7 +70,8 @@ export class OrdersService {
       );
     }
 
-    const deliveryFee = await this.settingsService.getDeliveryFee();
+    const settings = await this.settingsService.findAll();
+    const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
     await this.prisma.$transaction(async (tx) => {
       // Bloqueia a linha do cliente para serializar criações de pedido

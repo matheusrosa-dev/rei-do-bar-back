@@ -79,9 +79,6 @@ export class AppException extends HttpException {
       ORDER_ALREADY_FINALIZED: "ADMIN_ORDERS_002",
       ORDER_INVALID_STATUS_TRANSITION: "ADMIN_ORDERS_003",
     },
-    settings: {
-      DELIVERY_FEE_NOT_CONFIGURED: "SETTINGS_001",
-    },
   };
 
   static readonly HttpStatus = HttpStatus;
