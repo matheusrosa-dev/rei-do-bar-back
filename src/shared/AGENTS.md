@@ -16,7 +16,6 @@ Cross-cutting infrastructure used by every feature module. Nothing here is domai
 | `guards/` | Device-id, access-token, refresh-token, and basic-auth guards |
 | `helpers/` | Pure utility functions with no class wrappers |
 | `interceptors/` | Response wrapping, serialization, and artificial delay |
-| `settings/` | Cached lookup of configurable runtime values (e.g. delivery fee) |
 | `testing/` | Test factories and mocks — imported only from test files |
 | `types/` | Shared interfaces and framework type augmentation |
 

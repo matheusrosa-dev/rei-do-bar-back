@@ -83,7 +83,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates the NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers feature modules + global providers
-│   ├── admin/                   # Admin backoffice: products, categories, customers, orders (HTTP Basic Auth)
+│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, settings (HTTP Basic Auth)
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
@@ -91,6 +91,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │   ├── me/                      # Authenticated customer self-management
 │   ├── orders/                  # Order creation, listing, and cancellation (authenticated customers)
 │   ├── products/                # Product catalog (best-sellers listing)
+│   ├── settings/               # Client-facing read of active runtime settings (delivery fee, alerts, etc.)
 │   └── shared/                  # Cross-cutting concerns
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
@@ -100,7 +101,6 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │       ├── guards/              # Device-id, access-token, refresh-token, basic-auth guards
 │       ├── helpers/             # Pure functions (hashing, OTP generation)
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay
-│       ├── settings/            # SettingsService: delivery fee with in-memory cache
 │       ├── testing/             # Test factories and mocks (test-only)
 │       └── types/               # Shared TypeScript interfaces
 └── test/                        # E2E tests (supertest)

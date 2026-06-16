@@ -73,9 +73,12 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCategories | `CATEGORY_NOT_FOUND` | `ADMIN_CATEGORIES_001` |
 | adminCategories | `CATEGORY_HAS_PRODUCTS` | `ADMIN_CATEGORIES_002` |
 | adminCategories | `CATEGORY_ALREADY_EXISTS` | `ADMIN_CATEGORIES_003` |
+| adminCategories | `INVALID_CATEGORIES_ORDER` | `ADMIN_CATEGORIES_004` |
 | adminCustomers | `CUSTOMER_NOT_FOUND` | `ADMIN_CUSTOMERS_001` |
 | adminCustomers | `CUSTOMER_HAS_ORDERS` | `ADMIN_CUSTOMERS_002` |
-| settings | `DELIVERY_FEE_NOT_CONFIGURED` | `SETTINGS_001` |
+| adminOrders | `ORDER_NOT_FOUND` | `ADMIN_ORDERS_001` |
+| adminOrders | `ORDER_ALREADY_FINALIZED` | `ADMIN_ORDERS_002` |
+| adminOrders | `ORDER_INVALID_STATUS_TRANSITION` | `ADMIN_ORDERS_003` |
 
 ---
 
