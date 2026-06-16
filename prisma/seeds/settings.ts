@@ -33,7 +33,8 @@ export const settings = [
   {
     key: SettingKey.ON_BREAK,
     type: SettingType.TEXT,
-    value: "",
+    value:
+      "Estamos temporariamente fechados. Voltaremos a receber pedidos em 23/06. Até breve! 🍻",
     isActive: false,
   },
 ];

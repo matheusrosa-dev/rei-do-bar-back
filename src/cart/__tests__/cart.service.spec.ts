@@ -115,6 +115,7 @@ describe("CartService", () => {
         })),
         minOrderValue: 0,
         outsideBusinessHours: null,
+        onBreak: null,
         deliveryFee: 200,
         subtotal,
         productsCount,
@@ -146,6 +147,7 @@ describe("CartService", () => {
         products: [],
         minOrderValue: 0,
         outsideBusinessHours: null,
+        onBreak: null,
         deliveryFee: 0,
         subtotal: 0,
         productsCount: 0,
@@ -153,17 +155,21 @@ describe("CartService", () => {
       });
     });
 
-    it("should expose minOrderValue and outsideBusinessHours from settings", async () => {
+    it("should expose minOrderValue, outsideBusinessHours and onBreak from settings", async () => {
       settingsServiceMock.findAll.mockResolvedValue({
         DELIVERY_FEE: "200",
         MIN_ORDER_VALUE: "5000",
         OUTSIDE_BUSINESS_HOURS: "Estamos fechados no momento.",
+        ON_BREAK: "Estamos temporariamente fechados. Voltaremos em breve!",
       });
 
       const result = await (service as any).formatCart([]);
 
       expect(result.minOrderValue).toBe(5000);
       expect(result.outsideBusinessHours).toBe("Estamos fechados no momento.");
+      expect(result.onBreak).toBe(
+        "Estamos temporariamente fechados. Voltaremos em breve!",
+      );
     });
 
     it("should set remainingStock when product stock is 10 or less", async () => {

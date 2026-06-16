@@ -405,6 +405,7 @@ export class CartService {
       }),
       minOrderValue,
       outsideBusinessHours: settings?.OUTSIDE_BUSINESS_HOURS ?? null,
+      onBreak: settings?.ON_BREAK ?? null,
       deliveryFee,
       subtotal,
       productsCount,

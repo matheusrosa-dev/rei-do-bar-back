@@ -37,6 +37,14 @@ export class OrdersService {
     const settings = await this.settingsService.findAll();
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
+    if (settings?.ON_BREAK) {
+      throw new AppException(
+        AppException.errorCodes.order.ON_BREAK,
+        settings.ON_BREAK,
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     if (settings?.OUTSIDE_BUSINESS_HOURS) {
       throw new AppException(
         AppException.errorCodes.order.OUTSIDE_BUSINESS_HOURS,

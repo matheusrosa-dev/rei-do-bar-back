@@ -238,6 +238,48 @@ describe("OrdersService", () => {
       expect(prismaMock.order.create).not.toHaveBeenCalled();
     });
 
+    it("should throw ON_BREAK and fail fast when the store is on break", async () => {
+      prismaMock.setting.findMany.mockResolvedValue([
+        {
+          key: SettingKey.ON_BREAK,
+          value: "Estamos temporariamente fechados. Voltaremos em breve!",
+          isActive: true,
+        },
+      ]);
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ON_BREAK,
+        message: "Estamos temporariamente fechados. Voltaremos em breve!",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
+    });
+
+    it("should throw ON_BREAK before OUTSIDE_BUSINESS_HOURS when both are active", async () => {
+      prismaMock.setting.findMany.mockResolvedValue([
+        {
+          key: SettingKey.ON_BREAK,
+          value: "Estamos temporariamente fechados. Voltaremos em breve!",
+          isActive: true,
+        },
+        {
+          key: SettingKey.OUTSIDE_BUSINESS_HOURS,
+          value: "Estamos fechados no momento.",
+          isActive: true,
+        },
+      ]);
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ON_BREAK,
+        message: "Estamos temporariamente fechados. Voltaremos em breve!",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
+    });
+
     it("should throw OUTSIDE_BUSINESS_HOURS and fail fast when the store is closed", async () => {
       prismaMock.setting.findMany.mockResolvedValue([
         {

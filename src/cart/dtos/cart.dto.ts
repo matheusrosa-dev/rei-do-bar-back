@@ -29,6 +29,9 @@ export class CartDto {
   outsideBusinessHours!: string | null;
 
   @Expose()
+  onBreak!: string | null;
+
+  @Expose()
   subtotal!: number;
 
   @Expose()

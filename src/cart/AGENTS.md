@@ -30,7 +30,7 @@ Every mutating operation follows the same shape:
 3. Apply a single nested Prisma write on the cart, selecting back the items with their products.
 4. Return the formatted cart.
 
-**Formatting** reads the delivery fee from settings (set to zero when the cart is empty), converts cents to currency at presentation time, returns item-level totals (unit price × quantity) rather than unit prices, and exposes remaining stock per item.
+**Formatting** reads the delivery fee from settings (set to zero when the cart is empty), surfaces a settings-driven store-status alert (e.g. an on-break message, or null when absent), converts cents to currency at presentation time, returns item-level totals (unit price × quantity) rather than unit prices, and exposes remaining stock per item.
 
 **Decrement edge case**: decrementing an item whose quantity is 1 removes it from the cart rather than setting quantity to zero.
 
