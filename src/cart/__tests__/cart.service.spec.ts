@@ -113,6 +113,8 @@ describe("CartService", () => {
           remainingStock: null,
           quantity: item.quantity,
         })),
+        minOrderValue: 0,
+        outsideBusinessHours: null,
         deliveryFee: 200,
         subtotal,
         productsCount,
@@ -142,11 +144,26 @@ describe("CartService", () => {
 
       expect(result).toStrictEqual({
         products: [],
+        minOrderValue: 0,
+        outsideBusinessHours: null,
         deliveryFee: 0,
         subtotal: 0,
         productsCount: 0,
         total: 0,
       });
+    });
+
+    it("should expose minOrderValue and outsideBusinessHours from settings", async () => {
+      settingsServiceMock.findAll.mockResolvedValue({
+        DELIVERY_FEE: "200",
+        MIN_ORDER_VALUE: "5000",
+        OUTSIDE_BUSINESS_HOURS: "Estamos fechados no momento.",
+      });
+
+      const result = await (service as any).formatCart([]);
+
+      expect(result.minOrderValue).toBe(5000);
+      expect(result.outsideBusinessHours).toBe("Estamos fechados no momento.");
     });
 
     it("should set remainingStock when product stock is 10 or less", async () => {

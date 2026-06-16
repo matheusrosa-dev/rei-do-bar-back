@@ -54,6 +54,7 @@ export class AppException extends HttpException {
       NO_MAIN_ADDRESS: "ORDER_009",
       INACTIVE_CUSTOMER: "ORDER_010",
       BELOW_MIN_ORDER_VALUE: "ORDER_011",
+      OUTSIDE_BUSINESS_HOURS: "ORDER_012",
     },
     products: {
       INVALID_SESSION: "PRODUCTS_001",

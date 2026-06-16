@@ -34,6 +34,17 @@ export class OrdersService {
   }
 
   async createOrder(customerId: string, dto: CreateOrderDto) {
+    const settings = await this.settingsService.findAll();
+    const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
+
+    if (settings?.OUTSIDE_BUSINESS_HOURS) {
+      throw new AppException(
+        AppException.errorCodes.order.OUTSIDE_BUSINESS_HOURS,
+        settings.OUTSIDE_BUSINESS_HOURS,
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId },
       include: {
@@ -59,6 +70,12 @@ export class OrdersService {
 
     this.checkIfThereAreInvalidItemsInCart(assuredCustomer.cart.items);
 
+    this.checkIfOrderMeetsMinValue(
+      assuredCustomer.cart.items,
+      deliveryFee,
+      settings,
+    );
+
     const mainAddress = assuredCustomer.addresses.find(
       (address) => address.isMain,
     );
@@ -70,11 +87,6 @@ export class OrdersService {
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
-
-    const settings = await this.settingsService.findAll();
-    const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
-
-    this.checkIfOrderMeetsMinValue(assuredCustomer.cart.items, settings);
 
     await this.prisma.$transaction(async (tx) => {
       // Bloqueia a linha do cliente para serializar criações de pedido
@@ -252,6 +264,7 @@ export class OrdersService {
         product: Product;
       }
     >,
+    deliveryFee: number,
     settings: Record<SettingKey, string>,
   ) {
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
@@ -265,7 +278,9 @@ export class OrdersService {
       0,
     );
 
-    if (subtotal < minOrderValue) {
+    const total = subtotal + deliveryFee;
+
+    if (total < minOrderValue) {
       const formattedMinValue = (minOrderValue / 100)
         .toFixed(2)
         .replace(".", ",");

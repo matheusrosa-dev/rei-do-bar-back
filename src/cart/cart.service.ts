@@ -404,6 +404,7 @@ export class CartService {
         };
       }),
       minOrderValue,
+      outsideBusinessHours: settings?.OUTSIDE_BUSINESS_HOURS ?? null,
       deliveryFee,
       subtotal,
       productsCount,

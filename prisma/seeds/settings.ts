@@ -20,13 +20,14 @@ export const settings = [
   {
     key: SettingKey.ALERT_MESSAGE,
     type: SettingType.TEXT,
-    value: "",
+    value: "Nossos estoques ainda são limitados, por favor tenha paciência!",
     isActive: false,
   },
   {
     key: SettingKey.OUTSIDE_BUSINESS_HOURS,
     type: SettingType.TEXT,
-    value: "",
+    value:
+      "Estamos fechados no momento. Atendemos de segunda a sábado, das 18h às 23h. 🍻",
     isActive: false,
   },
   {

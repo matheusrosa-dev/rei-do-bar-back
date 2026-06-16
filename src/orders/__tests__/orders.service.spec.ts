@@ -238,6 +238,43 @@ describe("OrdersService", () => {
       expect(prismaMock.order.create).not.toHaveBeenCalled();
     });
 
+    it("should throw OUTSIDE_BUSINESS_HOURS and fail fast when the store is closed", async () => {
+      prismaMock.setting.findMany.mockResolvedValue([
+        {
+          key: SettingKey.OUTSIDE_BUSINESS_HOURS,
+          value: "Estamos fechados no momento.",
+          isActive: true,
+        },
+      ]);
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.OUTSIDE_BUSINESS_HOURS,
+        message: "Estamos fechados no momento.",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
+    });
+
+    it("should throw BELOW_MIN_ORDER_VALUE when the order total does not meet the minimum", async () => {
+      const product = ProductFactory.createOne({ price: 1000, stock: 20 });
+      const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+      prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+      prismaMock.order.count.mockResolvedValue(0);
+      prismaMock.setting.findMany.mockResolvedValue([
+        { key: SettingKey.DELIVERY_FEE, value: "500", isActive: true },
+        { key: SettingKey.MIN_ORDER_VALUE, value: "3000", isActive: true },
+      ]);
+
+      await expect(service.createOrder(customerId, dto)).rejects.toMatchObject({
+        code: AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.create).not.toHaveBeenCalled();
+    });
+
     describe("stock validation", () => {
       beforeEach(() => {
         prismaMock.order.count.mockResolvedValue(0);
@@ -441,6 +478,56 @@ describe("OrdersService", () => {
       });
 
       expect(prismaMock.product.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("checkIfOrderMeetsMinValue (private)", () => {
+    const buildItems = () => [
+      CartItemFactory.createOne({
+        product: ProductFactory.createOne({ price: 1000, stock: 20 }),
+        quantity: 2,
+      }),
+    ];
+
+    it("should not throw when the minimum value setting is absent or zero", () => {
+      expect(() =>
+        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {}),
+      ).not.toThrow();
+      expect(() =>
+        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {
+          MIN_ORDER_VALUE: "0",
+        }),
+      ).not.toThrow();
+    });
+
+    it("should not throw when the subtotal alone meets the minimum", () => {
+      expect(() =>
+        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {
+          MIN_ORDER_VALUE: "2000",
+        }),
+      ).not.toThrow();
+    });
+
+    it("should not throw when the delivery fee pushes the total to the minimum", () => {
+      expect(() =>
+        (service as any).checkIfOrderMeetsMinValue(buildItems(), 500, {
+          MIN_ORDER_VALUE: "2500",
+        }),
+      ).not.toThrow();
+    });
+
+    it("should throw BELOW_MIN_ORDER_VALUE when subtotal plus delivery fee is below the minimum", () => {
+      expect(() =>
+        (service as any).checkIfOrderMeetsMinValue(buildItems(), 500, {
+          MIN_ORDER_VALUE: "3000",
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
+          message: "O valor mínimo para realizar um pedido é de R$ 30,00.",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        }),
+      );
     });
   });
 

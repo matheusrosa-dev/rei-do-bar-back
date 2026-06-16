@@ -26,6 +26,9 @@ export class CartDto {
   minOrderValue!: number;
 
   @Expose()
+  outsideBusinessHours!: string | null;
+
+  @Expose()
   subtotal!: number;
 
   @Expose()

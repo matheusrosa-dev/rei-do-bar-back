@@ -19,7 +19,7 @@ The entire controller is protected by the access-token guard. The authenticated 
 
 ## Create Order Flow
 
-**Pre-transaction validations** (fail fast, before any write): the customer must exist and be active; the customer must have a name set; the cart must be non-empty; every cart item must be active and have sufficient stock; the customer must have a main address; the cart subtotal must meet the configured minimum order value (skipped when the setting is absent or zero). The delivery fee is fetched before entering the transaction.
+**Pre-transaction validations** (fail fast, before any write): the store must be open — if the `OUTSIDE_BUSINESS_HOURS` setting is active, checkout is rejected with that setting's message; the customer must exist and be active; the customer must have a name set; the cart must be non-empty; every cart item must be active and have sufficient stock; the customer must have a main address; the order total (cart subtotal + delivery fee) must meet the configured minimum order value (skipped when the setting is absent or zero). The settings and delivery fee are fetched before entering the transaction.
 
 **Inside the transaction** a row-level lock is taken on the customer row (`SELECT ... FOR UPDATE`) to serialize concurrent order creation for the same customer. After the lock: reject if a non-terminal order already exists; create the order with item snapshots (name, price, image captured at purchase time); decrement stock atomically with a guarded conditional update; and clear the cart.
 
