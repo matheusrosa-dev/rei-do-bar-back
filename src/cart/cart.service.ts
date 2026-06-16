@@ -364,6 +364,7 @@ export class CartService {
   ) {
     const settings = await this.settingsService.findAll();
     let deliveryFee = Number(settings?.DELIVERY_FEE || 0);
+    const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
 
     if (!cartItems.length) {
       deliveryFee = 0;
@@ -402,6 +403,7 @@ export class CartService {
           quantity,
         };
       }),
+      minOrderValue,
       deliveryFee,
       subtotal,
       productsCount,

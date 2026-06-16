@@ -23,6 +23,9 @@ export class CartDto {
   deliveryFee!: number;
 
   @Expose()
+  minOrderValue!: number;
+
+  @Expose()
   subtotal!: number;
 
   @Expose()

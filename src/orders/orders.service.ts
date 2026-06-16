@@ -8,6 +8,7 @@ import {
   CartItem,
   Customer,
   Product,
+  SettingKey,
 } from "@shared/database/prisma/generated/client";
 import { SettingsService } from "../settings/settings.service";
 
@@ -72,6 +73,8 @@ export class OrdersService {
 
     const settings = await this.settingsService.findAll();
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
+
+    this.checkIfOrderMeetsMinValue(assuredCustomer.cart.items, settings);
 
     await this.prisma.$transaction(async (tx) => {
       // Bloqueia a linha do cliente para serializar criações de pedido
@@ -238,6 +241,38 @@ export class OrdersService {
       throw new AppException(
         AppException.errorCodes.order.CART_EMPTY,
         "O carrinho está vazio",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private checkIfOrderMeetsMinValue(
+    cartItems: Array<
+      CartItem & {
+        product: Product;
+      }
+    >,
+    settings: Record<SettingKey, string>,
+  ) {
+    const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
+
+    if (minOrderValue <= 0) {
+      return;
+    }
+
+    const subtotal = cartItems.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
+    );
+
+    if (subtotal < minOrderValue) {
+      const formattedMinValue = (minOrderValue / 100)
+        .toFixed(2)
+        .replace(".", ",");
+
+      throw new AppException(
+        AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
+        `O valor mínimo para realizar um pedido é de R$ ${formattedMinValue}.`,
         AppException.HttpStatus.BAD_REQUEST,
       );
     }

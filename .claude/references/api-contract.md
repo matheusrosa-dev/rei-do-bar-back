@@ -64,6 +64,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | order | `ORDER_NOT_CANCELLABLE` | `ORDER_008` |
 | order | `NO_MAIN_ADDRESS` | `ORDER_009` |
 | order | `INACTIVE_CUSTOMER` | `ORDER_010` |
+| order | `BELOW_MIN_ORDER_VALUE` | `ORDER_011` |
 | products | `INVALID_SESSION` | `PRODUCTS_001` |
 | adminProducts | `INSUFFICIENT_STOCK` | `ADMIN_PRODUCTS_001` |
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
