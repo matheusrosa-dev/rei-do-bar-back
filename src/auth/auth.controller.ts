@@ -14,6 +14,10 @@ import {
   SendOtpCodeDto,
   AuthDto,
 } from "./dtos";
+import {
+  DeviceThrottle,
+  IpThrottle,
+} from "@shared/decorators/throttle.decorator";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
 import type { ICurrentSession } from "@shared/types/jwt";
@@ -26,6 +30,7 @@ export class AuthController {
 
   @Public()
   @Post("sync-device-id")
+  @IpThrottle("deviceSync")
   async syncDeviceId(@Body() body: SyncDeviceIdDto) {
     const { deviceId } = await this.authService.syncDeviceId(body);
 
@@ -33,6 +38,7 @@ export class AuthController {
   }
 
   @Post("send-otp-code")
+  @DeviceThrottle("otpSend", "otpSendLong")
   @HttpCode(HttpStatus.NO_CONTENT)
   async sendOtpCode(
     @CurrentSession() session: ICurrentSession,
@@ -42,6 +48,7 @@ export class AuthController {
   }
 
   @Post("login-otp-code")
+  @DeviceThrottle("otpLogin")
   async loginWithOtpCode(
     @CurrentSession() session: ICurrentSession,
     @Body() body: LoginOtpCodeDto,

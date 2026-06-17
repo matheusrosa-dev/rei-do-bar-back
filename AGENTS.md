@@ -35,6 +35,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 | `passport-jwt` | JWT extraction and validation strategy (`ExtractJwt.fromAuthHeaderAsBearerToken`) |
 | `jsonwebtoken` | Used directly (not via passport) to sign access and refresh JWTs |
 | `@types/passport-jwt` | Types for the JWT strategy |
+| `@nestjs/throttler` | Rate limiting / brute-force protection — named throttlers configured in `AppModule`, applied per route via custom guards (OTP send/login keyed by device-id, `sync-device-id` keyed by IP); admin Basic Auth uses the throttler storage directly for a per-IP failed-attempt lockout; in-memory storage |
 
 ### Validation & Transformation
 
@@ -98,7 +99,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │       ├── decorators/          # Route/param decorators
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # Device-id, access-token, refresh-token, basic-auth guards
+│       ├── guards/              # Device-id, access-token, refresh-token, basic-auth, throttler guards
 │       ├── helpers/             # Pure functions (hashing, OTP generation)
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay
 │       ├── testing/             # Test factories and mocks (test-only)
@@ -154,6 +155,11 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `14d`) |
 | `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
 | `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
+| `RATE_LIMIT_DEVICE_SYNC_TTL` / `_LIMIT` | Rate limit for `sync-device-id` (per IP); TTL in seconds |
+| `RATE_LIMIT_OTP_SEND_TTL` / `_LIMIT` | Short-window rate limit for OTP send (per device-id); TTL in seconds |
+| `RATE_LIMIT_OTP_SEND_LONG_TTL` / `_LIMIT` | Long-window rate limit for OTP send (per device-id); TTL in seconds |
+| `RATE_LIMIT_OTP_LOGIN_TTL` / `_LIMIT` | Rate limit for OTP login attempts (per device-id); TTL in seconds |
+| `RATE_LIMIT_ADMIN_TTL` / `_LIMIT` | Admin Basic Auth failed-attempt lockout (per IP); TTL in seconds |
 
 ### Language
 
@@ -176,5 +182,7 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 |---|---|---|
 | Device-id guard | `APP_GUARD` (global) | All non-public routes require a valid UUID in the `x-device-id` header |
 | Delay interceptor | `APP_INTERCEPTOR` (global) | Adds the artificial delay from `API_DELAY`; no-ops when the value is 0 |
+
+`ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 
 The response-wrapping interceptor and the global exception filter are applied in `applyGlobalConfig()` (called from `main.ts`), not in `AppModule`.

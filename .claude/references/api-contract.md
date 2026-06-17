@@ -45,6 +45,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | auth | `INVALID_REFRESH_TOKEN` | `AUTH_004` |
 | auth | `CUSTOMER_NOT_FOUND` | `AUTH_005` |
 | auth | `INVALID_TOKEN_IN_DECORATOR` | `AUTH_006` |
+| auth | `RATE_LIMIT_EXCEEDED` | `AUTH_007` |
 | me | `CUSTOMER_NOT_FOUND` | `ME_001` |
 | me | `NO_FIELDS_TO_UPDATE` | `ME_002` |
 | me | `ADDRESS_ALREADY_EXISTS` | `ME_003` |

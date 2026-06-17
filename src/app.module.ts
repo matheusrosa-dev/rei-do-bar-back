@@ -9,7 +9,12 @@ import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { DeviceIdGuard } from "./shared/guards/device-id.guard";
 import { DelayInterceptor } from "@shared/interceptors/delay.interceptor";
 import { ConfigService } from "@nestjs/config";
-import { IApiConfig } from "@shared/config/env-config.interface";
+import { ThrottlerModule } from "@nestjs/throttler";
+import {
+  IApiConfig,
+  IRateLimitConfig,
+} from "@shared/config/env-config.interface";
+import { THROTTLER_NAMES } from "@shared/decorators/throttle.decorator";
 import { CustomersModule } from "./customers/customers.module";
 import { MeModule } from "./me/me.module";
 import { OrdersModule } from "./orders/orders.module";
@@ -19,6 +24,19 @@ import { SettingsModule } from "./settings/settings.module";
 @Module({
   imports: [
     ConfigModule,
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const rateLimit = configService.get<IRateLimitConfig>("rateLimit")!;
+
+        return {
+          throttlers: THROTTLER_NAMES.map((name) => ({
+            name,
+            ...rateLimit[name],
+          })),
+        };
+      },
+    }),
     DatabaseModule,
     AuthModule,
     SettingsModule,

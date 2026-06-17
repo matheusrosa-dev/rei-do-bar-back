@@ -5,13 +5,20 @@ import {
   apiConfig,
   authConfig,
   databaseConfig,
+  rateLimitConfig,
   validationSchema,
 } from "./env-config";
 
 @Module({
   imports: [
     NestConfigModule.forRoot({
-      load: [apiConfig, databaseConfig, authConfig, adminConfig],
+      load: [
+        apiConfig,
+        databaseConfig,
+        authConfig,
+        adminConfig,
+        rateLimitConfig,
+      ],
       isGlobal: true,
       validationSchema,
     }),

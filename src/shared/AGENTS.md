@@ -13,7 +13,7 @@ Cross-cutting infrastructure used by every feature module. Nothing here is domai
 | `decorators/` | Route/param decorators (public marker, current-session extractor, admin-auth composite) |
 | `exceptions/` | The single application exception type and its error-code registry |
 | `filters/` | The global exception filter |
-| `guards/` | Device-id, access-token, refresh-token, and basic-auth guards |
+| `guards/` | Device-id, access-token, refresh-token, basic-auth, and throttler (rate-limiting) guards |
 | `helpers/` | Pure utility functions with no class wrappers |
 | `interceptors/` | Response wrapping, serialization, and artificial delay |
 | `testing/` | Test factories and mocks — imported only from test files |

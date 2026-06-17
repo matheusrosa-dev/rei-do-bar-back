@@ -41,6 +41,7 @@ The anonymous-to-customer migration is delegated to the internal customers servi
 | Rule | Detail |
 |---|---|
 | Only the device-id sync route is public | Every other auth route requires the `x-device-id` header |
+| Auth routes are rate-limited | OTP send/login are throttled per device-id and the public device-id sync per IP, via the shared throttler guards (implementations live in the shared guards directory) |
 | Secrets via injected config | Auth config is read once through `ConfigService` and stored on the service |
 | Sensitive values are always hashed | OTP codes and refresh tokens are never persisted in plaintext |
 | Refresh uses its own guard | The refresh route activates the refresh strategy explicitly, not the default access strategy |

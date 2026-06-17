@@ -4,6 +4,7 @@ import {
   IApiConfig,
   IAuthConfig,
   IDatabaseConfig,
+  IRateLimitConfig,
 } from "./env-config.interface";
 
 import * as Joi from "joi";
@@ -35,6 +36,32 @@ export const adminConfig = registerAs<IAdminConfig>("admin", () => ({
   password: process.env.ADMIN_PASSWORD!,
 }));
 
+export const rateLimitConfig = registerAs<IRateLimitConfig>(
+  "rateLimit",
+  () => ({
+    deviceSync: {
+      ttl: Number(process.env.RATE_LIMIT_DEVICE_SYNC_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_DEVICE_SYNC_LIMIT),
+    },
+    otpSend: {
+      ttl: Number(process.env.RATE_LIMIT_OTP_SEND_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_OTP_SEND_LIMIT),
+    },
+    otpSendLong: {
+      ttl: Number(process.env.RATE_LIMIT_OTP_SEND_LONG_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_OTP_SEND_LONG_LIMIT),
+    },
+    otpLogin: {
+      ttl: Number(process.env.RATE_LIMIT_OTP_LOGIN_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_OTP_LOGIN_LIMIT),
+    },
+    admin: {
+      ttl: Number(process.env.RATE_LIMIT_ADMIN_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_ADMIN_LIMIT),
+    },
+  }),
+);
+
 export const validationSchema = Joi.object({
   API_PORT: Joi.number().required(),
   API_DELAY: Joi.number().optional().default(0),
@@ -49,4 +76,15 @@ export const validationSchema = Joi.object({
 
   ADMIN_USERNAME: Joi.string().required(),
   ADMIN_PASSWORD: Joi.string().required(),
+
+  RATE_LIMIT_DEVICE_SYNC_TTL: Joi.number().required(),
+  RATE_LIMIT_DEVICE_SYNC_LIMIT: Joi.number().required(),
+  RATE_LIMIT_OTP_SEND_TTL: Joi.number().required(),
+  RATE_LIMIT_OTP_SEND_LIMIT: Joi.number().required(),
+  RATE_LIMIT_OTP_SEND_LONG_TTL: Joi.number().required(),
+  RATE_LIMIT_OTP_SEND_LONG_LIMIT: Joi.number().required(),
+  RATE_LIMIT_OTP_LOGIN_TTL: Joi.number().required(),
+  RATE_LIMIT_OTP_LOGIN_LIMIT: Joi.number().required(),
+  RATE_LIMIT_ADMIN_TTL: Joi.number().required(),
+  RATE_LIMIT_ADMIN_LIMIT: Joi.number().required(),
 });

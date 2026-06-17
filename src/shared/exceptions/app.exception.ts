@@ -30,6 +30,7 @@ export class AppException extends HttpException {
       INVALID_REFRESH_TOKEN: "AUTH_004",
       CUSTOMER_NOT_FOUND: "AUTH_005",
       INVALID_TOKEN_IN_DECORATOR: "AUTH_006",
+      RATE_LIMIT_EXCEEDED: "AUTH_007",
     },
     me: {
       CUSTOMER_NOT_FOUND: "ME_001",

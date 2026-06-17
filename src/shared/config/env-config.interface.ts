@@ -21,3 +21,16 @@ export interface IAdminConfig {
   username: string;
   password: string;
 }
+
+export interface IThrottlerWindow {
+  ttl: number;
+  limit: number;
+}
+
+export interface IRateLimitConfig {
+  deviceSync: IThrottlerWindow;
+  otpSend: IThrottlerWindow;
+  otpSendLong: IThrottlerWindow;
+  otpLogin: IThrottlerWindow;
+  admin: IThrottlerWindow;
+}
