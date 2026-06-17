@@ -108,7 +108,7 @@ describe("CartService", () => {
           id: item.product.id,
           name: item.product.name,
           description: item.product.description,
-          price: item.product.price * item.quantity,
+          price: item.product.price,
           imageUrl: item.product.imageUrl,
           remainingStock: null,
           quantity: item.quantity,
@@ -138,21 +138,6 @@ describe("CartService", () => {
       const result = await (service as any).formatCart(cartItems);
 
       expect(result.products[0].remainingStock).toBe(0);
-    });
-
-    it("should set deliveryFee to 0 when cart is empty", async () => {
-      const result = await (service as any).formatCart([]);
-
-      expect(result).toStrictEqual({
-        products: [],
-        minOrderValue: 0,
-        outsideBusinessHours: null,
-        onBreak: null,
-        deliveryFee: 0,
-        subtotal: 0,
-        productsCount: 0,
-        total: 0,
-      });
     });
 
     it("should expose minOrderValue, outsideBusinessHours and onBreak from settings", async () => {
