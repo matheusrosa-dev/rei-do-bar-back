@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
+import { LoggingInterceptor } from "../interceptors/logging.interceptor";
 import { WrapperDataInterceptor } from "../interceptors/wrapper-data.interceptor";
 import { GlobalExceptionFilter } from "../filters/exception.filter";
 
@@ -15,7 +16,10 @@ export function applyGlobalConfig(app: INestApplication) {
     }),
   );
 
-  app.useGlobalInterceptors(new WrapperDataInterceptor());
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new WrapperDataInterceptor(),
+  );
 
   app.useGlobalFilters(new GlobalExceptionFilter());
 }
