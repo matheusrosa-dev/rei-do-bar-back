@@ -1,15 +1,12 @@
 Baixa prioridade:
 futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
 futuramente adicionar opção para alterar número do usuario
+adicionar meio de contato do suporte no app
 
 Em produção:
 remover seed de produtos ou fazer com que rode apenas em dev
 
 Importante:
-corrigir order by no cart
-adicionar valor mínimo de pedido
-adicionar meio de contato do suporte no app
 disparar notificação para o usuário nas alterações de status de pedido
-
-Sem rate limiting / proteção a brute force — não há @nestjs/throttler. Não há contador de tentativas no OTP 
-nem no Basic Auth do admin (chute ilimitado de senha). Depois do SMS, send-otp-code sem throttle vira vetor de SMS bombing/custo.
+adicionar logs
+adicionar cupom
