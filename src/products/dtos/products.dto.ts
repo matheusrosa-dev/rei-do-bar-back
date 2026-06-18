@@ -14,6 +14,9 @@ export class ProductsDto {
   price!: number;
 
   @Expose()
+  compareAtPrice!: number;
+
+  @Expose()
   imageUrl!: string;
 
   @Expose()

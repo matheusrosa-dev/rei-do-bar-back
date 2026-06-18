@@ -9,13 +9,13 @@ import {
 
 export class UpdateProductParamsDto {
   @IsUUID()
-  productId: string;
+  productId!: string;
 }
 
 export class UpdateProductBodyDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
@@ -23,11 +23,15 @@ export class UpdateProductBodyDto {
   description?: string;
 
   @IsInt()
-  price: number;
+  price!: number;
+
+  @IsOptional()
+  @IsInt()
+  compareAtPrice?: number;
 
   @IsUrl()
-  imageUrl: string;
+  imageUrl!: string;
 
   @IsUUID()
-  categoryId: string;
+  categoryId!: string;
 }

@@ -109,6 +109,7 @@ describe("CartService", () => {
           name: item.product.name,
           description: item.product.description,
           price: item.product.price,
+          compareAtPrice: item.product.compareAtPrice,
           imageUrl: item.product.imageUrl,
           remainingStock: null,
           quantity: item.quantity,
@@ -121,6 +122,41 @@ describe("CartService", () => {
         productsCount,
         total,
       });
+    });
+
+    it("should include compareAtPrice in product items", async () => {
+      const compareAtPrice = 1500;
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 10,
+            stock: 20,
+            compareAtPrice,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart(cartItems);
+
+      expect(result.products[0].compareAtPrice).toBe(compareAtPrice);
+    });
+
+    it("should include compareAtPrice as null when product has no compare price", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 10,
+            stock: 20,
+            compareAtPrice: null,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart(cartItems);
+
+      expect(result.products[0].compareAtPrice).toBeNull();
     });
 
     it("should set remainingStock to 0 when product is inactive", async () => {

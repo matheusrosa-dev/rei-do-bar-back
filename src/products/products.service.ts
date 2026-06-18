@@ -42,6 +42,7 @@ export class ProductsService {
           id: true,
           name: true,
           description: true,
+          compareAtPrice: true,
           price: true,
           imageUrl: true,
           stock: true,

@@ -395,6 +395,7 @@ export class CartService {
           description: product.description,
           price: product.price,
           imageUrl: product.imageUrl,
+          compareAtPrice: product.compareAtPrice,
           remainingStock,
           quantity,
         };

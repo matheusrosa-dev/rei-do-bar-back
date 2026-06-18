@@ -245,6 +245,33 @@ describe("ProductsService", () => {
         });
       });
 
+      it("should select compareAtPrice from products", async () => {
+        prismaMock.product.findMany.mockResolvedValue([]);
+        mockWithCart(customerWithEmptyCart);
+
+        await service.findBestSellers(session);
+
+        expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            select: expect.objectContaining({
+              compareAtPrice: true,
+            }),
+          }),
+        );
+      });
+
+      it("should return compareAtPrice in the result", async () => {
+        const compareAtPrice = 2000;
+        const product = ProductFactory.createOne({ stock: 20, compareAtPrice });
+
+        prismaMock.product.findMany.mockResolvedValue([product]);
+        mockWithCart(customerWithEmptyCart);
+
+        const result = await service.findBestSellers(session);
+
+        expect(result[0].compareAtPrice).toBe(compareAtPrice);
+      });
+
       it("should sort products by sortOrder ascending", async () => {
         prismaMock.product.findMany.mockResolvedValue([]);
         mockWithCart(customerWithEmptyCart);

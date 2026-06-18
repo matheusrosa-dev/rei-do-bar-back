@@ -8,6 +8,7 @@ type Props = {
   name?: string;
   description?: string;
   price?: number;
+  compareAtPrice?: number | null;
   imageUrl?: string;
   isActive?: boolean;
   stock: number;
@@ -29,6 +30,7 @@ const makeProduct = (props: Props): Product => ({
   name: props?.name ?? chance.word(),
   description: props?.description ?? chance.sentence(),
   price: props?.price ?? chance.integer({ min: 10, max: 100 }),
+  compareAtPrice: props?.compareAtPrice ?? null,
   imageUrl: props?.imageUrl ?? chance.url({ extensions: ["jpg", "png"] }),
   isActive: props?.isActive ?? true,
   stock: props.stock,

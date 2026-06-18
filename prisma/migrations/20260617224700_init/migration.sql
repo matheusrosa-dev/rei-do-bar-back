@@ -113,6 +113,7 @@ CREATE TABLE "products" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "price" INTEGER NOT NULL,
+    "compare_at_price" INTEGER,
     "stock" INTEGER NOT NULL,
     "image_url" TEXT NOT NULL,
     "sort_order" INTEGER NOT NULL,

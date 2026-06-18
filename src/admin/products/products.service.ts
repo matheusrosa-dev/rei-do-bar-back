@@ -157,6 +157,7 @@ export class ProductsService {
           price: dto.price,
           imageUrl: dto.imageUrl,
           isActive: false,
+          compareAtPrice: dto.compareAtPrice || null,
           stock: 0,
           sortOrder: (last?.sortOrder ?? 0) + 1,
           category: {
@@ -191,6 +192,7 @@ export class ProductsService {
       price: dto.price,
       imageUrl: dto.imageUrl,
       categoryId: dto.categoryId,
+      compareAtPrice: dto.compareAtPrice || null,
     });
   }
 
