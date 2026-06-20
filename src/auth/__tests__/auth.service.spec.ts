@@ -20,12 +20,16 @@ import {
 describe("AuthService", () => {
   let service: AuthService;
   let customersServiceMock: jest.Mocked<
-    Pick<CustomersService, "createCustomerFromAnonymous">
+    Pick<
+      CustomersService,
+      "createCustomerFromAnonymous" | "replaceCustomerCartWithAnonymous"
+    >
   >;
 
   beforeEach(async () => {
     customersServiceMock = {
       createCustomerFromAnonymous: jest.fn(),
+      replaceCustomerCartWithAnonymous: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -365,6 +369,45 @@ describe("AuthService", () => {
       ).not.toHaveBeenCalled();
     });
 
+    it("should replace the customer cart with the anonymous cart when customer already exists", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      prismaMock.customer.findUnique.mockResolvedValue(activeCustomer);
+      prismaMock.refreshToken.create.mockResolvedValue({});
+
+      await service.loginWithOtpCode(deviceId, dto);
+
+      expect(
+        customersServiceMock.replaceCustomerCartWithAnonymous,
+      ).toHaveBeenCalledWith({
+        customerId: activeCustomer.id,
+        anonymousCustomer: {
+          id: anonymousCustomer.id,
+          cartId: anonymousCustomer.cart.id,
+        },
+      });
+    });
+
+    it("should not call replaceCustomerCartWithAnonymous when customer does not exist", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+      customersServiceMock.createCustomerFromAnonymous.mockResolvedValue(
+        activeCustomer,
+      );
+      prismaMock.refreshToken.create.mockResolvedValue({});
+
+      await service.loginWithOtpCode(deviceId, dto);
+
+      expect(
+        customersServiceMock.replaceCustomerCartWithAnonymous,
+      ).not.toHaveBeenCalled();
+    });
+
     it("should store the hashed refresh token in the database", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
         anonymousCustomer,
@@ -509,11 +552,25 @@ describe("AuthService", () => {
       await service.logout({
         customerId: "customer-id",
         token: "plain-refresh-token",
+        deviceId: "device-id",
       });
       expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
         where: {
           customerId: "customer-id",
           hashedToken: hashString("plain-refresh-token"),
+        },
+      });
+    });
+
+    it("should delete the push tokens associated with the device", async () => {
+      await service.logout({
+        customerId: "customer-id",
+        token: "plain-refresh-token",
+        deviceId: "device-id",
+      });
+      expect(prismaMock.pushToken.deleteMany).toHaveBeenCalledWith({
+        where: {
+          deviceId: "device-id",
         },
       });
     });

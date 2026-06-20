@@ -61,6 +61,11 @@ export const prismaMock = {
     delete: jest.fn(),
     deleteMany: jest.fn(),
   },
+  pushToken: {
+    upsert: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
 };
 
 export const cartServiceMock = {

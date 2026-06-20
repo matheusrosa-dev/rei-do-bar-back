@@ -337,6 +337,7 @@ export class MeService {
     await this.prisma.$transaction(async (tx) => {
       await tx.address.deleteMany({ where: { customerId } });
       await tx.refreshToken.deleteMany({ where: { customerId } });
+      await tx.pushToken.deleteMany({ where: { customerId } });
       await tx.cart.deleteMany({ where: { customerId } });
 
       // Anonimiza o cliente em vez de excluí-lo, preservando os pedidos. O

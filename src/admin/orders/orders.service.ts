@@ -10,6 +10,8 @@ import { OrderOrderByWithRelationInput } from "@shared/database/prisma/generated
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { OrderStatusChangedEvent } from "./events";
 
 const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.PENDING]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
@@ -30,7 +32,10 @@ type OrderSortValueSource = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async listOrdersManagement() {
     const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
@@ -325,6 +330,15 @@ export class OrdersService {
         }
       }
     });
+
+    this.eventEmitter.emit(
+      OrderStatusChangedEvent.name,
+      new OrderStatusChangedEvent({
+        ...order,
+        status: dto.status,
+        statusReason: dto?.statusReason ?? null,
+      }),
+    );
 
     return this.listOrdersManagement();
   }

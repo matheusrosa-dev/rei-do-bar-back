@@ -85,6 +85,20 @@ describe("CurrentSession", () => {
       });
     });
 
+    it("should retain the deviceId alongside the authenticated session", () => {
+      const context = makeContext({
+        token: "any-token",
+        deviceId: "device-abc",
+        user: { customerId: "cust-123", phone: "11999999999" },
+      });
+
+      expect(factory(undefined, context)).toEqual({
+        deviceId: "device-abc",
+        customerId: "cust-123",
+        phone: "11999999999",
+      });
+    });
+
     it("should not include the token when only the url matches but method is not POST", () => {
       const context = makeContext({
         token: "some-token",

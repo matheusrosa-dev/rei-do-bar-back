@@ -18,13 +18,12 @@ export const CurrentSession = createParamDecorator(
     const isLogoutRoute =
       request.url === "/auth/logout" && request.method === "POST";
 
-    const user = {} as ICurrentSession;
+    const user = {
+      deviceId,
+    } as ICurrentSession;
 
     // Se não houver token, mas houver deviceId, consideramos como sessão anônima
-    if (!token) {
-      user.deviceId = deviceId;
-      return user;
-    }
+    if (!token) return user;
 
     // Se for rota de refresh token, o token precisa ser passado para o controller
     if (isRefreshTokenRoute || isLogoutRoute) {

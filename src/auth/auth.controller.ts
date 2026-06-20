@@ -69,9 +69,6 @@ export class AuthController {
   @UseGuards(RefreshTokenGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@CurrentSession() session: ICurrentSession) {
-    await this.authService.logout({
-      customerId: session.customerId!,
-      token: session.token!,
-    });
+    await this.authService.logout(session);
   }
 }

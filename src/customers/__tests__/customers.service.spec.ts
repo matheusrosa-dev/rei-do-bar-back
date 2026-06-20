@@ -81,4 +81,51 @@ describe("CustomersService", () => {
       expect(result).toEqual(createdCustomer);
     });
   });
+
+  describe("replaceCustomerCartWithAnonymous", () => {
+    const input = {
+      customerId: "customer-123",
+      anonymousCustomer: { cartId: "cart-123", id: "anon-123" },
+    };
+
+    beforeEach(() => {
+      prismaMock.cart.deleteMany.mockResolvedValue({});
+      prismaMock.cart.update.mockResolvedValue({});
+      prismaMock.anonymousCustomer.delete.mockResolvedValue({});
+    });
+
+    it("should run inside a transaction", async () => {
+      await service.replaceCustomerCartWithAnonymous(input);
+
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+    });
+
+    it("should discard the customer's current cart", async () => {
+      await service.replaceCustomerCartWithAnonymous(input);
+
+      expect(prismaMock.cart.deleteMany).toHaveBeenCalledWith({
+        where: { customerId: input.customerId },
+      });
+    });
+
+    it("should assign the anonymous cart to the customer", async () => {
+      await service.replaceCustomerCartWithAnonymous(input);
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith({
+        where: { id: input.anonymousCustomer.cartId },
+        data: {
+          anonymousCustomerId: null,
+          customerId: input.customerId,
+        },
+      });
+    });
+
+    it("should delete the anonymous customer", async () => {
+      await service.replaceCustomerCartWithAnonymous(input);
+
+      expect(prismaMock.anonymousCustomer.delete).toHaveBeenCalledWith({
+        where: { id: input.anonymousCustomer.id },
+      });
+    });
+  });
 });

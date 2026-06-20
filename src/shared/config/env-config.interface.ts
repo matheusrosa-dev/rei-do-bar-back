@@ -22,6 +22,10 @@ export interface IAdminConfig {
   password: string;
 }
 
+export interface IExpoConfig {
+  accessToken: string;
+}
+
 export interface IThrottlerWindow {
   ttl: number;
   limit: number;

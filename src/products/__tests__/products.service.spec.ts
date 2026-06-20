@@ -361,15 +361,21 @@ describe("ProductsService", () => {
       ).toThrow(AppException);
     });
 
-    it("should throw AppException when session has both deviceId and customerId", () => {
-      const invalidSession = {
+    it("should query customer (not anonymous) when session has both deviceId and customerId", () => {
+      const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
+      const session = {
         deviceId: "device-123",
         customerId: "customer-123",
       };
 
-      expect(() =>
-        (service as any).findAnonymousOrCustomerWithCart(invalidSession),
-      ).toThrow(AppException);
+      (service as any).findAnonymousOrCustomerWithCart(session);
+
+      expect(findFirstSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: session.customerId },
+        }),
+      );
+      expect(prismaMock.anonymousCustomer.findUnique).not.toHaveBeenCalled();
     });
   });
 

@@ -4,6 +4,7 @@ import {
   IApiConfig,
   IAuthConfig,
   IDatabaseConfig,
+  IExpoConfig,
   IRateLimitConfig,
 } from "./env-config.interface";
 
@@ -34,6 +35,10 @@ export const authConfig = registerAs<IAuthConfig>("auth", () => ({
 export const adminConfig = registerAs<IAdminConfig>("admin", () => ({
   username: process.env.ADMIN_USERNAME!,
   password: process.env.ADMIN_PASSWORD!,
+}));
+
+export const expoConfig = registerAs<IExpoConfig>("expo", () => ({
+  accessToken: process.env.EXPO_ACCESS_TOKEN!,
 }));
 
 export const rateLimitConfig = registerAs<IRateLimitConfig>(
@@ -76,6 +81,8 @@ export const validationSchema = Joi.object({
 
   ADMIN_USERNAME: Joi.string().required(),
   ADMIN_PASSWORD: Joi.string().required(),
+
+  EXPO_ACCESS_TOKEN: Joi.string().required(),
 
   RATE_LIMIT_DEVICE_SYNC_TTL: Joi.number().required(),
   RATE_LIMIT_DEVICE_SYNC_LIMIT: Joi.number().required(),

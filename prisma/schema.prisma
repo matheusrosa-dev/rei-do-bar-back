@@ -26,6 +26,7 @@ model Customer {
   addresses Address[]
   orders    Order[]
   refreshTokens RefreshToken[]
+  pushTokens PushToken[]
 
   @@map("customers")
 }
@@ -51,6 +52,20 @@ model RefreshToken {
 
   @@index([customerId])
   @@map("refresh_tokens")
+}
+
+model PushToken {
+  id         String    @id @default(uuid())
+  customerId String    @map("customer_id")
+  token      String    @unique
+  deviceId   String    @map("device_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("push_tokens")
 }
 
 model OtpCode {

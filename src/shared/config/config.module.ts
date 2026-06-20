@@ -5,6 +5,7 @@ import {
   apiConfig,
   authConfig,
   databaseConfig,
+  expoConfig,
   rateLimitConfig,
   validationSchema,
 } from "./env-config";
@@ -17,6 +18,7 @@ import {
         databaseConfig,
         authConfig,
         adminConfig,
+        expoConfig,
         rateLimitConfig,
       ],
       isGlobal: true,

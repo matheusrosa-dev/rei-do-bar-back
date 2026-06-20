@@ -15,6 +15,7 @@ import jwt from "jsonwebtoken";
 import { hashString } from "@shared/helpers/string";
 import { generateOtpCode } from "@shared/helpers/otp-code";
 import { CustomersService } from "../customers/customers.service";
+import { ICurrentSession } from "@shared/types/jwt";
 
 @Injectable()
 export class AuthService {
@@ -102,7 +103,15 @@ export class AuthService {
       },
     });
 
-    if (!customer) {
+    if (customer) {
+      await this.customersService.replaceCustomerCartWithAnonymous({
+        customerId: customer.id,
+        anonymousCustomer: {
+          id: anonymousCustomer.id,
+          cartId: anonymousCustomer.cart!.id,
+        },
+      });
+    } else {
       customer = await this.createCustomerOrRecoverOnConflict(
         dto.phone,
         anonymousCustomer,
@@ -186,11 +195,17 @@ export class AuthService {
     };
   }
 
-  async logout(data: { customerId: string; token: string }) {
+  async logout(session: ICurrentSession) {
     await this.prisma.refreshToken.delete({
       where: {
-        customerId: data.customerId,
-        hashedToken: hashString(data.token),
+        customerId: session.customerId,
+        hashedToken: hashString(session.token!),
+      },
+    });
+
+    await this.prisma.pushToken.deleteMany({
+      where: {
+        deviceId: session.deviceId,
       },
     });
   }

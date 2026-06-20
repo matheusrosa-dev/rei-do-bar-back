@@ -281,19 +281,45 @@ describe("CartService", () => {
       });
     });
 
-    it("should throw error when session has both deviceId and customerId", async () => {
-      await expect(
-        (service as any).findAnonymousOrCustomerWithCartOrThrow({
-          deviceId,
-          customerId,
+    it("should query customer (not anonymous) when session has both deviceId and customerId", async () => {
+      const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
+
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({
+          cart: CartFactory.createOne({ items: [] }),
         }),
-      ).rejects.toThrow("Session must have either deviceId or customerId");
+      );
+
+      await (service as any).findAnonymousOrCustomerWithCartOrThrow({
+        deviceId,
+        customerId,
+      });
+
+      expect(findFirstSpy).toHaveBeenCalledWith({
+        where: { id: customerId },
+        include: {
+          cart: {
+            include: {
+              items: {
+                include: {
+                  product: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      expect(prismaMock.anonymousCustomer.findUnique).not.toHaveBeenCalled();
     });
 
-    it("should throw error when session has neither deviceId nor customerId", async () => {
+    it("should throw AppException when session has neither deviceId nor customerId", async () => {
       await expect(
         (service as any).findAnonymousOrCustomerWithCartOrThrow({}),
-      ).rejects.toThrow("Session must have either deviceId or customerId");
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.INVALID_SESSION,
+        message: "Sessão inválida",
+        httpStatus: AppException.HttpStatus.INTERNAL_SERVER_ERROR,
+      });
     });
 
     it("should throw AppException when anonymous customer is not found", async () => {

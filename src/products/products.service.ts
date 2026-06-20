@@ -78,10 +78,7 @@ export class ProductsService {
       },
     };
 
-    if (
-      (!session?.deviceId && !session?.customerId) ||
-      (session?.deviceId && session?.customerId)
-    ) {
+    if (!session?.deviceId && !session?.customerId) {
       throw new AppException(
         AppException.errorCodes.products.INVALID_SESSION,
         "Sessão inválida",
@@ -89,15 +86,15 @@ export class ProductsService {
       );
     }
 
-    if (session?.deviceId) {
-      return this.prisma.anonymousCustomer.findUnique({
-        where: { deviceId: session.deviceId },
+    if (session?.customerId) {
+      return this.prisma.customer.findFirst({
+        where: { id: session.customerId },
         select,
       });
     }
 
-    return this.prisma.customer.findFirst({
-      where: { id: session.customerId },
+    return this.prisma.anonymousCustomer.findUnique({
+      where: { deviceId: session.deviceId },
       select,
     });
   }

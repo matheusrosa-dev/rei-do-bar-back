@@ -194,6 +194,9 @@ describe("MeService", () => {
       expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
         where: { customerId },
       });
+      expect(prismaMock.pushToken.deleteMany).toHaveBeenCalledWith({
+        where: { customerId },
+      });
       expect(prismaMock.cart.deleteMany).toHaveBeenCalledWith({
         where: { customerId },
       });

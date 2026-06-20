@@ -9,6 +9,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { DeviceIdGuard } from "./shared/guards/device-id.guard";
 import { DelayInterceptor } from "@shared/interceptors/delay.interceptor";
 import { ConfigService } from "@nestjs/config";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 import { ThrottlerModule } from "@nestjs/throttler";
 import {
   IApiConfig,
@@ -20,10 +21,12 @@ import { MeModule } from "./me/me.module";
 import { OrdersModule } from "./orders/orders.module";
 import { AdminModule } from "./admin/admin.module";
 import { SettingsModule } from "./settings/settings.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
     ConfigModule,
+    EventEmitterModule.forRoot(),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -38,6 +41,7 @@ import { SettingsModule } from "./settings/settings.module";
       },
     }),
     DatabaseModule,
+    NotificationsModule,
     AuthModule,
     SettingsModule,
     CategoriesModule,
