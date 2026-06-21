@@ -7,6 +7,5 @@ Em produção:
 remover seed de produtos ou fazer com que rode apenas em dev
 
 Importante:
-disparar notificação para o usuário nas alterações de status de pedido
 adicionar logs
 adicionar cupom
