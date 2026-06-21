@@ -50,7 +50,6 @@ export class NotificationsService {
     tokens: string[];
     title: string;
     description: string;
-    tag?: string;
     payload?: Record<string, unknown>;
   }) {
     const messages = props.tokens
@@ -62,7 +61,6 @@ export class NotificationsService {
             title: props.title,
             body: props.description,
             data: props.payload,
-            tag: props.tag,
 
             priority: "high",
             interruptionLevel: "active",
@@ -116,7 +114,6 @@ export class NotificationsService {
         title,
         description,
         tokens: tokens.map((pushToken) => pushToken.token),
-        tag: OrderStatusChangedEvent.name,
         payload: {
           action: NotificationAction.REDIRECT_TO_ORDERS,
         },

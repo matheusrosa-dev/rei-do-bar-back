@@ -120,7 +120,6 @@ describe("NotificationsService", () => {
           tokens: ["token-1"],
           title: expect.any(String),
           description: expect.any(String),
-          tag: OrderStatusChangedEvent.name,
           payload: { action: "REDIRECT_TO_ORDERS" },
         }),
       );

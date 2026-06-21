@@ -59,7 +59,7 @@ export class OrdersService {
           },
         },
         orderBy: {
-          createdAt: "desc",
+          createdAt: "asc",
         },
       }),
       this.prisma.order.findMany({
