@@ -94,6 +94,7 @@ export class CategoriesService {
           pluralName: dto.pluralName,
           isActive: false,
           sortOrder: (last?.sortOrder ?? 0) + 1,
+          imageUrl: dto.imageUrl,
         },
       });
     } catch (error) {
@@ -113,6 +114,7 @@ export class CategoriesService {
     const category = await this.updateCategoryOrThrow(categoryId, {
       name: dto.name,
       pluralName: dto.pluralName,
+      imageUrl: dto.imageUrl,
     });
 
     return category;

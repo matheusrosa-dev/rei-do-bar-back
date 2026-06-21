@@ -9,4 +9,7 @@ export class CategoriesDto {
 
   @Expose()
   pluralName!: string;
+
+  @Expose()
+  imageUrl!: string;
 }

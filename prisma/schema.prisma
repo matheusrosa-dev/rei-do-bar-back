@@ -133,6 +133,7 @@ model Category {
   id        String    @id @default(uuid())
   name      String    @unique
   pluralName String   @map("plural_name")
+  imageUrl    String     @map("image_url")
   isActive  Boolean   @map("is_active")
   sortOrder   Int     @map("sort_order")
   createdAt DateTime  @default(now()) @map("created_at")

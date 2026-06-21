@@ -9,8 +9,10 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   await seedSettings(prisma);
 
-  await seedCategories(prisma);
-  await seedProducts(prisma);
+  if (process.env.NODE_ENV === "development") {
+    await seedCategories(prisma);
+    await seedProducts(prisma);
+  }
 }
 
 main()

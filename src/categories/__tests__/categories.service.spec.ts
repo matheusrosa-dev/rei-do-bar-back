@@ -35,7 +35,7 @@ describe("CategoriesService", () => {
       expect(prismaMock.category.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { isActive: true },
-          select: { id: true, name: true, pluralName: true },
+          select: { id: true, name: true, pluralName: true, imageUrl: true },
         }),
       );
     });

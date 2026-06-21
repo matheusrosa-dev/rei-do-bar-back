@@ -14,6 +14,7 @@ export class CategoriesService {
         id: true,
         name: true,
         pluralName: true,
+        imageUrl: true,
       },
       orderBy: {
         sortOrder: "asc",
