@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Put } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
-import { SettingsService } from "./settings.service";
+import { AdminSettingsService } from "./settings.service";
 import {
   ToggleStatusSettingDto,
   UpdateSettingBodyDto,
@@ -9,8 +9,8 @@ import {
 
 @Controller("admin/settings")
 @AdminAuth()
-export class SettingsController {
-  constructor(private readonly settingsService: SettingsService) {}
+export class AdminSettingsController {
+  constructor(private readonly settingsService: AdminSettingsService) {}
 
   @Get()
   findAll() {

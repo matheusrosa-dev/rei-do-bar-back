@@ -9,3 +9,4 @@ substituir placeholders nos arquivos lgpd
 Importante:
 adicionar logs
 adicionar cupom
+implementar sistema de XP

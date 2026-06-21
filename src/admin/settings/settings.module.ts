@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { SettingsController } from "./settings.controller";
-import { SettingsService } from "./settings.service";
+import { AdminSettingsController } from "./settings.controller";
+import { AdminSettingsService } from "./settings.service";
 import { BasicAuthGuard } from "@shared/guards/basic-auth.guard";
 
 @Module({
-  controllers: [SettingsController],
-  providers: [SettingsService, BasicAuthGuard],
+  controllers: [AdminSettingsController],
+  providers: [AdminSettingsService, BasicAuthGuard],
 })
-export class SettingsModule {}
+export class AdminSettingsModule {}

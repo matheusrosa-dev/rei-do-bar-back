@@ -10,7 +10,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
-import { ProductsService } from "./products.service";
+import { AdminProductsService } from "./products.service";
 import {
   ToggleStatusProductDto,
   FindAllProductsDto,
@@ -26,8 +26,8 @@ import {
 
 @Controller("admin/products")
 @AdminAuth()
-export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+export class AdminProductsController {
+  constructor(private readonly productsService: AdminProductsService) {}
 
   @Get()
   findAll(@Query() dto: FindAllProductsDto) {

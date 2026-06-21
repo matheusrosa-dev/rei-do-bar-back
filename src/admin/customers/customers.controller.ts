@@ -6,12 +6,12 @@ import {
   FindCustomerByIdDto,
   ToggleStatusCustomerDto,
 } from "./dtos";
-import { CustomersService } from "./customers.service";
+import { AdminCustomersService } from "./customers.service";
 
 @Controller("admin/customers")
 @AdminAuth()
-export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+export class AdminCustomersController {
+  constructor(private readonly customersService: AdminCustomersService) {}
 
   @Get()
   findAll(@Query() dto: FindAllCustomersDto) {

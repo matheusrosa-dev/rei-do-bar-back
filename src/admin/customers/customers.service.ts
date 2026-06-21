@@ -3,13 +3,10 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
-
-type CustomerWithRelations = Prisma.CustomerGetPayload<{
-  include: { addresses: true; orders: true };
-}>;
+import { CustomerWithRelations } from "./helpers";
 
 @Injectable()
-export class CustomersService {
+export class AdminCustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async removeCustomer(customerId: string) {

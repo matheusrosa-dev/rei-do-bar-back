@@ -4,7 +4,7 @@ import { UpdateSettingBodyDto } from "./dtos";
 import { SettingKey } from "@shared/database/prisma/generated/enums";
 
 @Injectable()
-export class SettingsService {
+export class AdminSettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll() {

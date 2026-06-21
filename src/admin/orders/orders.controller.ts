@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Query } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
-import { OrdersService } from "./orders.service";
+import { AdminOrdersService } from "./orders.service";
 import {
   UpdateOrderStatusParamsDto,
   UpdateOrderStatusBodyDto,
@@ -9,8 +9,8 @@ import {
 
 @Controller("admin/orders")
 @AdminAuth()
-export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+export class AdminOrdersController {
+  constructor(private readonly ordersService: AdminOrdersService) {}
 
   @Get("management")
   listOrdersManagement() {

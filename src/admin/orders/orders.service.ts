@@ -1,10 +1,5 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
-import {
-  Order,
-  OrderItem,
-  Prisma,
-  Product,
-} from "@shared/database/prisma/generated/client";
+import { Order, Prisma } from "@shared/database/prisma/generated/client";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { OrderOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
@@ -12,26 +7,14 @@ import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { OrderStatusChangedEvent } from "./events";
-
-const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  [OrderStatus.PENDING]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
-  [OrderStatus.PREPARING]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
-  [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-  [OrderStatus.DELIVERED]: [],
-  [OrderStatus.CANCELLED]: [],
-};
-
-type OrderWithItems = Order & {
-  items: Array<OrderItem & { product: Product }>;
-};
-
-type OrderSortValueSource = {
-  deliveryFee: number;
-  items: Array<Pick<OrderItem, "price" | "quantity">>;
-};
+import {
+  ORDER_STATUS_TRANSITIONS,
+  OrderSortValueSource,
+  OrderWithItems,
+} from "./helpers";
 
 @Injectable()
-export class OrdersService {
+export class AdminOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,

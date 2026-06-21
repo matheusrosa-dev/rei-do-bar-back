@@ -10,7 +10,7 @@ import {
   Query,
 } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
-import { CategoriesService } from "./categories.service";
+import { AdminCategoriesService } from "./categories.service";
 import {
   CreateCategoryDto,
   DeleteCategoryDto,
@@ -23,8 +23,8 @@ import {
 
 @Controller("admin/categories")
 @AdminAuth()
-export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+export class AdminCategoriesController {
+  constructor(private readonly categoriesService: AdminCategoriesService) {}
 
   @Get()
   findAll(@Query() dto: FindAllCategory) {

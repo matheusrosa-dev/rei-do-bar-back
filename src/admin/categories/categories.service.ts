@@ -10,7 +10,7 @@ import {
 } from "./dtos";
 
 @Injectable()
-export class CategoriesService {
+export class AdminCategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(dto: FindAllCategory) {

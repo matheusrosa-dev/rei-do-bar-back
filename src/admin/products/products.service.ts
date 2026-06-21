@@ -11,7 +11,7 @@ import {
 import { ProductOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 
 @Injectable()
-export class ProductsService {
+export class AdminProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(dto: FindAllProductsDto) {

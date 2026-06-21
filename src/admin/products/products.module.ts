@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { ProductsController } from "./products.controller";
-import { ProductsService } from "./products.service";
+import { AdminProductsController } from "./products.controller";
+import { AdminProductsService } from "./products.service";
 import { BasicAuthGuard } from "@shared/guards/basic-auth.guard";
 
 @Module({
-  controllers: [ProductsController],
-  providers: [ProductsService, BasicAuthGuard],
+  controllers: [AdminProductsController],
+  providers: [AdminProductsService, BasicAuthGuard],
 })
-export class ProductsModule {}
+export class AdminProductsModule {}

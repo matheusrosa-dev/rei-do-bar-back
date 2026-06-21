@@ -1,33 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
 import { OnEvent } from "@nestjs/event-emitter";
-import { IExpoConfig } from "@shared/config/env-config.interface";
-import Expo, { ExpoPushMessage } from "expo-server-sdk";
 import { OrderStatusChangedEvent } from "../admin/orders/events";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { RegisterTokenDto } from "./dtos";
 import type { ICurrentSession } from "@shared/types/jwt";
-
-enum NotificationAction {
-  REDIRECT_TO_ORDERS = "REDIRECT_TO_ORDERS",
-}
+import { NotificationAction } from "@shared/types/notifications";
+import { ExpoNotificationsService } from "@shared/libs/expo-notifications/expo-notifications.service";
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly expo: Expo;
 
   constructor(
-    configService: ConfigService,
     private prisma: PrismaService,
-  ) {
-    const expoConfig = configService.get<IExpoConfig>("expo")!;
-
-    this.expo = new Expo({
-      accessToken: expoConfig.accessToken,
-    });
-  }
+    private expoNotificationsService: ExpoNotificationsService,
+  ) {}
 
   async registerToken(session: ICurrentSession, dto: RegisterTokenDto) {
     await this.prisma.pushToken.upsert({
@@ -44,36 +32,6 @@ export class NotificationsService {
         customerId: session.customerId!,
       },
     });
-  }
-
-  private async pushNotification(props: {
-    tokens: string[];
-    title: string;
-    description: string;
-    payload?: Record<string, unknown>;
-  }) {
-    const messages = props.tokens
-      .filter((token) => Expo.isExpoPushToken(token))
-      .map(
-        (token) =>
-          ({
-            to: token,
-            title: props.title,
-            body: props.description,
-            data: props.payload,
-
-            priority: "high",
-            interruptionLevel: "active",
-          }) as ExpoPushMessage,
-      );
-
-    if (messages.length === 0) {
-      return;
-    }
-
-    for (const chunk of this.expo.chunkPushNotifications(messages)) {
-      await this.expo.sendPushNotificationsAsync(chunk);
-    }
   }
 
   @OnEvent(OrderStatusChangedEvent.name)
@@ -110,13 +68,11 @@ export class NotificationsService {
 
       if (tokens.length === 0) return;
 
-      await this.pushNotification({
+      await this.expoNotificationsService.pushNotification({
         title,
         description,
         tokens: tokens.map((pushToken) => pushToken.token),
-        payload: {
-          action: NotificationAction.REDIRECT_TO_ORDERS,
-        },
+        action: NotificationAction.REDIRECT_TO_ORDERS,
       });
     } catch (error) {
       this.logger.error(

@@ -1,17 +1,19 @@
 import { Module } from "@nestjs/common";
-import { ProductsModule } from "./products/products.module";
-import { CategoriesModule } from "./categories/categories.module";
-import { CustomersModule } from "./customers/customers.module";
-import { OrdersModule } from "./orders/orders.module";
-import { SettingsModule } from "./settings/settings.module";
+import { AdminProductsModule } from "./products/products.module";
+import { AdminCategoriesModule } from "./categories/categories.module";
+import { AdminCustomersModule } from "./customers/customers.module";
+import { AdminOrdersModule } from "./orders/orders.module";
+import { AdminSettingsModule } from "./settings/settings.module";
+import { AdminNotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
-    ProductsModule,
-    CategoriesModule,
-    CustomersModule,
-    OrdersModule,
-    SettingsModule,
+    AdminProductsModule,
+    AdminCategoriesModule,
+    AdminCustomersModule,
+    AdminOrdersModule,
+    AdminSettingsModule,
+    AdminNotificationsModule,
   ],
 })
 export class AdminModule {}
