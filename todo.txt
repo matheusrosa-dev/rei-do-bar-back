@@ -4,7 +4,6 @@ futuramente adicionar opção para alterar número do usuario
 adicionar meio de contato do suporte no app
 
 Em produção:
-remover seed de produtos ou fazer com que rode apenas em dev
 substituir placeholders nos arquivos lgpd
 
 Importante:
