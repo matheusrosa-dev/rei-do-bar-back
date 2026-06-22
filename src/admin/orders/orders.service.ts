@@ -317,9 +317,11 @@ export class AdminOrdersService {
     this.eventEmitter.emit(
       OrderStatusChangedEvent.name,
       new OrderStatusChangedEvent({
-        ...order,
-        status: dto.status,
-        statusReason: dto?.statusReason ?? null,
+        order: {
+          ...order,
+          status: dto.status,
+          statusReason: dto?.statusReason ?? null,
+        },
       }),
     );
 

@@ -206,7 +206,7 @@ export class AdminProductsService {
           },
           data: {
             deletedAt: new Date(),
-            sortOrder: 9999,
+            sortOrder: -1,
           },
         });
 

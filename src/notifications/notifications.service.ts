@@ -35,7 +35,8 @@ export class NotificationsService {
   }
 
   @OnEvent(OrderStatusChangedEvent.name)
-  async onChangeOrderStatus({ order }: OrderStatusChangedEvent) {
+  async onChangeOrderStatus({ data }: OrderStatusChangedEvent) {
+    const { order } = data;
     let title = "";
     let description = "";
 

@@ -19,7 +19,7 @@ import type { ICurrentSession } from "@shared/types/jwt";
 import { ExpoNotificationsService } from "@shared/libs/expo-notifications/expo-notifications.service";
 
 const buildOrder = (
-  overrides: Partial<OrderStatusChangedEvent["order"]> = {},
+  overrides: Partial<OrderStatusChangedEvent["data"]["order"]> = {},
 ) => ({
   id: "order-id",
   customerId: "customer-123",
@@ -92,7 +92,7 @@ describe("NotificationsService", () => {
       prismaMock.pushToken.findMany.mockResolvedValue([{ token: "token-1" }]);
 
       await service.onChangeOrderStatus(
-        new OrderStatusChangedEvent(buildOrder({ status })),
+        new OrderStatusChangedEvent({ order: buildOrder({ status }) }),
       );
 
       expect(prismaMock.pushToken.findMany).toHaveBeenCalledWith({
@@ -113,12 +113,12 @@ describe("NotificationsService", () => {
       prismaMock.pushToken.findMany.mockResolvedValue([{ token: "token-1" }]);
 
       await service.onChangeOrderStatus(
-        new OrderStatusChangedEvent(
-          buildOrder({
+        new OrderStatusChangedEvent({
+          order: buildOrder({
             status: OrderStatus.CANCELLED,
             statusReason: "Sem estoque",
           }),
-        ),
+        }),
       );
 
       expect(expoNotificationsService.pushNotification).toHaveBeenCalledWith(
@@ -130,9 +130,12 @@ describe("NotificationsService", () => {
       prismaMock.pushToken.findMany.mockResolvedValue([{ token: "token-1" }]);
 
       await service.onChangeOrderStatus(
-        new OrderStatusChangedEvent(
-          buildOrder({ status: OrderStatus.CANCELLED, statusReason: null }),
-        ),
+        new OrderStatusChangedEvent({
+          order: buildOrder({
+            status: OrderStatus.CANCELLED,
+            statusReason: null,
+          }),
+        }),
       );
 
       expect(expoNotificationsService.pushNotification).toHaveBeenCalledWith(
@@ -144,9 +147,9 @@ describe("NotificationsService", () => {
 
     it("should do nothing when the status has no notification configured", async () => {
       await service.onChangeOrderStatus(
-        new OrderStatusChangedEvent(
-          buildOrder({ status: OrderStatus.PENDING }),
-        ),
+        new OrderStatusChangedEvent({
+          order: buildOrder({ status: OrderStatus.PENDING }),
+        }),
       );
 
       expect(prismaMock.pushToken.findMany).not.toHaveBeenCalled();
@@ -157,7 +160,7 @@ describe("NotificationsService", () => {
       prismaMock.pushToken.findMany.mockResolvedValue([]);
 
       await service.onChangeOrderStatus(
-        new OrderStatusChangedEvent(buildOrder()),
+        new OrderStatusChangedEvent({ order: buildOrder() }),
       );
 
       expect(expoNotificationsService.pushNotification).not.toHaveBeenCalled();
@@ -171,7 +174,9 @@ describe("NotificationsService", () => {
       prismaMock.pushToken.findMany.mockRejectedValue(new Error("db down"));
 
       await expect(
-        service.onChangeOrderStatus(new OrderStatusChangedEvent(buildOrder())),
+        service.onChangeOrderStatus(
+          new OrderStatusChangedEvent({ order: buildOrder() }),
+        ),
       ).resolves.toBeUndefined();
 
       expect(loggerSpy).toHaveBeenCalled();
