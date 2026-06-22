@@ -127,7 +127,7 @@ CREATE TABLE "products" (
     "description" TEXT,
     "price" INTEGER NOT NULL,
     "compare_at_price" INTEGER,
-    "stock" INTEGER NOT NULL,
+    "stock_quantity" INTEGER NOT NULL,
     "image_url" TEXT NOT NULL,
     "sort_order" INTEGER NOT NULL,
     "is_active" BOOLEAN NOT NULL,

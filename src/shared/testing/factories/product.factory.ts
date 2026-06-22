@@ -11,7 +11,7 @@ type Props = {
   compareAtPrice?: number | null;
   imageUrl?: string;
   isActive?: boolean;
-  stock: number;
+  stockQuantity: number;
   categoryId?: string;
   sortOrder?: number;
 };
@@ -33,7 +33,7 @@ const makeProduct = (props: Props): Product => ({
   compareAtPrice: props?.compareAtPrice ?? null,
   imageUrl: props?.imageUrl ?? chance.url({ extensions: ["jpg", "png"] }),
   isActive: props?.isActive ?? true,
-  stock: props.stock,
+  stockQuantity: props.stockQuantity,
   categoryId: props?.categoryId ?? chance.guid(),
   sortOrder: props.sortOrder ?? 1,
   createdAt: new Date(),

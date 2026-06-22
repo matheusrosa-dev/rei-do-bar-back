@@ -143,8 +143,8 @@ export class OrdersService {
       // Decrementa o estoque dos produtos do carrinho
       for (const item of assuredCustomer.cart.items) {
         const result = await tx.product.updateMany({
-          where: { id: item.productId, stock: { gte: item.quantity } },
-          data: { stock: { decrement: item.quantity } },
+          where: { id: item.productId, stockQuantity: { gte: item.quantity } },
+          data: { stockQuantity: { decrement: item.quantity } },
         });
 
         if (result.count === 0) {
@@ -202,7 +202,7 @@ export class OrdersService {
       for (const item of order.items) {
         await tx.product.update({
           where: { id: item.productId },
-          data: { stock: { increment: item.quantity } },
+          data: { stockQuantity: { increment: item.quantity } },
         });
       }
     });
@@ -310,14 +310,15 @@ export class OrdersService {
   ) {
     const cartItemExceedingStockOrInactive = cartItems.find(
       (item) =>
-        item.quantity > item.product.stock ||
+        item.quantity > item.product.stockQuantity ||
         !item.product.isActive ||
         item.product.deletedAt !== null,
     );
 
     if (cartItemExceedingStockOrInactive) {
       const productName = cartItemExceedingStockOrInactive.product.name;
-      const productStock = cartItemExceedingStockOrInactive.product.stock;
+      const productStock =
+        cartItemExceedingStockOrInactive.product.stockQuantity;
       const producIsActive = cartItemExceedingStockOrInactive.product.isActive;
       const productIsDeleted =
         cartItemExceedingStockOrInactive.product.deletedAt !== null;

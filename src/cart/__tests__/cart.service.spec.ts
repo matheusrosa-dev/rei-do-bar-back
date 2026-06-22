@@ -85,11 +85,11 @@ describe("CartService", () => {
     it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
       const cartItems = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ price: 10, stock: 20 }),
+          product: ProductFactory.createOne({ price: 10, stockQuantity: 20 }),
           quantity: 2,
         }),
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ price: 20, stock: 20 }),
+          product: ProductFactory.createOne({ price: 20, stockQuantity: 20 }),
           quantity: 1,
         }),
       ];
@@ -130,7 +130,7 @@ describe("CartService", () => {
         CartItemFactory.createOne({
           product: ProductFactory.createOne({
             price: 10,
-            stock: 20,
+            stockQuantity: 20,
             compareAtPrice,
           }),
           quantity: 1,
@@ -147,7 +147,7 @@ describe("CartService", () => {
         CartItemFactory.createOne({
           product: ProductFactory.createOne({
             price: 10,
-            stock: 20,
+            stockQuantity: 20,
             compareAtPrice: null,
           }),
           quantity: 1,
@@ -164,7 +164,7 @@ describe("CartService", () => {
         CartItemFactory.createOne({
           product: ProductFactory.createOne({
             price: 10,
-            stock: 20,
+            stockQuantity: 20,
             isActive: false,
           }),
           quantity: 2,
@@ -193,14 +193,14 @@ describe("CartService", () => {
       );
     });
 
-    it("should set remainingStock when product stock is 10 or less", async () => {
+    it("should set remainingStock when product stockQuantity is 10 or less", async () => {
       const cartItems = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ price: 10, stock: 5 }),
+          product: ProductFactory.createOne({ price: 10, stockQuantity: 5 }),
           quantity: 1,
         }),
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ price: 20, stock: 15 }),
+          product: ProductFactory.createOne({ price: 20, stockQuantity: 15 }),
           quantity: 1,
         }),
       ];
@@ -412,7 +412,7 @@ describe("CartService", () => {
       mockCustomerWithCart,
     }) => {
       it("should add a product to the cart", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const cart = CartFactory.createOne({
           items: [CartItemFactory.createOne({ product })],
         });
@@ -435,7 +435,7 @@ describe("CartService", () => {
       });
 
       it("should throw when product is already in cart", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product }),
         ]);
@@ -450,7 +450,7 @@ describe("CartService", () => {
       });
 
       it("should throw PRODUCT_ALREADY_IN_CART when a concurrent request already added the product", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
 
         mockEmptyCart();
         prismaMock.product.findFirst.mockResolvedValue(product);
@@ -483,8 +483,8 @@ describe("CartService", () => {
         });
       });
 
-      it("should throw when product stock is insufficient", async () => {
-        const product = ProductFactory.createOne({ stock: 0 });
+      it("should throw when product stockQuantity is insufficient", async () => {
+        const product = ProductFactory.createOne({ stockQuantity: 0 });
 
         mockEmptyCart();
         prismaMock.product.findFirst.mockResolvedValue(product);
@@ -507,7 +507,7 @@ describe("CartService", () => {
       mockCustomerWithCart,
     }) => {
       it("should increment the quantity of an existing cart item", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 1 }),
         ]);
@@ -549,7 +549,7 @@ describe("CartService", () => {
 
       it("should throw when product is inactive", async () => {
         const product = ProductFactory.createOne({
-          stock: 20,
+          stockQuantity: 20,
           isActive: false,
         });
         const session = mockCustomerWithCart([
@@ -569,8 +569,8 @@ describe("CartService", () => {
         expect(prismaMock.cart.update).not.toHaveBeenCalled();
       });
 
-      it("should throw when incrementing exceeds stock", async () => {
-        const product = ProductFactory.createOne({ stock: 5 });
+      it("should throw when incrementing exceeds stockQuantity", async () => {
+        const product = ProductFactory.createOne({ stockQuantity: 5 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 5 }),
         ]);
@@ -586,8 +586,8 @@ describe("CartService", () => {
         });
       });
 
-      it("should not check stock when stock is greater than 10", async () => {
-        const product = ProductFactory.createOne({ stock: 11 });
+      it("should not check stockQuantity when stockQuantity is greater than 10", async () => {
+        const product = ProductFactory.createOne({ stockQuantity: 11 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 11 }),
         ]);
@@ -620,7 +620,7 @@ describe("CartService", () => {
       mockCustomerWithCart,
     }) => {
       it("should decrement quantity when it is greater than 1", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product, quantity: 3 }),
         ]);
@@ -646,7 +646,7 @@ describe("CartService", () => {
       });
 
       it("should remove the item when quantity is 1", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product }),
         ]);
@@ -688,7 +688,7 @@ describe("CartService", () => {
       mockCustomerWithCart,
     }) => {
       it("should remove a product from the cart", async () => {
-        const product = ProductFactory.createOne({ stock: 20 });
+        const product = ProductFactory.createOne({ stockQuantity: 20 });
         const session = mockCustomerWithCart([
           CartItemFactory.createOne({ product }),
         ]);

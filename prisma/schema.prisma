@@ -151,7 +151,7 @@ model Product {
   description String?
   price       Int
   compareAtPrice  Int?    @map("compare_at_price")
-  stock       Int
+  stockQuantity       Int @map("stock_quantity")
   imageUrl    String     @map("image_url")
   sortOrder   Int        @map("sort_order")
   isActive    Boolean    @map("is_active")

@@ -58,7 +58,7 @@ describe("ProductsService", () => {
       customerWithEmptyCart,
     }) => {
       it("should call calculateQuantityInCart with cart items", async () => {
-        const products = ProductFactory.createMany(2, { stock: 20 });
+        const products = ProductFactory.createMany(2, { stockQuantity: 20 });
 
         const calculateQuantityInCartSpy = jest.spyOn(
           service as any,
@@ -82,7 +82,7 @@ describe("ProductsService", () => {
       });
 
       it("should call findAnonymousOrCustomerWithCart with session", async () => {
-        const products = ProductFactory.createMany(2, { stock: 20 });
+        const products = ProductFactory.createMany(2, { stockQuantity: 20 });
 
         const findAnonymousOrCustomerWithCartSpy = jest.spyOn(
           service as any,
@@ -101,7 +101,7 @@ describe("ProductsService", () => {
 
       describe("quantityInCart", () => {
         it("should return products with quantityInCart=1 for products in anonymous customer cart", async () => {
-          const products = ProductFactory.createMany(2, { stock: 20 });
+          const products = ProductFactory.createMany(2, { stockQuantity: 20 });
 
           const cartItem = CartItemFactory.createOne({
             quantity: 1,
@@ -124,7 +124,7 @@ describe("ProductsService", () => {
         });
 
         it("should return products with quantityInCart=0 when cart is empty", async () => {
-          const products = ProductFactory.createOne({ stock: 20 });
+          const products = ProductFactory.createOne({ stockQuantity: 20 });
 
           prismaMock.product.findMany.mockResolvedValue([products]);
           mockWithCart(customerWithEmptyCart);
@@ -136,7 +136,7 @@ describe("ProductsService", () => {
         });
 
         it("should return products with quantityInCart=0 when customer is not found", async () => {
-          const products = ProductFactory.createOne({ stock: 20 });
+          const products = ProductFactory.createOne({ stockQuantity: 20 });
 
           prismaMock.product.findMany.mockResolvedValue([products]);
           mockWithCart(null);
@@ -149,8 +149,8 @@ describe("ProductsService", () => {
       });
 
       describe("remainingStock", () => {
-        it("should return products without remainingStock when stock is greater than 10", async () => {
-          const product = ProductFactory.createOne({ stock: 11 });
+        it("should return products without remainingStock when stockQuantity is greater than 10", async () => {
+          const product = ProductFactory.createOne({ stockQuantity: 11 });
 
           prismaMock.product.findMany.mockResolvedValue([product]);
           mockWithCart(customerWithEmptyCart);
@@ -161,8 +161,8 @@ describe("ProductsService", () => {
           expect(result[0].quantityInCart).toBe(0);
         });
 
-        it("should return products with remainingStock when stock is 10 or less", async () => {
-          const product = ProductFactory.createOne({ stock: 5 });
+        it("should return products with remainingStock when stockQuantity is 10 or less", async () => {
+          const product = ProductFactory.createOne({ stockQuantity: 5 });
 
           prismaMock.product.findMany.mockResolvedValue([product]);
           mockWithCart(customerWithEmptyCart);
@@ -262,7 +262,10 @@ describe("ProductsService", () => {
 
       it("should return compareAtPrice in the result", async () => {
         const compareAtPrice = 2000;
-        const product = ProductFactory.createOne({ stock: 20, compareAtPrice });
+        const product = ProductFactory.createOne({
+          stockQuantity: 20,
+          compareAtPrice,
+        });
 
         prismaMock.product.findMany.mockResolvedValue([product]);
         mockWithCart(customerWithEmptyCart);

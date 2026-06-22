@@ -38,8 +38,8 @@ export class FindAllProductsDto {
   searchTerm?: string;
 
   @IsOptional()
-  @IsIn(["stock"])
-  sortKey?: "stock";
+  @IsIn(["stockQuantity"])
+  sortKey?: "stockQuantity";
 
   @IsOptional()
   @IsIn(["asc", "desc"])

@@ -2,15 +2,15 @@ import { ProductFactory } from "../product.factory";
 
 describe("ProductFactory", () => {
   describe("createOne", () => {
-    it("should create a product with the required stock prop", () => {
-      const product = ProductFactory.createOne({ stock: 10 });
+    it("should create a product with the required stockQuantity prop", () => {
+      const product = ProductFactory.createOne({ stockQuantity: 10 });
 
       expect(product).toBeDefined();
-      expect(product.stock).toBe(10);
+      expect(product.stockQuantity).toBe(10);
     });
 
     it("should generate default values for optional props", () => {
-      const product = ProductFactory.createOne({ stock: 5 });
+      const product = ProductFactory.createOne({ stockQuantity: 5 });
 
       expect(product.id).toBeDefined();
       expect(product.name).toBeDefined();
@@ -31,7 +31,7 @@ describe("ProductFactory", () => {
         price: 25,
         imageUrl: "https://example.com/burger.jpg",
         isActive: false,
-        stock: 3,
+        stockQuantity: 3,
         categoryId: "cat-1",
         sortOrder: 2,
       };
@@ -44,7 +44,7 @@ describe("ProductFactory", () => {
       expect(product.price).toBe(props.price);
       expect(product.imageUrl).toBe(props.imageUrl);
       expect(product.isActive).toBe(props.isActive);
-      expect(product.stock).toBe(props.stock);
+      expect(product.stockQuantity).toBe(props.stockQuantity);
       expect(product.categoryId).toBe(props.categoryId);
       expect(product.sortOrder).toBe(props.sortOrder);
     });
@@ -52,25 +52,25 @@ describe("ProductFactory", () => {
 
   describe("createMany", () => {
     it("should create the specified number of products", () => {
-      const products = ProductFactory.createMany(3, { stock: 10 });
+      const products = ProductFactory.createMany(3, { stockQuantity: 10 });
 
       expect(products).toHaveLength(3);
     });
 
     it("should create independent instances", () => {
-      const products = ProductFactory.createMany(2, { stock: 5 });
+      const products = ProductFactory.createMany(2, { stockQuantity: 5 });
 
       expect(products[0].id).not.toBe(products[1].id);
     });
 
     it("should apply provided props to all created products", () => {
       const products = ProductFactory.createMany(3, {
-        stock: 7,
+        stockQuantity: 7,
         isActive: false,
       });
 
       for (const product of products) {
-        expect(product.stock).toBe(7);
+        expect(product.stockQuantity).toBe(7);
         expect(product.isActive).toBe(false);
       }
     });

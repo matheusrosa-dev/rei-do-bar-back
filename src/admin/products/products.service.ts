@@ -158,7 +158,7 @@ export class AdminProductsService {
           imageUrl: dto.imageUrl,
           isActive: false,
           compareAtPrice: dto.compareAtPrice || null,
-          stock: 0,
+          stockQuantity: 0,
           sortOrder: (last?.sortOrder ?? 0) + 1,
           category: {
             connect: {
@@ -260,7 +260,7 @@ export class AdminProductsService {
 
   async incrementStock(productId: string, amount: number) {
     return this.updateProductOrThrow(productId, {
-      stock: {
+      stockQuantity: {
         increment: amount,
       },
     });
@@ -274,12 +274,12 @@ export class AdminProductsService {
         where: {
           id: productId,
           deletedAt: null,
-          stock: {
+          stockQuantity: {
             gte: amount,
           },
         },
         data: {
-          stock: {
+          stockQuantity: {
             decrement: amount,
           },
         },

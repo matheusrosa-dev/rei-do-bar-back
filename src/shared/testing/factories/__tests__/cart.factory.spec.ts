@@ -3,7 +3,7 @@ import { CartItemFactory } from "../cart-item.factory";
 import { CartFactory } from "../cart.factory";
 
 describe("CartFactory", () => {
-  const product = ProductFactory.createOne({ stock: 10 });
+  const product = ProductFactory.createOne({ stockQuantity: 10 });
   const items = CartItemFactory.createMany(2, { product });
 
   describe("createOne", () => {

@@ -2,7 +2,7 @@ import { ProductFactory } from "../product.factory";
 import { CartItemFactory } from "../cart-item.factory";
 
 describe("CartItemFactory", () => {
-  const product = ProductFactory.createOne({ stock: 10 });
+  const product = ProductFactory.createOne({ stockQuantity: 10 });
 
   describe("createOne", () => {
     it("should create a cart item with the required product prop", () => {

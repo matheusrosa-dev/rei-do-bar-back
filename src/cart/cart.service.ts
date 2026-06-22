@@ -50,7 +50,7 @@ export class CartService {
       },
       select: {
         id: true,
-        stock: true,
+        stockQuantity: true,
       },
     });
 
@@ -62,7 +62,7 @@ export class CartService {
       );
     }
 
-    if (product.stock < 1) {
+    if (product.stockQuantity < 1) {
       throw new AppException(
         AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
         "Produto sem estoque disponível",
@@ -137,8 +137,8 @@ export class CartService {
       );
     }
 
-    if (cartItem.product.stock <= 10) {
-      if (cartItem.quantity + 1 > cartItem.product.stock) {
+    if (cartItem.product.stockQuantity <= 10) {
+      if (cartItem.quantity + 1 > cartItem.product.stockQuantity) {
         throw new AppException(
           AppException.errorCodes.cart.PRODUCT_OUT_OF_STOCK,
           "Quantidade solicitada excede o estoque disponível",
@@ -382,8 +382,8 @@ export class CartService {
 
         let remainingStock: number | null = null;
 
-        if (product.stock <= 10) {
-          remainingStock = product.stock;
+        if (product.stockQuantity <= 10) {
+          remainingStock = product.stockQuantity;
         }
 
         if (!product.isActive) {

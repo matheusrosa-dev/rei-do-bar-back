@@ -60,7 +60,7 @@ describe("OrdersService", () => {
   describe("createOrder", () => {
     const dto = { paymentType: PaymentType.CASH };
 
-    it("should create the order, decrement stock, clear the cart and return the orders", async () => {
+    it("should create the order, decrement stockQuantity, clear the cart and return the orders", async () => {
       const checkCustomerSpy = jest.spyOn(
         service as any,
         "checkIfCustomerIsAptToCreateOrder",
@@ -74,8 +74,14 @@ describe("OrdersService", () => {
         "findAndFormatOrders",
       );
 
-      const product1 = ProductFactory.createOne({ price: 10, stock: 20 });
-      const product2 = ProductFactory.createOne({ price: 20, stock: 30 });
+      const product1 = ProductFactory.createOne({
+        price: 10,
+        stockQuantity: 20,
+      });
+      const product2 = ProductFactory.createOne({
+        price: 20,
+        stockQuantity: 30,
+      });
       const items = [
         CartItemFactory.createOne({ product: product1, quantity: 2 }),
         CartItemFactory.createOne({ product: product2, quantity: 3 }),
@@ -140,12 +146,12 @@ describe("OrdersService", () => {
       });
       expect(prismaMock.product.updateMany).toHaveBeenCalledTimes(2);
       expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
-        where: { id: product1.id, stock: { gte: 2 } },
-        data: { stock: { decrement: 2 } },
+        where: { id: product1.id, stockQuantity: { gte: 2 } },
+        data: { stockQuantity: { decrement: 2 } },
       });
       expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
-        where: { id: product2.id, stock: { gte: 3 } },
-        data: { stock: { decrement: 3 } },
+        where: { id: product2.id, stockQuantity: { gte: 3 } },
+        data: { stockQuantity: { decrement: 3 } },
       });
       expect(prismaMock.cartItem.deleteMany).toHaveBeenCalledWith({
         where: { cartId: "cart-uuid" },
@@ -213,7 +219,7 @@ describe("OrdersService", () => {
     it("should throw ONGOING_ORDER when there is an ongoing order", async () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ stock: 20 }),
+          product: ProductFactory.createOne({ stockQuantity: 20 }),
           quantity: 1,
         }),
       ];
@@ -300,7 +306,10 @@ describe("OrdersService", () => {
     });
 
     it("should throw BELOW_MIN_ORDER_VALUE when the order total does not meet the minimum", async () => {
-      const product = ProductFactory.createOne({ price: 1000, stock: 20 });
+      const product = ProductFactory.createOne({
+        price: 1000,
+        stockQuantity: 20,
+      });
       const items = [CartItemFactory.createOne({ product, quantity: 2 })];
       prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
       prismaMock.order.count.mockResolvedValue(0);
@@ -317,13 +326,16 @@ describe("OrdersService", () => {
       expect(prismaMock.order.create).not.toHaveBeenCalled();
     });
 
-    describe("stock validation", () => {
+    describe("stockQuantity validation", () => {
       beforeEach(() => {
         prismaMock.order.count.mockResolvedValue(0);
       });
 
-      it("should throw PRODUCTS_OUT_OF_STOCK when the product is out of stock", async () => {
-        const product = ProductFactory.createOne({ name: "Cerveja", stock: 0 });
+      it("should throw PRODUCTS_OUT_OF_STOCK when the product is out of stockQuantity", async () => {
+        const product = ProductFactory.createOne({
+          name: "Cerveja",
+          stockQuantity: 0,
+        });
         const items = [CartItemFactory.createOne({ product, quantity: 1 })];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
@@ -341,7 +353,7 @@ describe("OrdersService", () => {
       it("should throw PRODUCT_INACTIVE when the product is inactive", async () => {
         const product = ProductFactory.createOne({
           name: "Cerveja",
-          stock: 20,
+          stockQuantity: 20,
           isActive: false,
         });
         const items = [CartItemFactory.createOne({ product, quantity: 1 })];
@@ -358,8 +370,11 @@ describe("OrdersService", () => {
         expect(prismaMock.order.create).not.toHaveBeenCalled();
       });
 
-      it("should throw the plural low-stock message when stock is 10 or less", async () => {
-        const product = ProductFactory.createOne({ name: "Cerveja", stock: 5 });
+      it("should throw the plural low-stock message when stockQuantity is 10 or less", async () => {
+        const product = ProductFactory.createOne({
+          name: "Cerveja",
+          stockQuantity: 5,
+        });
         const items = [CartItemFactory.createOne({ product, quantity: 6 })];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
@@ -372,7 +387,10 @@ describe("OrdersService", () => {
       });
 
       it("should throw the singular low-stock message when only one unit remains", async () => {
-        const product = ProductFactory.createOne({ name: "Cerveja", stock: 1 });
+        const product = ProductFactory.createOne({
+          name: "Cerveja",
+          stockQuantity: 1,
+        });
         const items = [CartItemFactory.createOne({ product, quantity: 2 })];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
 
@@ -383,10 +401,10 @@ describe("OrdersService", () => {
         });
       });
 
-      it("should throw the insufficient-stock message when stock is above 10 but quantity exceeds it", async () => {
+      it("should throw the insufficient-stock message when stockQuantity is above 10 but quantity exceeds it", async () => {
         const product = ProductFactory.createOne({
           name: "Cerveja",
-          stock: 11,
+          stockQuantity: 11,
         });
         const items = [CartItemFactory.createOne({ product, quantity: 12 })];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
@@ -441,7 +459,7 @@ describe("OrdersService", () => {
   describe("cancelOrder", () => {
     const dto = { orderId: "order-uuid" };
 
-    it("should cancel the order, restore stock, set the status to CANCELLED and return the orders", async () => {
+    it("should cancel the order, restore stockQuantity, set the status to CANCELLED and return the orders", async () => {
       const findAndFormatOrdersSpy = jest.spyOn(
         service as any,
         "findAndFormatOrders",
@@ -474,11 +492,11 @@ describe("OrdersService", () => {
       expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
       expect(prismaMock.product.update).toHaveBeenCalledWith({
         where: { id: "product-1" },
-        data: { stock: { increment: 2 } },
+        data: { stockQuantity: { increment: 2 } },
       });
       expect(prismaMock.product.update).toHaveBeenCalledWith({
         where: { id: "product-2" },
-        data: { stock: { increment: 3 } },
+        data: { stockQuantity: { increment: 3 } },
       });
       expect(prismaMock.order.findMany).toHaveBeenCalledWith({
         where: { customerId },
@@ -526,7 +544,7 @@ describe("OrdersService", () => {
   describe("checkIfOrderMeetsMinValue (private)", () => {
     const buildItems = () => [
       CartItemFactory.createOne({
-        product: ProductFactory.createOne({ price: 1000, stock: 20 }),
+        product: ProductFactory.createOne({ price: 1000, stockQuantity: 20 }),
         quantity: 2,
       }),
     ];
@@ -608,7 +626,7 @@ describe("OrdersService", () => {
   describe("checkIfCustomerIsAptToCreateOrder (private)", () => {
     const buildItems = () => [
       CartItemFactory.createOne({
-        product: ProductFactory.createOne({ stock: 20 }),
+        product: ProductFactory.createOne({ stockQuantity: 20 }),
         quantity: 1,
       }),
     ];
@@ -672,14 +690,20 @@ describe("OrdersService", () => {
   });
 
   describe("checkIfThereAreInvalidItemsInCart (private)", () => {
-    it("should not throw when every item is active and within stock", () => {
+    it("should not throw when every item is active and within stockQuantity", () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ stock: 20, isActive: true }),
+          product: ProductFactory.createOne({
+            stockQuantity: 20,
+            isActive: true,
+          }),
           quantity: 2,
         }),
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ stock: 50, isActive: true }),
+          product: ProductFactory.createOne({
+            stockQuantity: 50,
+            isActive: true,
+          }),
           quantity: 5,
         }),
       ];
@@ -694,7 +718,7 @@ describe("OrdersService", () => {
         CartItemFactory.createOne({
           product: ProductFactory.createOne({
             name: "Cerveja",
-            stock: 20,
+            stockQuantity: 20,
             isActive: false,
           }),
           quantity: 1,
@@ -712,10 +736,13 @@ describe("OrdersService", () => {
       );
     });
 
-    it("should throw PRODUCTS_OUT_OF_STOCK when a product is out of stock", () => {
+    it("should throw PRODUCTS_OUT_OF_STOCK when a product is out of stockQuantity", () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ name: "Cerveja", stock: 0 }),
+          product: ProductFactory.createOne({
+            name: "Cerveja",
+            stockQuantity: 0,
+          }),
           quantity: 1,
         }),
       ];
@@ -731,10 +758,13 @@ describe("OrdersService", () => {
       );
     });
 
-    it("should throw the plural low-stock message when stock is 10 or less", () => {
+    it("should throw the plural low-stock message when stockQuantity is 10 or less", () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ name: "Cerveja", stock: 5 }),
+          product: ProductFactory.createOne({
+            name: "Cerveja",
+            stockQuantity: 5,
+          }),
           quantity: 6,
         }),
       ];
@@ -751,7 +781,10 @@ describe("OrdersService", () => {
     it("should throw the singular low-stock message when only one unit remains", () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ name: "Cerveja", stock: 1 }),
+          product: ProductFactory.createOne({
+            name: "Cerveja",
+            stockQuantity: 1,
+          }),
           quantity: 2,
         }),
       ];
@@ -765,10 +798,13 @@ describe("OrdersService", () => {
       );
     });
 
-    it("should throw the insufficient-stock message when stock is above 10 but quantity exceeds it", () => {
+    it("should throw the insufficient-stock message when stockQuantity is above 10 but quantity exceeds it", () => {
       const items = [
         CartItemFactory.createOne({
-          product: ProductFactory.createOne({ name: "Cerveja", stock: 11 }),
+          product: ProductFactory.createOne({
+            name: "Cerveja",
+            stockQuantity: 11,
+          }),
           quantity: 12,
         }),
       ];

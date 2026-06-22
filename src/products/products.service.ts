@@ -45,7 +45,7 @@ export class ProductsService {
           compareAtPrice: true,
           price: true,
           imageUrl: true,
-          stock: true,
+          stockQuantity: true,
         },
         orderBy: {
           sortOrder: "asc",
@@ -62,7 +62,8 @@ export class ProductsService {
       return {
         ...product,
         quantityInCart: quantityInCart[product.id] || 0,
-        remainingStock: product.stock <= 10 ? product.stock : null,
+        remainingStock:
+          product.stockQuantity <= 10 ? product.stockQuantity : null,
       };
     });
   }
