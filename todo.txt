@@ -1,7 +1,6 @@
 Baixa prioridade:
 futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
 futuramente adicionar opção para alterar número do usuario
-adicionar meio de contato do suporte no app
 
 Em produção:
 substituir placeholders nos arquivos lgpd
@@ -10,3 +9,5 @@ Importante:
 adicionar logs
 adicionar cupom
 implementar sistema de XP
+adicionar meio de contato do suporte no app
+fazer app de entregas

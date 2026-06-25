@@ -7,10 +7,14 @@ import {
   Cart,
   CartItem,
   Customer,
+  Order,
+  OrderItem,
   Product,
   SettingKey,
 } from "@shared/database/prisma/generated/client";
 import { SettingsService } from "../settings/settings.service";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { OrderCreatedEvent, OrderCancelledEvent } from "@shared/events/order";
 
 type CustomerWithCartItems = Customer & {
   cart:
@@ -25,6 +29,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getOrders(customerId: string) {
@@ -96,6 +101,10 @@ export class OrdersService {
       );
     }
 
+    let order: Order & {
+      items: OrderItem[];
+    };
+
     await this.prisma.$transaction(async (tx) => {
       // Bloqueia a linha do cliente para serializar criações de pedido
       // concorrentes e garantir a regra de apenas um pedido em andamento
@@ -119,7 +128,7 @@ export class OrdersService {
       }
 
       // Cria o pedido com os itens do carrinho
-      await tx.order.create({
+      order = await tx.order.create({
         data: {
           customerId: assuredCustomer.id,
           address: `${mainAddress.street}, ${mainAddress.number} - ${mainAddress.neighborhood}/${mainAddress.zipCode}`,
@@ -137,6 +146,9 @@ export class OrdersService {
               })),
             },
           },
+        },
+        include: {
+          items: true,
         },
       });
 
@@ -164,6 +176,13 @@ export class OrdersService {
       });
     });
 
+    this.eventEmitter.emit(
+      OrderCreatedEvent.NAME,
+      new OrderCreatedEvent({
+        order: order!,
+      }),
+    );
+
     const orders = await this.getOrders(customerId);
 
     return orders;
@@ -172,7 +191,13 @@ export class OrdersService {
   async cancelOrder(customerId: string, dto: CancelOrderDto) {
     const order = await this.prisma.order.findFirst({
       where: { id: dto.orderId, customerId },
-      include: { items: true },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     if (!order) {
@@ -206,6 +231,13 @@ export class OrdersService {
         });
       }
     });
+
+    this.eventEmitter.emit(
+      OrderCancelledEvent.NAME,
+      new OrderCancelledEvent({
+        order,
+      }),
+    );
 
     const orders = await this.getOrders(customerId);
 

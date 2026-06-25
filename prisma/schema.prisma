@@ -4,9 +4,9 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/shared/database/prisma/generated"
-  moduleFormat  = "cjs"
+  provider     = "prisma-client"
+  output       = "../src/shared/database/prisma/generated"
+  moduleFormat = "cjs"
 }
 
 datasource db {
@@ -14,19 +14,19 @@ datasource db {
 }
 
 model Customer {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String?
-  phone     String   @unique()
-  isActive  Boolean  @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  phone     String    @unique()
+  isActive  Boolean   @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  cart      Cart?
-  addresses Address[]
-  orders    Order[]
+  cart          Cart?
+  addresses     Address[]
+  orders        Order[]
   refreshTokens RefreshToken[]
-  pushTokens PushToken[]
+  pushTokens    PushToken[]
 
   @@map("customers")
 }
@@ -36,47 +36,47 @@ model AnonymousCustomer {
   deviceId  String   @unique @map("device_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  cart      Cart?
-  otpCodes  OtpCode[]
+  cart     Cart?
+  otpCodes OtpCode[]
 
   @@map("anonymous_customers")
 }
 
 model RefreshToken {
-  id         String    @id @default(uuid())
-  customerId String    @map("customer_id")
-  hashedToken      String    @unique
-  createdAt  DateTime  @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  customerId  String   @map("customer_id")
+  hashedToken String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@map("refresh_tokens")
 }
 
 model PushToken {
-  id         String    @id @default(uuid())
-  customerId String    @map("customer_id")
-  token      String    @unique
-  deviceId   String    @map("device_id")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id         String   @id @default(uuid())
+  customerId String   @map("customer_id")
+  token      String   @unique
+  deviceId   String   @map("device_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@map("push_tokens")
 }
 
 model OtpCode {
-  id         String    @id @default(uuid())
-  anonymousCustomerId String    @map("anonymous_customer_id")
-  hashedCode       String    @unique         
-  expiresAt  DateTime  @map("expires_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt      @map("updated_at")
+  id                  String   @id @default(uuid())
+  anonymousCustomerId String   @map("anonymous_customer_id")
+  hashedCode          String   @unique
+  expiresAt           DateTime @map("expires_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  anonymousCustomer   AnonymousCustomer  @relation(fields: [anonymousCustomerId], references: [id], onDelete: Cascade)
+  anonymousCustomer AnonymousCustomer @relation(fields: [anonymousCustomerId], references: [id], onDelete: Cascade)
 
   @@index([anonymousCustomerId])
   @@map("otp_codes")
@@ -90,26 +90,26 @@ model Address {
   complement   String?
   neighborhood String
   zipCode      String   @map("zip_code")
-  isMain        Boolean  @map("is_main")
+  isMain       Boolean  @map("is_main")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@map("addresses")
 }
 
 model Cart {
-  id                  String             @id             @default(uuid())
-  customerId          String?            @unique         @map("customer_id")
-  anonymousCustomerId String?            @unique         @map("anonymous_customer_id")
-  createdAt           DateTime           @default(now()) @map("created_at")
-  updatedAt           DateTime           @updatedAt      @map("updated_at")
+  id                  String   @id @default(uuid())
+  customerId          String?  @unique @map("customer_id")
+  anonymousCustomerId String?  @unique @map("anonymous_customer_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
-  customer            Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  anonymousCustomer   AnonymousCustomer? @relation(fields: [anonymousCustomerId], references: [id])
-  items               CartItem[]
+  customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  anonymousCustomer AnonymousCustomer? @relation(fields: [anonymousCustomerId], references: [id])
+  items             CartItem[]
 
   @@map("cart")
 }
@@ -122,125 +122,126 @@ model CartItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id])
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 
-  @@map("cart_items")
   @@unique([cartId, productId])
+  @@map("cart_items")
 }
 
 model Category {
-  id        String    @id @default(uuid())
-  name      String    @unique
+  id         String   @id @default(uuid())
+  name       String   @unique
   pluralName String   @map("plural_name")
-  imageUrl    String     @map("image_url")
-  isActive  Boolean   @map("is_active")
-  sortOrder   Int     @map("sort_order")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  imageUrl   String   @map("image_url")
+  isActive   Boolean  @map("is_active")
+  sortOrder  Int      @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  products  Product[]
+  products Product[]
 
   @@map("categories")
 }
 
 model Product {
-  id          String     @id @default(uuid())
-  categoryId  String     @map("category_id")
-  name        String
-  description String?
-  price       Int
-  compareAtPrice  Int?    @map("compare_at_price")
-  stockQuantity       Int @map("stock_quantity")
-  imageUrl    String     @map("image_url")
-  sortOrder   Int        @map("sort_order")
-  isActive    Boolean    @map("is_active")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  deletedAt   DateTime?  @map("deleted_at")
+  id             String    @id @default(uuid())
+  categoryId     String    @map("category_id")
+  name           String
+  description    String?
+  price          Int
+  compareAtPrice Int?      @map("compare_at_price")
+  stockQuantity  Int       @map("stock_quantity")
+  imageUrl       String    @map("image_url")
+  sortOrder      Int       @map("sort_order")
+  isActive       Boolean   @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  category    Category   @relation(fields: [categoryId], references: [id])
+  category    Category           @relation(fields: [categoryId], references: [id])
   cartItems   CartItem[]
   orderItems  OrderItem[]
+  inventories InventoryProduct[]
 
   @@index([categoryId])
   @@map("products")
+}
+
+model Inventory {
+  id        String          @id @default(uuid())
+  origin    InventoryOrigin
+  orderId   String?         @map("order_id")
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  order    Order?             @relation(fields: [orderId], references: [id])
+  products InventoryProduct[]
+
+  @@index([orderId])
+  @@map("inventories")
+}
+
+model InventoryProduct {
+  id          String   @id @default(uuid())
+  inventoryId String   @map("inventory_id")
+  productId   String   @map("product_id")
+  quantity    Int
+  price       Int
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([inventoryId, productId])
+  @@map("inventory_products")
 }
 
 model Order {
   id           String      @id @default(uuid())
   orderNumber  Int         @unique @default(autoincrement()) @map("order_number")
   customerId   String      @map("customer_id")
-  // delivererId  String?     @map("deliverer_id")
   address      String
   status       OrderStatus
   statusReason String?     @map("status_reason")
-  deliveryFee  Int        @map("delivery_fee")
+  deliveryFee  Int         @map("delivery_fee")
   paymentType  PaymentType @map("payment_type")
-  // deliveryCode String      @unique @map("delivery_code")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  customer     Customer    @relation(fields: [customerId], references: [id])
-  // deliverer    Deliverer?  @relation(fields: [delivererId], references: [id])
-  items        OrderItem[]
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  items       OrderItem[]
+  inventories Inventory[]
 
   @@index([customerId])
   @@map("orders")
 }
 
 model OrderItem {
-  id        String    @id @default(uuid())
-  orderId   String    @map("order_id")
-  productId String    @map("product_id")
+  id        String   @id @default(uuid())
+  orderId   String   @map("order_id")
+  productId String   @map("product_id")
   name      String
   imageUrl  String   @map("image_url")
   quantity  Int
   price     Int
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  order     Order     @relation(fields: [orderId], references: [id])
-  product   Product   @relation(fields: [productId], references: [id])
-
-  @@map("order_items")
-  @@unique([orderId, productId])
-}
-
-// model Deliverer {
-//   id        String          @id @default(uuid())
-//   name      String
-//   createdAt DateTime        @default(now()) @map("created_at")
-//   updatedAt DateTime        @updatedAt @map("updated_at")
-
-//   token     DelivererToken?
-//   orders    Order[]
-
-//   @@map("deliverers")
-// }
-
-// model DelivererToken {
-//   id          String    @id @default(uuid())
-//   delivererId String    @unique @map("deliverer_id")
-//   token       String    @unique
-//   createdAt   DateTime  @default(now()) @map("created_at")
-//   updatedAt   DateTime  @updatedAt @map("updated_at")
-
-//   deliverer   Deliverer @relation(fields: [delivererId], references: [id])
-
-//   @@map("deliverer_tokens")
-// }
-
-
-
-model Setting {
-  id        String   @id @default(uuid())
-  key       SettingKey   @unique
-  type      SettingType
-  value     String
-  isActive  Boolean  @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId])
+  @@map("order_items")
+}
+
+model Setting {
+  id        String      @id @default(uuid())
+  key       SettingKey  @unique
+  type      SettingType
+  value     String
+  isActive  Boolean     @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
 
   @@map("settings")
 }
@@ -249,7 +250,7 @@ enum SettingKey {
   DELIVERY_FEE
   ALERT_MESSAGE
   MIN_ORDER_VALUE
-  
+
   OUTSIDE_BUSINESS_HOURS
   ON_BREAK
 }
@@ -263,6 +264,14 @@ enum PaymentType {
   CASH
   CARD
   PIX
+}
+
+enum InventoryOrigin {
+  ORDER_CREATION
+  ORDER_CANCELLATION
+  ADMIN_ORDER_CANCELLATION
+  ADMIN_RESTOCK
+  ADMIN_REMOVAL
 }
 
 enum OrderStatus {

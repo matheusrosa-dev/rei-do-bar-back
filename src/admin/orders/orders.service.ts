@@ -6,12 +6,12 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { OrderStatusChangedEvent } from "./events";
 import {
   ORDER_STATUS_TRANSITIONS,
   OrderSortValueSource,
   OrderWithItems,
 } from "./helpers";
+import { OrderStatusUpdatedEvent } from "@shared/events/order";
 
 @Injectable()
 export class AdminOrdersService {
@@ -315,8 +315,8 @@ export class AdminOrdersService {
     });
 
     this.eventEmitter.emit(
-      OrderStatusChangedEvent.name,
-      new OrderStatusChangedEvent({
+      OrderStatusUpdatedEvent.NAME,
+      new OrderStatusUpdatedEvent({
         order: {
           ...order,
           status: dto.status,

@@ -1,4 +1,5 @@
 /** biome-ignore-all lint/suspicious/noExplicitAny: <any is necessary to access private methods> */
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 import { SettingKey } from "@shared/database/prisma/generated/client";
 import {
@@ -6,6 +7,7 @@ import {
   PaymentType,
 } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { OrderCancelledEvent, OrderCreatedEvent } from "@shared/events/order";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
   AddressFactory,
@@ -19,6 +21,8 @@ import { OrdersService } from "../orders.service";
 import { SettingsService } from "../../settings/settings.service";
 
 const customerId = "customer-uuid";
+
+const eventEmitterMock = { emit: jest.fn() };
 
 const buildCustomer = (items: any[], overrides: any = {}) =>
   CustomerFactory.createOne({
@@ -47,6 +51,7 @@ describe("OrdersService", () => {
         OrdersService,
         SettingsService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
       ],
     }).compile();
 
@@ -97,13 +102,17 @@ describe("OrdersService", () => {
 
       const createdOrder = {
         id: "order-uuid",
+        customerId,
         orderNumber: 1000,
+        status: OrderStatus.PENDING,
+        statusReason: null,
         deliveryFee: 200,
         items: [
-          { price: 10, quantity: 2 },
-          { price: 20, quantity: 3 },
+          { price: 10, quantity: 2, productId: product1.id },
+          { price: 20, quantity: 3, productId: product2.id },
         ],
       };
+      prismaMock.order.create.mockResolvedValue(createdOrder);
       prismaMock.order.findMany.mockResolvedValue([createdOrder]);
 
       const result = await service.createOrder(customerId, dto);
@@ -143,6 +152,9 @@ describe("OrdersService", () => {
             },
           },
         },
+        include: {
+          items: true,
+        },
       });
       expect(prismaMock.product.updateMany).toHaveBeenCalledTimes(2);
       expect(prismaMock.product.updateMany).toHaveBeenCalledWith({
@@ -159,6 +171,10 @@ describe("OrdersService", () => {
       expect(checkCustomerSpy).toHaveBeenCalled();
       expect(checkItemsSpy).toHaveBeenCalled();
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        OrderCreatedEvent.NAME,
+        new OrderCreatedEvent({ order: createdOrder }),
+      );
       expect(result).toEqual([{ ...createdOrder, subtotal: 80, total: 280 }]);
     });
 
@@ -466,10 +482,13 @@ describe("OrdersService", () => {
       );
       const order = {
         id: "order-uuid",
+        customerId,
+        orderNumber: 1000,
         status: OrderStatus.PENDING,
+        statusReason: null,
         items: [
-          { productId: "product-1", quantity: 2 },
-          { productId: "product-2", quantity: 3 },
+          { productId: "product-1", price: 10, quantity: 2 },
+          { productId: "product-2", price: 20, quantity: 3 },
         ],
       };
       prismaMock.order.findFirst.mockResolvedValue(order);
@@ -480,7 +499,7 @@ describe("OrdersService", () => {
 
       expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
         where: { id: "order-uuid", customerId },
-        include: { items: true },
+        include: { items: { include: { product: true } } },
       });
       expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
         where: {
@@ -504,6 +523,10 @@ describe("OrdersService", () => {
         orderBy: { createdAt: "desc" },
       });
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        OrderCancelledEvent.NAME,
+        new OrderCancelledEvent({ order }),
+      );
       expect(result).toEqual([]);
     });
 

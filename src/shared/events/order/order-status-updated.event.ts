@@ -1,6 +1,8 @@
 import { Order } from "@shared/database/prisma/generated/client";
 
-export class OrderStatusChangedEvent {
+export class OrderStatusUpdatedEvent {
+  static NAME = "order.status-updated";
+
   constructor(
     public data: {
       order: Pick<

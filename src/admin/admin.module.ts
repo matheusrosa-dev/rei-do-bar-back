@@ -5,6 +5,7 @@ import { AdminCustomersModule } from "./customers/customers.module";
 import { AdminOrdersModule } from "./orders/orders.module";
 import { AdminSettingsModule } from "./settings/settings.module";
 import { AdminNotificationsModule } from "./notifications/notifications.module";
+import { AdminInventoryModule } from "./inventory/inventory.module";
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AdminNotificationsModule } from "./notifications/notifications.module";
     AdminOrdersModule,
     AdminSettingsModule,
     AdminNotificationsModule,
+    AdminInventoryModule,
   ],
 })
 export class AdminModule {}
