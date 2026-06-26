@@ -1,4 +1,8 @@
-import { Order, OrderItem } from "@shared/database/prisma/generated/client";
+import {
+  InventoryMovementOrigin,
+  Order,
+  OrderItem,
+} from "@shared/database/prisma/generated/client";
 
 type PartialOrder = Pick<
   Order,
@@ -12,6 +16,7 @@ export class OrderCancelledEvent {
 
   constructor(
     public data: {
+      origin: InventoryMovementOrigin;
       order: PartialOrder & {
         items: Array<PartialOrderItem>;
       };

@@ -8,7 +8,7 @@ CREATE TYPE "SettingType" AS ENUM ('CURRENCY', 'TEXT');
 CREATE TYPE "PaymentType" AS ENUM ('CASH', 'CARD', 'PIX');
 
 -- CreateEnum
-CREATE TYPE "InventoryOrigin" AS ENUM ('ORDER_CREATION', 'ORDER_CANCELLATION', 'ADMIN_ORDER_CANCELLATION', 'ADMIN_RESTOCK', 'ADMIN_REMOVAL');
+CREATE TYPE "InventoryMovementOrigin" AS ENUM ('ORDER_CREATION', 'ORDER_CANCELLATION', 'ADMIN_ORDER_CANCELLATION', 'ADMIN_RESTOCK', 'ADMIN_REMOVAL');
 
 -- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'PREPARING', 'SHIPPED', 'DELIVERED', 'CANCELLED');
@@ -144,7 +144,7 @@ CREATE TABLE "products" (
 -- CreateTable
 CREATE TABLE "inventories" (
     "id" TEXT NOT NULL,
-    "origin" "InventoryOrigin" NOT NULL,
+    "origin" "InventoryMovementOrigin" NOT NULL,
     "order_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -152,15 +152,15 @@ CREATE TABLE "inventories" (
 );
 
 -- CreateTable
-CREATE TABLE "inventory_products" (
+CREATE TABLE "inventory_movement_products" (
     "id" TEXT NOT NULL,
-    "inventory_id" TEXT NOT NULL,
+    "inventory_movement_id" TEXT NOT NULL,
     "product_id" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "price" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "inventory_products_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "inventory_movement_products_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -256,7 +256,7 @@ CREATE INDEX "products_category_id_idx" ON "products"("category_id");
 CREATE INDEX "inventories_order_id_idx" ON "inventories"("order_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "inventory_products_inventory_id_product_id_key" ON "inventory_products"("inventory_id", "product_id");
+CREATE UNIQUE INDEX "inventory_movement_products_inventory_movement_id_product_i_key" ON "inventory_movement_products"("inventory_movement_id", "product_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "orders_order_number_key" ON "orders"("order_number");
@@ -301,10 +301,10 @@ ALTER TABLE "products" ADD CONSTRAINT "products_category_id_fkey" FOREIGN KEY ("
 ALTER TABLE "inventories" ADD CONSTRAINT "inventories_order_id_fkey" FOREIGN KEY ("order_id") REFERENCES "orders"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inventory_products" ADD CONSTRAINT "inventory_products_inventory_id_fkey" FOREIGN KEY ("inventory_id") REFERENCES "inventories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "inventory_movement_products" ADD CONSTRAINT "inventory_movement_products_inventory_movement_id_fkey" FOREIGN KEY ("inventory_movement_id") REFERENCES "inventories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "inventory_products" ADD CONSTRAINT "inventory_products_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "inventory_movement_products" ADD CONSTRAINT "inventory_movement_products_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_customer_id_fkey" FOREIGN KEY ("customer_id") REFERENCES "customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -3,6 +3,7 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 import { SettingKey } from "@shared/database/prisma/generated/client";
 import {
+  InventoryMovementOrigin,
   OrderStatus,
   PaymentType,
 } from "@shared/database/prisma/generated/enums";
@@ -66,13 +67,13 @@ describe("OrdersService", () => {
     const dto = { paymentType: PaymentType.CASH };
 
     it("should create the order, decrement stockQuantity, clear the cart and return the orders", async () => {
-      const checkCustomerSpy = jest.spyOn(
+      const assertCustomerSpy = jest.spyOn(
         service as any,
-        "checkIfCustomerIsAptToCreateOrder",
+        "assertCustomerIsAptToCreateOrder",
       );
-      const checkItemsSpy = jest.spyOn(
+      const assertItemsSpy = jest.spyOn(
         service as any,
-        "checkIfThereAreInvalidItemsInCart",
+        "assertThereAreInvalidItemsInCart",
       );
       const findAndFormatOrdersSpy = jest.spyOn(
         service as any,
@@ -168,8 +169,8 @@ describe("OrdersService", () => {
       expect(prismaMock.cartItem.deleteMany).toHaveBeenCalledWith({
         where: { cartId: "cart-uuid" },
       });
-      expect(checkCustomerSpy).toHaveBeenCalled();
-      expect(checkItemsSpy).toHaveBeenCalled();
+      expect(assertCustomerSpy).toHaveBeenCalled();
+      expect(assertItemsSpy).toHaveBeenCalled();
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(eventEmitterMock.emit).toHaveBeenCalledWith(
         OrderCreatedEvent.NAME,
@@ -525,7 +526,10 @@ describe("OrdersService", () => {
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(eventEmitterMock.emit).toHaveBeenCalledWith(
         OrderCancelledEvent.NAME,
-        new OrderCancelledEvent({ order }),
+        new OrderCancelledEvent({
+          order,
+          origin: InventoryMovementOrigin.ORDER_CANCELLATION,
+        }),
       );
       expect(result).toEqual([]);
     });
@@ -564,7 +568,7 @@ describe("OrdersService", () => {
     });
   });
 
-  describe("checkIfOrderMeetsMinValue (private)", () => {
+  describe("assertOrderMeetsMinValue (private)", () => {
     const buildItems = () => [
       CartItemFactory.createOne({
         product: ProductFactory.createOne({ price: 1000, stockQuantity: 20 }),
@@ -574,10 +578,10 @@ describe("OrdersService", () => {
 
     it("should not throw when the minimum value setting is absent or zero", () => {
       expect(() =>
-        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {}),
+        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {}),
       ).not.toThrow();
       expect(() =>
-        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {
+        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {
           MIN_ORDER_VALUE: "0",
         }),
       ).not.toThrow();
@@ -585,7 +589,7 @@ describe("OrdersService", () => {
 
     it("should not throw when the subtotal alone meets the minimum", () => {
       expect(() =>
-        (service as any).checkIfOrderMeetsMinValue(buildItems(), 0, {
+        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {
           MIN_ORDER_VALUE: "2000",
         }),
       ).not.toThrow();
@@ -593,7 +597,7 @@ describe("OrdersService", () => {
 
     it("should not throw when the delivery fee pushes the total to the minimum", () => {
       expect(() =>
-        (service as any).checkIfOrderMeetsMinValue(buildItems(), 500, {
+        (service as any).assertOrderMeetsMinValue(buildItems(), 500, {
           MIN_ORDER_VALUE: "2500",
         }),
       ).not.toThrow();
@@ -601,7 +605,7 @@ describe("OrdersService", () => {
 
     it("should throw BELOW_MIN_ORDER_VALUE when subtotal plus delivery fee is below the minimum", () => {
       expect(() =>
-        (service as any).checkIfOrderMeetsMinValue(buildItems(), 500, {
+        (service as any).assertOrderMeetsMinValue(buildItems(), 500, {
           MIN_ORDER_VALUE: "3000",
         }),
       ).toThrow(
@@ -646,7 +650,7 @@ describe("OrdersService", () => {
     });
   });
 
-  describe("checkIfCustomerIsAptToCreateOrder (private)", () => {
+  describe("assertCustomerIsAptToCreateOrder (private)", () => {
     const buildItems = () => [
       CartItemFactory.createOne({
         product: ProductFactory.createOne({ stockQuantity: 20 }),
@@ -656,7 +660,7 @@ describe("OrdersService", () => {
 
     it("should not throw when the customer has a name and items", () => {
       expect(() =>
-        (service as any).checkIfCustomerIsAptToCreateOrder(
+        (service as any).assertCustomerIsAptToCreateOrder(
           buildCustomer(buildItems()),
         ),
       ).not.toThrow();
@@ -664,7 +668,7 @@ describe("OrdersService", () => {
 
     it("should throw INACTIVE_CUSTOMER when the customer is null", () => {
       expect(() =>
-        (service as any).checkIfCustomerIsAptToCreateOrder(null),
+        (service as any).assertCustomerIsAptToCreateOrder(null),
       ).toThrow(
         expect.objectContaining({
           code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
@@ -677,7 +681,7 @@ describe("OrdersService", () => {
 
     it("should throw INACTIVE_CUSTOMER when the customer is inactive", () => {
       expect(() =>
-        (service as any).checkIfCustomerIsAptToCreateOrder(
+        (service as any).assertCustomerIsAptToCreateOrder(
           buildCustomer(buildItems(), { isActive: false }),
         ),
       ).toThrow(
@@ -689,7 +693,7 @@ describe("OrdersService", () => {
 
     it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", () => {
       expect(() =>
-        (service as any).checkIfCustomerIsAptToCreateOrder(
+        (service as any).assertCustomerIsAptToCreateOrder(
           buildCustomer(buildItems(), { name: null }),
         ),
       ).toThrow(
@@ -701,7 +705,7 @@ describe("OrdersService", () => {
 
     it("should throw CART_EMPTY when the cart has no items", () => {
       expect(() =>
-        (service as any).checkIfCustomerIsAptToCreateOrder(buildCustomer([])),
+        (service as any).assertCustomerIsAptToCreateOrder(buildCustomer([])),
       ).toThrow(
         expect.objectContaining({
           code: AppException.errorCodes.order.CART_EMPTY,
@@ -712,7 +716,7 @@ describe("OrdersService", () => {
     });
   });
 
-  describe("checkIfThereAreInvalidItemsInCart (private)", () => {
+  describe("assertThereAreInvalidItemsInCart (private)", () => {
     it("should not throw when every item is active and within stockQuantity", () => {
       const items = [
         CartItemFactory.createOne({
@@ -732,7 +736,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).not.toThrow();
     });
 
@@ -749,7 +753,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
           code: AppException.errorCodes.order.PRODUCT_INACTIVE,
@@ -771,7 +775,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
           code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
@@ -793,7 +797,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
           message: "Cerveja tem apenas 5 unidades restantes.",
@@ -813,7 +817,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
           message: "Cerveja tem apenas 1 unidade restante.",
@@ -833,7 +837,7 @@ describe("OrdersService", () => {
       ];
 
       expect(() =>
-        (service as any).checkIfThereAreInvalidItemsInCart(items),
+        (service as any).assertThereAreInvalidItemsInCart(items),
       ).toThrow(
         expect.objectContaining({
           message:

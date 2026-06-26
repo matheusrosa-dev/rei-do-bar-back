@@ -17,8 +17,6 @@ import {
   FindByIdDto,
   UpdateProductBodyDto,
   UpdateProductParamsDto,
-  UpdateStockProductParamsDto,
-  UpdateStockProductBodyDto,
   DeleteProductDto,
   CreateProductDto,
   UpdateProductsOrderDto,
@@ -31,6 +29,10 @@ export class AdminProductsController {
 
   @Get()
   findAll(@Query() dto: FindAllProductsDto) {
+    if (dto?.simple) {
+      return this.productsService.findAllSimple();
+    }
+
     return this.productsService.findAll(dto);
   }
 
@@ -70,22 +72,6 @@ export class AdminProductsController {
   @Patch(":productId/deactivate")
   deactivateProduct(@Param() { productId }: ToggleStatusProductDto) {
     return this.productsService.deactivateProduct(productId);
-  }
-
-  @Patch(":productId/increment-stock")
-  incrementStock(
-    @Param() { productId }: UpdateStockProductParamsDto,
-    @Body() dto: UpdateStockProductBodyDto,
-  ) {
-    return this.productsService.incrementStock(productId, dto.amount);
-  }
-
-  @Patch(":productId/decrement-stock")
-  decrementStock(
-    @Param() { productId }: UpdateStockProductParamsDto,
-    @Body() dto: UpdateStockProductBodyDto,
-  ) {
-    return this.productsService.decrementStock(productId, dto.amount);
   }
 
   @Delete(":productId")

@@ -75,6 +75,19 @@ export class AdminProductsService {
     };
   }
 
+  async findAllSimple() {
+    const products = await this.prisma.product.findMany({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return products;
+  }
+
   async findAllToSort() {
     const products = await this.prisma.product.findMany({
       where: {
@@ -256,52 +269,6 @@ export class AdminProductsService {
 
   async deactivateProduct(productId: string) {
     return this.updateProductOrThrow(productId, { isActive: false });
-  }
-
-  async incrementStock(productId: string, amount: number) {
-    return this.updateProductOrThrow(productId, {
-      stockQuantity: {
-        increment: amount,
-      },
-    });
-  }
-
-  async decrementStock(productId: string, amount: number) {
-    try {
-      // Decrementa de forma atômica somente se o produto existir e houver
-      // estoque suficiente, evitando uma busca prévia e estoque negativo.
-      return await this.prisma.product.update({
-        where: {
-          id: productId,
-          deletedAt: null,
-          stockQuantity: {
-            gte: amount,
-          },
-        },
-        data: {
-          stockQuantity: {
-            decrement: amount,
-          },
-        },
-        include: {
-          category: true,
-        },
-      });
-    } catch (error) {
-      if (this.isRecordNotFound(error)) {
-        // Nenhuma linha casou: ou o produto não existe, ou o estoque é
-        // insuficiente. A busca pontual distingue os dois casos.
-        await this.findById(productId);
-
-        throw new AppException(
-          AppException.errorCodes.adminProducts.INSUFFICIENT_STOCK,
-          "Estoque insuficiente para realizar a operação.",
-          AppException.HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      throw error;
-    }
   }
 
   private async updateProductOrThrow(

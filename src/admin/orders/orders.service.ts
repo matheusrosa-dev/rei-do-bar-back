@@ -1,6 +1,9 @@
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { Order, Prisma } from "@shared/database/prisma/generated/client";
-import { OrderStatus } from "@shared/database/prisma/generated/enums";
+import {
+  InventoryMovementOrigin,
+  OrderStatus,
+} from "@shared/database/prisma/generated/enums";
 import { OrderOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
@@ -11,7 +14,10 @@ import {
   OrderSortValueSource,
   OrderWithItems,
 } from "./helpers";
-import { OrderStatusUpdatedEvent } from "@shared/events/order";
+import {
+  OrderCancelledEvent,
+  OrderStatusUpdatedEvent,
+} from "@shared/events/order";
 
 @Injectable()
 export class AdminOrdersService {
@@ -324,6 +330,16 @@ export class AdminOrdersService {
         },
       }),
     );
+
+    if (dto.status === OrderStatus.CANCELLED) {
+      this.eventEmitter.emit(
+        OrderCancelledEvent.NAME,
+        new OrderCancelledEvent({
+          origin: InventoryMovementOrigin.ADMIN_ORDER_CANCELLATION,
+          order,
+        }),
+      );
+    }
 
     return this.listOrdersManagement();
   }

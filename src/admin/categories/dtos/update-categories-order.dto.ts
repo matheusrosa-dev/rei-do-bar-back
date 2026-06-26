@@ -4,5 +4,5 @@ export class UpdateCategoriesOrderDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsUUID("4", { each: true })
-  orderedIds: string[];
+  orderedIds!: string[];
 }

@@ -11,3 +11,4 @@ adicionar cupom
 implementar sistema de XP
 adicionar meio de contato do suporte no app
 fazer app de entregas
+diminuir o id

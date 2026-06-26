@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { OrderStatus } from "@shared/database/prisma/generated/enums";
+import {
+  InventoryMovementOrigin,
+  OrderStatus,
+} from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { CancelOrderDto, CreateOrderDto } from "./dtos";
@@ -74,16 +77,16 @@ export class OrdersService {
       },
     });
 
-    this.checkIfCustomerIsAptToCreateOrder(customer);
+    this.assertCustomerIsAptToCreateOrder(customer);
 
     const assuredCustomer = {
       ...customer!,
       cart: customer!.cart!,
     };
 
-    this.checkIfThereAreInvalidItemsInCart(assuredCustomer.cart.items);
+    this.assertThereAreInvalidItemsInCart(assuredCustomer.cart.items);
 
-    this.checkIfOrderMeetsMinValue(
+    this.assertOrderMeetsMinValue(
       assuredCustomer.cart.items,
       deliveryFee,
       settings,
@@ -235,6 +238,7 @@ export class OrdersService {
     this.eventEmitter.emit(
       OrderCancelledEvent.NAME,
       new OrderCancelledEvent({
+        origin: InventoryMovementOrigin.ORDER_CANCELLATION,
         order,
       }),
     );
@@ -270,7 +274,7 @@ export class OrdersService {
     return formattedOrders;
   }
 
-  private checkIfCustomerIsAptToCreateOrder(
+  private assertCustomerIsAptToCreateOrder(
     customer: CustomerWithCartItems | null,
   ) {
     if (!customer?.isActive) {
@@ -298,7 +302,7 @@ export class OrdersService {
     }
   }
 
-  private checkIfOrderMeetsMinValue(
+  private assertOrderMeetsMinValue(
     cartItems: Array<
       CartItem & {
         product: Product;
@@ -333,7 +337,7 @@ export class OrdersService {
     }
   }
 
-  private checkIfThereAreInvalidItemsInCart(
+  private assertThereAreInvalidItemsInCart(
     cartItems: Array<
       CartItem & {
         product: Product;

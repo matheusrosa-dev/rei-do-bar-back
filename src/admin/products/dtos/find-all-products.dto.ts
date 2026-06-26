@@ -12,6 +12,11 @@ import {
 
 export class FindAllProductsDto {
   @IsOptional()
+  @Transform(({ value }) => value === "true")
+  @IsBoolean()
+  simple?: boolean = false;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
