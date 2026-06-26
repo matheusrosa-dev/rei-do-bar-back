@@ -33,6 +33,12 @@ Fetch the order scoped by customer id (ownership check), then in a transaction c
 
 ---
 
+## Emitted Events
+
+Order creation and cancellation emit lifecycle events through the event emitter rather than calling other modules directly. Listeners elsewhere react to them — order movements are recorded in the inventory ledger and customer push notifications are sent. The cancellation event carries the movement origin so the ledger does not have to infer it. These side effects are fire-and-forget from this module's perspective; the response is the freshly computed order list regardless.
+
+---
+
 ## Response DTO
 
 Each order carries DB fields plus computed totals (subtotal from item price × quantity, total adding the delivery fee) and a nested item collection.
@@ -47,4 +53,5 @@ Each order carries DB fields plus computed totals (subtotal from item price × q
 | Serialize concurrency | Per-customer order creation is serialized with a row-level lock |
 | Snapshots | Item details and the address are snapshotted at purchase time and never back-filled |
 | Atomic stock | Stock decrement/restore happens inside the order transaction with guarded updates |
+| Decouple side effects | Ledger and notifications are driven by emitted lifecycle events, not direct calls |
 | Errors | Thrown as `AppException`; codes are listed in the API contract reference |

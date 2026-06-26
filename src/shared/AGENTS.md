@@ -11,11 +11,13 @@ Cross-cutting infrastructure used by every feature module. Nothing here is domai
 | `config/` | Env loading, namespaced config, the validation schema, and typed config interfaces |
 | `database/` | The Prisma service and the generated client |
 | `decorators/` | Route/param decorators (public marker, current-session extractor, admin-auth composite) |
+| `events/` | Cross-module event payload classes carried by the event emitter (e.g. order lifecycle events) |
 | `exceptions/` | The single application exception type and its error-code registry |
 | `filters/` | The global exception filter |
 | `guards/` | Device-id, access-token, refresh-token, basic-auth, and throttler (rate-limiting) guards |
 | `helpers/` | Pure utility functions with no class wrappers |
 | `interceptors/` | Response wrapping, serialization, and artificial delay |
+| `libs/` | Thin wrappers over third-party SDKs, exposed as injectable modules/services (e.g. the Expo push-notification transport) |
 | `testing/` | Test factories and mocks — imported only from test files |
 | `types/` | Shared interfaces and framework type augmentation |
 
@@ -36,6 +38,14 @@ Small **pure functions** (no classes) built on Node's crypto primitives — e.g.
 ## types/
 
 Defines the unified current-session interface, whose shape encodes the anonymous/authenticated duality (an anonymous device id **or** an authenticated customer identity, plus the token only on refresh), and augments the framework request type to carry it.
+
+## events/
+
+Event payload classes emitted through the event emitter to decouple side effects from the feature that triggers them. Each event exposes a static `NAME` and a typed `data` payload; producers emit, and listeners in other modules react (e.g. order lifecycle events drive the inventory ledger and push notifications). Keep payloads to the minimal fields consumers need rather than full entities.
+
+## libs/
+
+Thin adapters around external SDKs, each wrapped in its own injectable module/service so feature code depends on a local abstraction instead of the vendor SDK directly. Feature modules import the wrapper module; they never import the SDK.
 
 ---
 
