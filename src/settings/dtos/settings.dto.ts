@@ -12,6 +12,9 @@ export class SettingsDto {
   [SettingKey.MIN_ORDER_VALUE]?: string;
 
   @Expose()
+  [SettingKey.WHATSAPP_CONTACT]?: string;
+
+  @Expose()
   [SettingKey.ON_BREAK]?: string;
 
   @Expose()

@@ -24,6 +24,12 @@ export const settings = [
     isActive: false,
   },
   {
+    key: SettingKey.WHATSAPP_CONTACT,
+    type: SettingType.PHONE,
+    value: "11964645573",
+    isActive: true,
+  },
+  {
     key: SettingKey.OUTSIDE_BUSINESS_HOURS,
     type: SettingType.TEXT,
     value:
@@ -48,8 +54,10 @@ export async function seedSettings(prisma: PrismaClient) {
     },
   });
 
+  const existingKeys = new Set(settingsFound.map((setting) => setting.key));
+
   const nonExistingSettings = settings.filter(
-    (_, index) => !settingsFound[index],
+    (setting) => !existingKeys.has(setting.key),
   );
 
   await prisma.setting.createMany({
