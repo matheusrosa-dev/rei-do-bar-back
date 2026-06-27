@@ -5,6 +5,7 @@ diminuir o id
 
 Em produção:
 substituir placeholders nos arquivos lgpd
+remover log de endpoints chamados
 
 Importante:
 adicionar logs

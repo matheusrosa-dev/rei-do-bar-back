@@ -24,8 +24,19 @@ export class AdminInventoryService {
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
 
+    const where: Prisma.InventoryMovementWhereInput = {};
+
+    if (dto.origin?.length) {
+      where.origin = { in: dto.origin };
+    }
+
+    if (dto.productIds?.length) {
+      where.products = { some: { productId: { in: dto.productIds } } };
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.findMany({
+        where,
         skip,
         take: limit,
         orderBy: {
@@ -40,7 +51,7 @@ export class AdminInventoryService {
           },
         },
       }),
-      this.prisma.inventoryMovement.count(),
+      this.prisma.inventoryMovement.count({ where }),
     ]);
 
     return {
