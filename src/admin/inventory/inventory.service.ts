@@ -81,7 +81,10 @@ export class AdminInventoryService {
 
       await this.registerInventoryMovement(tx, {
         origin: InventoryMovementOrigin.ADMIN_RESTOCK,
-        movementProducts,
+        movementProducts: movementProducts.map((movementProduct) => ({
+          ...movementProduct,
+          price: movementProduct.totalCost / movementProduct.quantity,
+        })),
       });
     });
   }

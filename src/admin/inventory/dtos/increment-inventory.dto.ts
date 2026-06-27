@@ -19,7 +19,7 @@ class MovementProductDto {
 
   @IsInt()
   @Min(1)
-  price!: number;
+  totalCost!: number;
 }
 
 export class IncrementInventoryDto {
