@@ -159,9 +159,9 @@ model Product {
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  category    Category           @relation(fields: [categoryId], references: [id])
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
+  category           Category                   @relation(fields: [categoryId], references: [id])
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
   inventoryMovements InventoryMovementProduct[]
 
   @@index([categoryId])
@@ -169,12 +169,12 @@ model Product {
 }
 
 model InventoryMovement {
-  id        String          @id @default(uuid())
+  id        String                  @id @default(uuid())
   origin    InventoryMovementOrigin
-  orderId   String?         @map("order_id")
-  createdAt DateTime        @default(now()) @map("created_at")
+  orderId   String?                 @map("order_id")
+  createdAt DateTime                @default(now()) @map("created_at")
 
-  order    Order?             @relation(fields: [orderId], references: [id])
+  order    Order?                     @relation(fields: [orderId], references: [id])
   products InventoryMovementProduct[]
 
   @@index([orderId])
@@ -182,15 +182,15 @@ model InventoryMovement {
 }
 
 model InventoryMovementProduct {
-  id          String   @id @default(uuid())
+  id                  String   @id @default(uuid())
   inventoryMovementId String   @map("inventory_movement_id")
-  productId   String   @map("product_id")
-  quantity    Int
-  price       Int
-  createdAt   DateTime @default(now()) @map("created_at")
+  productId           String   @map("product_id")
+  quantity            Int
+  price               Int
+  createdAt           DateTime @default(now()) @map("created_at")
 
   inventoryMovement InventoryMovement @relation(fields: [inventoryMovementId], references: [id], onDelete: Cascade)
-  product   Product   @relation(fields: [productId], references: [id])
+  product           Product           @relation(fields: [productId], references: [id])
 
   @@unique([inventoryMovementId, productId])
   @@map("inventory_movement_products")
@@ -208,8 +208,8 @@ model Order {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  items       OrderItem[]
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  items              OrderItem[]
   inventoryMovements InventoryMovement[]
 
   @@index([customerId])
