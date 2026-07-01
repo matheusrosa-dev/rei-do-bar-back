@@ -88,6 +88,11 @@ export class AppException extends HttpException {
       PRODUCT_NOT_FOUND: "ADMIN_INVENTORY_002",
       DUPLICATE_PRODUCT: "ADMIN_INVENTORY_003",
     },
+    adminCoupons: {
+      COUPON_NOT_FOUND: "ADMIN_COUPONS_001",
+      COUPON_ALREADY_EXISTS: "ADMIN_COUPONS_002",
+      INVALID_DATE_RANGE: "ADMIN_COUPONS_003",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

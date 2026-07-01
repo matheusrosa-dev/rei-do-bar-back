@@ -5,6 +5,9 @@ CREATE TYPE "SettingKey" AS ENUM ('DELIVERY_FEE', 'ALERT_MESSAGE', 'MIN_ORDER_VA
 CREATE TYPE "SettingType" AS ENUM ('CURRENCY', 'TEXT', 'PHONE');
 
 -- CreateEnum
+CREATE TYPE "CouponDiscountType" AS ENUM ('FIXED', 'PERCENTAGE');
+
+-- CreateEnum
 CREATE TYPE "PaymentType" AS ENUM ('CASH', 'CARD', 'PIX');
 
 -- CreateEnum
@@ -198,6 +201,24 @@ CREATE TABLE "order_items" (
 );
 
 -- CreateTable
+CREATE TABLE "coupons" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "discount_type" "CouponDiscountType" NOT NULL,
+    "discount_value" INTEGER NOT NULL,
+    "min_order_value" INTEGER NOT NULL,
+    "starts_at" TIMESTAMP(3) NOT NULL,
+    "ends_at" TIMESTAMP(3),
+    "usage_limit" INTEGER,
+    "usage_count" INTEGER NOT NULL DEFAULT 0,
+    "is_active" BOOLEAN NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "coupons_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "settings" (
     "id" TEXT NOT NULL,
     "key" "SettingKey" NOT NULL,
@@ -266,6 +287,9 @@ CREATE INDEX "orders_customer_id_idx" ON "orders"("customer_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "order_items_order_id_product_id_key" ON "order_items"("order_id", "product_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "coupons_code_key" ON "coupons"("code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "settings_key_key" ON "settings"("key");

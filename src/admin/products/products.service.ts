@@ -47,7 +47,7 @@ export class AdminProductsService {
     };
 
     const orderBy: ProductOrderByWithRelationInput = {
-      ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection }),
+      ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection ?? "desc" }),
       ...(!dto.sortKey && { createdAt: "desc" }),
     };
 

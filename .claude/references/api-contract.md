@@ -86,6 +86,9 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminInventory | `INSUFFICIENT_STOCK` | `ADMIN_INVENTORY_001` |
 | adminInventory | `PRODUCT_NOT_FOUND` | `ADMIN_INVENTORY_002` |
 | adminInventory | `DUPLICATE_PRODUCT` | `ADMIN_INVENTORY_003` |
+| adminCoupons | `COUPON_NOT_FOUND` | `ADMIN_COUPONS_001` |
+| adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
+| adminCoupons | `INVALID_DATE_RANGE` | `ADMIN_COUPONS_003` |
 
 ---
 
