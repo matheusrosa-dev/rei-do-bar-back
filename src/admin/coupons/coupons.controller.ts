@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
@@ -15,6 +16,8 @@ import {
   DeleteCouponDto,
   FindAllCouponsDto,
   ToggleStatusCouponDto,
+  UpdateCouponBodyDto,
+  UpdateCouponParamsDto,
 } from "./dtos";
 
 @Controller("admin/coupons")
@@ -30,6 +33,14 @@ export class AdminCouponsController {
   @Post()
   createCoupon(@Body() dto: CreateCouponDto) {
     return this.couponsService.createCoupon(dto);
+  }
+
+  @Put(":couponId")
+  updateCoupon(
+    @Param() { couponId }: UpdateCouponParamsDto,
+    @Body() bodyDto: UpdateCouponBodyDto,
+  ) {
+    return this.couponsService.updateCoupon(couponId, bodyDto);
   }
 
   @Patch(":couponId/activate")

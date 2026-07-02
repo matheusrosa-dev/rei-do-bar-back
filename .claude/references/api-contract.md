@@ -89,6 +89,8 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCoupons | `COUPON_NOT_FOUND` | `ADMIN_COUPONS_001` |
 | adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
 | adminCoupons | `INVALID_DATE_RANGE` | `ADMIN_COUPONS_003` |
+| adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |
+| adminCoupons | `INVALID_USAGE_LIMIT` | `ADMIN_COUPONS_005` |
 
 ---
 
