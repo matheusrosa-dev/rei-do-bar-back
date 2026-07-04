@@ -27,6 +27,7 @@ model Customer {
   orders        Order[]
   refreshTokens RefreshToken[]
   pushTokens    PushToken[]
+  couponUsages  CouponUsage[]
 
   @@map("customers")
 }
@@ -243,12 +244,27 @@ model Coupon {
   startsAt      DateTime           @map("starts_at")
   endsAt        DateTime?          @map("ends_at")
   usageLimit    Int?               @map("usage_limit")
-  usageCount    Int                @default(0) @map("usage_count")
   isActive      Boolean            @map("is_active")
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
+  usages CouponUsage[]
+
   @@map("coupons")
+}
+
+model CouponUsage {
+  id         String   @id @default(uuid())
+  couponId   String   @map("coupon_id")
+  customerId String   @map("customer_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@unique([couponId, customerId])
+  @@index([customerId])
+  @@map("coupon_usages")
 }
 
 model Setting {

@@ -8,6 +8,7 @@ substituir placeholders nos arquivos lgpd
 fazer cnpj
 adicionar as settings
 remover log de endpoints chamados
+gerar migration unica de init
 
 Importante:
 adicionar logs para alterações em produtos e categorias

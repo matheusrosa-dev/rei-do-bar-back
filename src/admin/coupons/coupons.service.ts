@@ -24,9 +24,11 @@ export class AdminCouponsService {
 
     const startOfToday = getStartOfDay();
 
+    const usageLimitReachedIds = await this.getUsageLimitReachedCouponIds();
+
     const expired: Prisma.CouponWhereInput = { endsAt: { lt: startOfToday } };
     const usageLimitReached: Prisma.CouponWhereInput = {
-      usageLimit: { lte: this.prisma.coupon.fields.usageCount },
+      id: { in: usageLimitReachedIds },
     };
 
     const where: Prisma.CouponWhereInput = {
@@ -41,20 +43,19 @@ export class AdminCouponsService {
       ...(dto.isFinished === false && {
         AND: [
           { OR: [{ endsAt: null }, { endsAt: { gte: startOfToday } }] },
-          {
-            OR: [
-              { usageLimit: null },
-              { usageLimit: { gt: this.prisma.coupon.fields.usageCount } },
-            ],
-          },
+          { id: { notIn: usageLimitReachedIds } },
         ],
       }),
     };
 
-    const orderBy: CouponOrderByWithRelationInput = {
-      ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection ?? "desc" }),
-      ...(!dto.sortKey && { startsAt: "asc" }),
-    };
+    const sortDirection = dto.sortDirection ?? "desc";
+
+    let orderBy: CouponOrderByWithRelationInput = { startsAt: "asc" };
+    if (dto.sortKey === "usageCount") {
+      orderBy = { usages: { _count: sortDirection } };
+    } else if (dto.sortKey) {
+      orderBy = { [dto.sortKey]: sortDirection };
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.coupon.findMany({
@@ -62,18 +63,19 @@ export class AdminCouponsService {
         skip,
         take: limit,
         orderBy,
+        include: { _count: { select: { usages: true } } },
       }),
       this.prisma.coupon.count({ where }),
     ]);
 
     return {
-      items: items.map((coupon) => ({
+      items: items.map(({ _count, ...coupon }) => ({
         ...coupon,
+        usageCount: _count.usages,
         hasStarted: coupon.startsAt <= startOfToday,
         isFinished:
           (coupon.endsAt !== null && coupon.endsAt < startOfToday) ||
-          (coupon.usageLimit !== null &&
-            coupon.usageCount >= coupon.usageLimit),
+          usageLimitReachedIds.includes(coupon.id),
       })),
       meta: {
         total,
@@ -82,6 +84,19 @@ export class AdminCouponsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  private async getUsageLimitReachedCouponIds(): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT c.id
+      FROM coupons c
+      JOIN coupon_usages cu ON cu.coupon_id = c.id
+      WHERE c.usage_limit IS NOT NULL
+      GROUP BY c.id, c.usage_limit
+      HAVING COUNT(cu.id) >= c.usage_limit
+    `;
+
+    return rows.map((row) => row.id);
   }
 
   async createCoupon(dto: CreateCouponDto) {
@@ -137,7 +152,7 @@ export class AdminCouponsService {
     }
 
     this.assertValidDateRange(dto.startsAt, dto.endsAt);
-    this.assertUsageLimitAboveUsage(existing, dto.usageLimit);
+    await this.assertUsageLimitAboveUsage(couponId, dto.usageLimit);
 
     return this.updateCouponOrThrow(couponId, {
       discountType: dto.discountType,
@@ -230,15 +245,17 @@ export class AdminCouponsService {
     }
   }
 
-  private assertUsageLimitAboveUsage(
-    existing: CouponModel,
+  private async assertUsageLimitAboveUsage(
+    couponId: string,
     usageLimit?: number | null,
   ) {
-    if (
-      usageLimit !== undefined &&
-      usageLimit !== null &&
-      usageLimit <= existing.usageCount
-    ) {
+    if (!usageLimit) return;
+
+    const usageCount = await this.prisma.couponUsage.count({
+      where: { couponId },
+    });
+
+    if (usageLimit <= usageCount) {
       throw new AppException(
         AppException.errorCodes.adminCoupons.INVALID_USAGE_LIMIT,
         "O limite de uso deve ser maior que a quantidade já utilizada do cupom.",
