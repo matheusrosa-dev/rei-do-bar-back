@@ -8,6 +8,7 @@ The order lifecycle for authenticated customers: creating an order from the curr
 
 - Cart management → the cart module.
 - Admin order listing → the admin orders sub-module.
+- Coupon redemption rules (availability, discount calculation, usage reads) → the coupons module; this module imports it and only orchestrates revalidation, usage recording, and reversal.
 
 ---
 
@@ -19,17 +20,19 @@ The entire controller is protected by the access-token guard. The authenticated 
 
 ## Create Order Flow
 
-**Pre-transaction validations** (fail fast, before any write): the store must be available for orders — if a store-closed setting is active (on-break or outside business hours), checkout is rejected with that setting's configured message; the customer must exist and be active; the customer must have a name set; the cart must be non-empty; every cart item must be active and have sufficient stock; the customer must have a main address; the order total (cart subtotal + delivery fee) must meet the configured minimum order value (skipped when the setting is absent or zero). The settings and delivery fee are fetched before entering the transaction.
+**Pre-transaction validations** (fail fast, before any write): the store must be available for orders — if a store-closed setting is active (on-break or outside business hours), checkout is rejected with that setting's configured message; the customer must exist and be active; the customer must have a name set; the cart must be non-empty; every cart item must be active and have sufficient stock; if the cart carries a coupon it is revalidated before any write — availability (delegated to the coupons service), the cart subtotal against the coupon's own minimum order value, the global usage limit, and whether the customer has already used it — and the discount is computed from the subtotal; the order total minus the coupon discount (cart subtotal plus delivery fee, discount subtracted) must meet the configured minimum order value (skipped when the setting is absent or zero); the customer must have a main address. The settings and delivery fee are fetched before entering the transaction.
 
-**Inside the transaction** a row-level lock is taken on the customer row (`SELECT ... FOR UPDATE`) to serialize concurrent order creation for the same customer. After the lock: reject if a non-terminal order already exists; create the order with item snapshots (name, price, image captured at purchase time); decrement stock atomically with a guarded conditional update; and clear the cart.
+**Inside the transaction** a row-level lock is taken on the customer row (`SELECT ... FOR UPDATE`) to serialize concurrent order creation for the same customer. After the lock: reject if a non-terminal order already exists; create the order with item snapshots (name, price, image captured at purchase time); decrement stock atomically with a guarded conditional update; when a coupon is applied, record its usage — for coupons with a global usage limit a row-level lock is first taken on the coupon row and usages are re-counted under the lock so concurrent customers cannot exceed it, and the unique (coupon, customer) constraint converts a duplicate-usage race into the domain already-used error; and clear the cart, also detaching the consumed coupon from it.
 
 **Address snapshot**: the delivery address is stored as a formatted immutable string at creation time, so later changes to the customer's addresses never affect past orders.
+
+**Coupon snapshot**: the applied coupon's code and the computed discount are stored on the order at creation time, so later coupon changes or deletion never affect past orders. The order also keeps a nullable reference to the coupon row (nulled if the coupon is deleted), used to revert the usage exactly on cancellation.
 
 ---
 
 ## Cancel Order Flow
 
-Fetch the order scoped by customer id (ownership check), then in a transaction conditionally transition only cancellable statuses to cancelled (a zero-row result means the order has progressed past a cancellable state) and restore stock for each item.
+Fetch the order scoped by customer id (ownership check), then in a transaction conditionally transition only cancellable statuses to cancelled (a zero-row result means the order has progressed past a cancellable state) and restore stock for each item. Inside the same transaction any coupon usage is reverted — the customer's usage row is deleted through the coupon reference snapshotted on the order, making the coupon redeemable again (skipped if the coupon was deleted, since its usages cascade away with it).
 
 ---
 
@@ -41,7 +44,7 @@ Order creation and cancellation emit lifecycle events through the event emitter 
 
 ## Response DTO
 
-Each order carries DB fields plus computed totals (subtotal from item price × quantity, total adding the delivery fee) and a nested item collection.
+Each order carries DB fields plus computed totals (subtotal from item price × quantity; total as subtotal plus delivery fee minus the snapshotted discount), the applied coupon code and discount, and a nested item collection.
 
 ---
 
@@ -50,8 +53,8 @@ Each order carries DB fields plus computed totals (subtotal from item price × q
 | Rule | Detail |
 |---|---|
 | Validate before writing | All cheap validations run before the transaction |
-| Serialize concurrency | Per-customer order creation is serialized with a row-level lock |
-| Snapshots | Item details and the address are snapshotted at purchase time and never back-filled |
+| Serialize concurrency | Per-customer order creation is serialized with a row-level lock on the customer; globally-limited coupon redemption with a row-level lock on the coupon |
+| Snapshots | Item details, the address, and the applied coupon (code + discount) are snapshotted at purchase time and never back-filled |
 | Atomic stock | Stock decrement/restore happens inside the order transaction with guarded updates |
 | Decouple side effects | Ledger and notifications are driven by emitted lifecycle events, not direct calls |
 | Errors | Thrown as `AppException`; codes are listed in the API contract reference |

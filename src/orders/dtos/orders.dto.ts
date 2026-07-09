@@ -24,6 +24,12 @@ export class OrdersDto {
   subtotal!: number;
 
   @Expose()
+  discount!: number;
+
+  @Expose()
+  couponCode!: string | null;
+
+  @Expose()
   total!: number;
 
   @Expose()

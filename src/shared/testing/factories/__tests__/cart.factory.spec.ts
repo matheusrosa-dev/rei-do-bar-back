@@ -1,5 +1,6 @@
 import { ProductFactory } from "../product.factory";
 import { CartItemFactory } from "../cart-item.factory";
+import { CouponFactory } from "../coupon.factory";
 import { CartFactory } from "../cart.factory";
 
 describe("CartFactory", () => {
@@ -19,14 +20,21 @@ describe("CartFactory", () => {
 
       expect(cart.id).toBeDefined();
       expect(cart.customerId).toBeDefined();
+      expect(cart.anonymousCustomerId).toBeDefined();
+      expect(cart.couponId).toBeNull();
+      expect(cart.coupon).toBeNull();
       expect(cart.createdAt).toBeInstanceOf(Date);
       expect(cart.updatedAt).toBeInstanceOf(Date);
     });
 
     it("should use provided values when all props are given", () => {
+      const coupon = CouponFactory.createOne();
       const props = {
         id: "cart-id",
         customerId: "customer-id",
+        anonymousCustomerId: "anonymous-customer-id",
+        couponId: "cart-coupon-id",
+        coupon,
         items,
       };
 
@@ -34,7 +42,30 @@ describe("CartFactory", () => {
 
       expect(cart.id).toBe(props.id);
       expect(cart.customerId).toBe(props.customerId);
+      expect(cart.anonymousCustomerId).toBe(props.anonymousCustomerId);
+      expect(cart.couponId).toBe(props.couponId);
+      expect(cart.coupon).toBe(coupon);
       expect(cart.items).toBe(props.items);
+    });
+
+    it("should derive couponId from the coupon prop when couponId is not provided", () => {
+      const coupon = CouponFactory.createOne();
+
+      const cart = CartFactory.createOne({ items, coupon });
+
+      expect(cart.couponId).toBe(coupon.id);
+    });
+
+    it("should use the provided couponId even when it differs from the coupon prop", () => {
+      const coupon = CouponFactory.createOne();
+
+      const cart = CartFactory.createOne({
+        items,
+        coupon,
+        couponId: "explicit-coupon-id",
+      });
+
+      expect(cart.couponId).toBe("explicit-coupon-id");
     });
   });
 

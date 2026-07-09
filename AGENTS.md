@@ -88,6 +88,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
+│   ├── coupons/                 # Coupon redemption rules: availability, discount calc, usage limits (no public controller)
 │   ├── customers/               # Internal customer service (no public controller)
 │   ├── me/                      # Authenticated customer self-management
 │   ├── orders/                  # Order creation, listing, and cancellation (authenticated customers)

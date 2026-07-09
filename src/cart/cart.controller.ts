@@ -2,6 +2,7 @@ import { Controller, Delete, Get, Param, Post, Put } from "@nestjs/common";
 import { CartService } from "./cart.service";
 import {
   AddToCartDto,
+  AssignCouponToCartDto,
   CartDto,
   DecrementProductQuantityDto,
   IncrementProductQuantityDto,
@@ -27,6 +28,19 @@ export class CartController {
     @Param() dto: AddToCartDto,
   ) {
     return this.cartService.addToCart(session, dto);
+  }
+
+  @Post("coupon/:couponCode")
+  async assignCouponToCart(
+    @CurrentSession() session: ICurrentSession,
+    @Param() dto: AssignCouponToCartDto,
+  ) {
+    return this.cartService.assignCouponToCart(session, dto);
+  }
+
+  @Delete("coupon")
+  async removeCouponFromCart(@CurrentSession() session: ICurrentSession) {
+    return this.cartService.removeCouponFromCart(session);
   }
 
   @Put("product/:productId/increment")

@@ -16,3 +16,5 @@ adicionar cupom
 implementar sistema de XP
 fazer app de entregas
 corrigir o menu na barra de navegação no android
+implementar cupom de bem vindo/primeiro pedido nas settings
+notificacoes internas no app para mostrar cupons disponiveis

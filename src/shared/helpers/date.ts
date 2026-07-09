@@ -1,11 +1,15 @@
 import { DateTime } from "luxon";
 
-export function getStartOfDay(date = new Date()) {
-  return DateTime.fromJSDate(date).startOf("day").toJSDate();
+export function getStartOfTodaySaoPaulo() {
+  return DateTime.fromJSDate(new Date(), { zone: "America/Sao_Paulo" })
+    .startOf("day")
+    .toJSDate();
 }
 
-export function fixStartsAtTimeZone(date: Date) {
-  const { offset } = DateTime.fromJSDate(date);
+export function getNowSaoPaulo() {
+  return DateTime.now().toJSDate();
+}
 
-  return DateTime.fromJSDate(date).minus({ minutes: offset }).toJSDate();
+export function getEndOfDate(date: Date) {
+  return DateTime.fromJSDate(date).endOf("day").toJSDate();
 }

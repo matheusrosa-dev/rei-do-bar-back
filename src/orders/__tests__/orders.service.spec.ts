@@ -7,6 +7,7 @@ import {
   OrderStatus,
   PaymentType,
 } from "@shared/database/prisma/generated/enums";
+import { Prisma } from "@shared/database/prisma/generated/client";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { OrderCancelledEvent, OrderCreatedEvent } from "@shared/events/order";
 import { AppException } from "@shared/exceptions/app.exception";
@@ -14,11 +15,13 @@ import {
   AddressFactory,
   CartFactory,
   CartItemFactory,
+  CouponFactory,
   CustomerFactory,
   ProductFactory,
 } from "@shared/testing/factories";
-import { prismaMock } from "@shared/testing/mocks";
+import { couponsServiceMock, prismaMock } from "@shared/testing/mocks";
 import { OrdersService } from "../orders.service";
+import { CouponsService } from "../../coupons/coupons.service";
 import { SettingsService } from "../../settings/settings.service";
 
 const customerId = "customer-uuid";
@@ -53,10 +56,16 @@ describe("OrdersService", () => {
         SettingsService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
+        { provide: CouponsService, useValue: couponsServiceMock },
       ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
+
+    couponsServiceMock.isCouponUnavailable.mockReturnValue(false);
+    couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(false);
+    couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(false);
+    couponsServiceMock.calculateDiscount.mockReturnValue(0);
   });
 
   it("should be defined", () => {
@@ -108,6 +117,9 @@ describe("OrdersService", () => {
         status: OrderStatus.PENDING,
         statusReason: null,
         deliveryFee: 200,
+        couponId: null,
+        couponCode: null,
+        discount: 0,
         items: [
           { price: 10, quantity: 2, productId: product1.id },
           { price: 20, quantity: 3, productId: product2.id },
@@ -122,7 +134,9 @@ describe("OrdersService", () => {
         where: { id: customerId },
         include: {
           addresses: true,
-          cart: { include: { items: { include: { product: true } } } },
+          cart: {
+            include: { items: { include: { product: true } }, coupon: true },
+          },
         },
       });
       expect(prismaMock.order.create).toHaveBeenCalledWith({
@@ -131,6 +145,9 @@ describe("OrdersService", () => {
           address: "Rua A, 100 - Centro/12345678",
           status: OrderStatus.PENDING,
           deliveryFee: 200,
+          couponId: null,
+          couponCode: null,
+          discount: 0,
           paymentType: PaymentType.CASH,
           items: {
             createMany: {
@@ -166,8 +183,10 @@ describe("OrdersService", () => {
         where: { id: product2.id, stockQuantity: { gte: 3 } },
         data: { stockQuantity: { decrement: 3 } },
       });
-      expect(prismaMock.cartItem.deleteMany).toHaveBeenCalledWith({
-        where: { cartId: "cart-uuid" },
+      expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
+      expect(prismaMock.cart.update).toHaveBeenCalledWith({
+        where: { id: "cart-uuid" },
+        data: { couponId: null, items: { deleteMany: {} } },
       });
       expect(assertCustomerSpy).toHaveBeenCalled();
       expect(assertItemsSpy).toHaveBeenCalled();
@@ -343,6 +362,316 @@ describe("OrdersService", () => {
       expect(prismaMock.order.create).not.toHaveBeenCalled();
     });
 
+    describe("with a coupon applied", () => {
+      const buildCustomerWithCoupon = (items: any[], coupon: any) =>
+        buildCustomer(items, {
+          cart: CartFactory.createOne({ id: "cart-uuid", items, coupon }),
+        });
+
+      it("should apply the discount, snapshot the coupon on the order, record the usage and clear the cart's coupon", async () => {
+        const product = ProductFactory.createOne({
+          price: 1000,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+        const coupon = CouponFactory.createOne({
+          id: "coupon-uuid",
+          code: "PROMO10",
+          minOrderValue: 0,
+        });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([
+          { key: SettingKey.DELIVERY_FEE, value: "200", isActive: true },
+        ]);
+        couponsServiceMock.calculateDiscount.mockReturnValue(300);
+
+        const createdOrder = {
+          id: "order-uuid",
+          customerId,
+          orderNumber: 1000,
+          status: OrderStatus.PENDING,
+          statusReason: null,
+          deliveryFee: 200,
+          couponId: coupon.id,
+          couponCode: coupon.code,
+          discount: 300,
+          items: [{ price: 1000, quantity: 2, productId: product.id }],
+        };
+        prismaMock.order.create.mockResolvedValue(createdOrder);
+        prismaMock.order.findMany.mockResolvedValue([createdOrder]);
+
+        const result = await service.createOrder(customerId, dto);
+
+        expect(couponsServiceMock.calculateDiscount).toHaveBeenCalledWith(
+          coupon,
+          2000,
+        );
+        expect(prismaMock.order.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              couponId: coupon.id,
+              couponCode: coupon.code,
+              discount: 300,
+            }),
+          }),
+        );
+        expect(prismaMock.couponUsage.create).toHaveBeenCalledWith({
+          data: { couponId: coupon.id, customerId },
+        });
+        expect(prismaMock.cart.update).toHaveBeenCalledWith({
+          where: { id: "cart-uuid" },
+          data: { couponId: null, items: { deleteMany: {} } },
+        });
+        expect(result).toEqual([
+          { ...createdOrder, subtotal: 2000, total: 1900 },
+        ]);
+      });
+
+      it("should throw COUPON_UNAVAILABLE before creating the order when the coupon is not currently redeemable", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_UNAVAILABLE,
+          message: "Cupom indisponível",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_MIN_ORDER_NOT_MET when the cart subtotal is below the coupon's minimum", async () => {
+        const product = ProductFactory.createOne({
+          price: 100,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 1 })];
+        const coupon = CouponFactory.createOne({ minOrderValue: 10000 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_MIN_ORDER_NOT_MET,
+          message: "O valor do carrinho não atinge o mínimo para este cupom",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_USAGE_LIMIT_REACHED when the pre-check reports the global usage limit was reached", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({
+          minOrderValue: 0,
+          usageLimit: 5,
+        });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(true);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
+          message: "Este cupom atingiu o limite de uso",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_ALREADY_USED when the pre-check reports the customer already redeemed the coupon", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(true);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_ALREADY_USED,
+          message: "Você já utilizou este cupom",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw BELOW_MIN_ORDER_VALUE when the coupon discount drops the total below the minimum", async () => {
+        const product = ProductFactory.createOne({
+          price: 2000,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 1 })];
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([
+          { key: SettingKey.DELIVERY_FEE, value: "0", isActive: true },
+          { key: SettingKey.MIN_ORDER_VALUE, value: "1900", isActive: true },
+        ]);
+        // subtotal 2000 alone would meet the 1900 minimum, but the coupon discount drops the total to 1500
+        couponsServiceMock.calculateDiscount.mockReturnValue(500);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_USAGE_LIMIT_REACHED when a concurrent request exhausts the limit inside the transaction", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({
+          minOrderValue: 0,
+          usageLimit: 1,
+        });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        // the pre-check passed, but a concurrent order consumed the last slot before the row lock
+        prismaMock.couponUsage.count.mockResolvedValue(1);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
+          message: "Este cupom atingiu o limite de uso",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).toHaveBeenCalled();
+        expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
+        expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_ALREADY_USED when couponUsage.create hits the unique constraint race", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({
+          minOrderValue: 0,
+          usageLimit: null,
+        });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.couponUsage.create.mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+            code: "P2002",
+            clientVersion: "test",
+          }),
+        );
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_ALREADY_USED,
+          message: "Você já utilizou este cupom",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).toHaveBeenCalled();
+        expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      });
+
+      it("should rethrow an unexpected error from couponUsage.create without converting it", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({
+          minOrderValue: 0,
+          usageLimit: null,
+        });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        const unexpectedError = new Error("connection lost");
+        prismaMock.couponUsage.create.mockRejectedValue(unexpectedError);
+
+        await expect(service.createOrder(customerId, dto)).rejects.toBe(
+          unexpectedError,
+        );
+        expect(prismaMock.order.create).toHaveBeenCalled();
+      });
+    });
+
     describe("stockQuantity validation", () => {
       beforeEach(() => {
         prismaMock.order.count.mockResolvedValue(0);
@@ -446,6 +775,7 @@ describe("OrdersService", () => {
         id: "order-uuid",
         orderNumber: 1000,
         deliveryFee: 200,
+        discount: 0,
         items: [
           { price: 10, quantity: 2 },
           { price: 20, quantity: 1 },
@@ -487,6 +817,8 @@ describe("OrdersService", () => {
         orderNumber: 1000,
         status: OrderStatus.PENDING,
         statusReason: null,
+        couponId: null,
+        discount: 0,
         items: [
           { productId: "product-1", price: 10, quantity: 2 },
           { productId: "product-2", price: 20, quantity: 3 },
@@ -518,6 +850,7 @@ describe("OrdersService", () => {
         where: { id: "product-2" },
         data: { stockQuantity: { increment: 3 } },
       });
+      expect(prismaMock.couponUsage.deleteMany).not.toHaveBeenCalled();
       expect(prismaMock.order.findMany).toHaveBeenCalledWith({
         where: { customerId },
         include: { items: true },
@@ -532,6 +865,28 @@ describe("OrdersService", () => {
         }),
       );
       expect(result).toEqual([]);
+    });
+
+    it("should revert the coupon usage when the cancelled order has an applied coupon", async () => {
+      const order = {
+        id: "order-uuid",
+        customerId,
+        orderNumber: 1000,
+        status: OrderStatus.PENDING,
+        statusReason: null,
+        couponId: "coupon-uuid",
+        discount: 500,
+        items: [{ productId: "product-1", price: 10, quantity: 2 }],
+      };
+      prismaMock.order.findFirst.mockResolvedValue(order);
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      await service.cancelOrder(customerId, dto);
+
+      expect(prismaMock.couponUsage.deleteMany).toHaveBeenCalledWith({
+        where: { couponId: "coupon-uuid", customerId },
+      });
     });
 
     it("should throw ORDER_NOT_FOUND when the order does not exist", async () => {
@@ -569,19 +924,12 @@ describe("OrdersService", () => {
   });
 
   describe("assertOrderMeetsMinValue (private)", () => {
-    const buildItems = () => [
-      CartItemFactory.createOne({
-        product: ProductFactory.createOne({ price: 1000, stockQuantity: 20 }),
-        quantity: 2,
-      }),
-    ];
-
     it("should not throw when the minimum value setting is absent or zero", () => {
       expect(() =>
-        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {}),
+        (service as any).assertOrderMeetsMinValue(1000, 0, {}),
       ).not.toThrow();
       expect(() =>
-        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {
+        (service as any).assertOrderMeetsMinValue(1000, 0, {
           MIN_ORDER_VALUE: "0",
         }),
       ).not.toThrow();
@@ -589,7 +937,7 @@ describe("OrdersService", () => {
 
     it("should not throw when the subtotal alone meets the minimum", () => {
       expect(() =>
-        (service as any).assertOrderMeetsMinValue(buildItems(), 0, {
+        (service as any).assertOrderMeetsMinValue(2000, 0, {
           MIN_ORDER_VALUE: "2000",
         }),
       ).not.toThrow();
@@ -597,16 +945,27 @@ describe("OrdersService", () => {
 
     it("should not throw when the delivery fee pushes the total to the minimum", () => {
       expect(() =>
-        (service as any).assertOrderMeetsMinValue(buildItems(), 500, {
+        (service as any).assertOrderMeetsMinValue(2000, 0, {
           MIN_ORDER_VALUE: "2500",
+          DELIVERY_FEE: "500",
+        }),
+      ).not.toThrow();
+    });
+
+    it("should not throw when subtotal and delivery fee still cover the minimum after the discount", () => {
+      expect(() =>
+        (service as any).assertOrderMeetsMinValue(2500, 500, {
+          MIN_ORDER_VALUE: "2200",
+          DELIVERY_FEE: "200",
         }),
       ).not.toThrow();
     });
 
     it("should throw BELOW_MIN_ORDER_VALUE when subtotal plus delivery fee is below the minimum", () => {
       expect(() =>
-        (service as any).assertOrderMeetsMinValue(buildItems(), 500, {
+        (service as any).assertOrderMeetsMinValue(1000, 0, {
           MIN_ORDER_VALUE: "3000",
+          DELIVERY_FEE: "200",
         }),
       ).toThrow(
         expect.objectContaining({
@@ -614,6 +973,84 @@ describe("OrdersService", () => {
           message: "O valor mínimo para realizar um pedido é de R$ 30,00.",
           httpStatus: AppException.HttpStatus.BAD_REQUEST,
         }),
+      );
+    });
+
+    it("should throw BELOW_MIN_ORDER_VALUE when the coupon discount drops the total below the minimum", () => {
+      expect(() =>
+        (service as any).assertOrderMeetsMinValue(2000, 500, {
+          MIN_ORDER_VALUE: "2000",
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          code: AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
+        }),
+      );
+    });
+  });
+
+  describe("assertCouponIsRedeemable (private)", () => {
+    const coupon = CouponFactory.createOne({ minOrderValue: 1000 });
+
+    it("should not throw when the coupon is available, the subtotal meets the minimum, and it is unused", async () => {
+      await expect(
+        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
+      ).resolves.toBeUndefined();
+    });
+
+    it("should throw COUPON_UNAVAILABLE when the coupon is not currently redeemable", async () => {
+      couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
+
+      await expect(
+        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.COUPON_UNAVAILABLE,
+        message: "Cupom indisponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw COUPON_MIN_ORDER_NOT_MET when the subtotal is below the coupon's minOrderValue", async () => {
+      await expect(
+        (service as any).assertCouponIsRedeemable(coupon, 999, customerId),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.COUPON_MIN_ORDER_NOT_MET,
+        message: "O valor do carrinho não atinge o mínimo para este cupom",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw COUPON_USAGE_LIMIT_REACHED when the coupon's global usage limit was reached", async () => {
+      couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(true);
+
+      await expect(
+        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
+        message: "Este cupom atingiu o limite de uso",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(couponsServiceMock.hasReachedUsageLimit).toHaveBeenCalledWith(
+        coupon.id,
+        coupon.usageLimit,
+      );
+    });
+
+    it("should throw COUPON_ALREADY_USED when the customer already redeemed this coupon", async () => {
+      couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(true);
+
+      await expect(
+        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.COUPON_ALREADY_USED,
+        message: "Você já utilizou este cupom",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(couponsServiceMock.hasCustomerUsedCoupon).toHaveBeenCalledWith(
+        coupon.id,
+        customerId,
       );
     });
   });
@@ -624,6 +1061,7 @@ describe("OrdersService", () => {
         id: "order-uuid",
         orderNumber: 1000,
         deliveryFee: 200,
+        discount: 0,
         items: [
           { price: 10, quantity: 2 },
           { price: 20, quantity: 1 },
@@ -639,6 +1077,22 @@ describe("OrdersService", () => {
         orderBy: { createdAt: "desc" },
       });
       expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
+    });
+
+    it("should subtract the applied coupon discount from the total", async () => {
+      const order = {
+        id: "order-uuid",
+        orderNumber: 1000,
+        deliveryFee: 200,
+        discount: 500,
+        couponCode: "PROMO10",
+        items: [{ price: 300, quantity: 2 }],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await (service as any).findAndFormatOrders(customerId);
+
+      expect(result).toEqual([{ ...order, subtotal: 600, total: 300 }]);
     });
 
     it("should return an empty array when the customer has no orders", async () => {

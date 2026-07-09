@@ -6,7 +6,7 @@ import {
   CouponOrderByWithRelationInput,
 } from "@shared/database/prisma/generated/models";
 import { AppException } from "@shared/exceptions/app.exception";
-import { fixStartsAtTimeZone, getStartOfDay } from "@shared/helpers/date";
+import { getNowSaoPaulo } from "@shared/helpers/date";
 import {
   CreateCouponDto,
   FindAllCouponsDto,
@@ -22,11 +22,11 @@ export class AdminCouponsService {
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const startOfToday = getStartOfDay();
+    const now = getNowSaoPaulo();
 
     const usageLimitReachedIds = await this.getUsageLimitReachedCouponIds();
 
-    const expired: Prisma.CouponWhereInput = { endsAt: { lt: startOfToday } };
+    const expired: Prisma.CouponWhereInput = { endsAt: { lt: now } };
     const usageLimitReached: Prisma.CouponWhereInput = {
       id: { in: usageLimitReachedIds },
     };
@@ -37,12 +37,12 @@ export class AdminCouponsService {
         code: { contains: dto.searchTerm, mode: "insensitive" },
       }),
       ...(dto.hasStarted !== undefined && {
-        startsAt: dto.hasStarted ? { lte: startOfToday } : { gt: startOfToday },
+        startsAt: dto.hasStarted ? { lte: now } : { gt: now },
       }),
       ...(dto.isFinished === true && { OR: [expired, usageLimitReached] }),
       ...(dto.isFinished === false && {
         AND: [
-          { OR: [{ endsAt: null }, { endsAt: { gte: startOfToday } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
           { id: { notIn: usageLimitReachedIds } },
         ],
       }),
@@ -72,9 +72,9 @@ export class AdminCouponsService {
       items: items.map(({ _count, ...coupon }) => ({
         ...coupon,
         usageCount: _count.usages,
-        hasStarted: coupon.startsAt <= startOfToday,
+        hasStarted: coupon.startsAt <= now,
         isFinished:
-          (coupon.endsAt !== null && coupon.endsAt < startOfToday) ||
+          (coupon.endsAt !== null && coupon.endsAt <= now) ||
           usageLimitReachedIds.includes(coupon.id),
       })),
       meta: {
@@ -86,25 +86,9 @@ export class AdminCouponsService {
     };
   }
 
-  private async getUsageLimitReachedCouponIds(): Promise<string[]> {
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT c.id
-      FROM coupons c
-      JOIN coupon_usages cu ON cu.coupon_id = c.id
-      WHERE c.usage_limit IS NOT NULL
-      GROUP BY c.id, c.usage_limit
-      HAVING COUNT(cu.id) >= c.usage_limit
-    `;
-
-    return rows.map((row) => row.id);
-  }
-
   async createCoupon(dto: CreateCouponDto) {
-    this.assertValidDateRange(dto.startsAt, dto.endsAt);
-    this.assertStartsAtInFuture(dto.startsAt);
-
     try {
-      const coupon = await this.prisma.coupon.create({
+      return await this.prisma.coupon.create({
         data: {
           code: dto.code,
           discountType: dto.discountType,
@@ -116,8 +100,6 @@ export class AdminCouponsService {
           isActive: false,
         },
       });
-
-      return coupon;
     } catch (error) {
       if (this.isUniqueConstraintViolation(error)) {
         throw new AppException(
@@ -148,11 +130,14 @@ export class AdminCouponsService {
       dto.startsAt.getTime() !== existing.startsAt.getTime();
 
     if (isEditingStartsAt) {
-      this.assertStartsAtEditable(existing, dto.startsAt);
+      this.assertStartsAtEditable(existing);
+
+      this.assertStartsAtInFuture(dto.startsAt);
     }
 
-    this.assertValidDateRange(dto.startsAt, dto.endsAt);
-    await this.assertUsageLimitAboveUsage(couponId, dto.usageLimit);
+    if (dto.usageLimit) {
+      await this.assertUsageLimitAboveUsage(couponId, dto.usageLimit);
+    }
 
     return this.updateCouponOrThrow(couponId, {
       discountType: dto.discountType,
@@ -169,7 +154,30 @@ export class AdminCouponsService {
   }
 
   async deactivateCoupon(couponId: string) {
-    return this.updateCouponOrThrow(couponId, { isActive: false });
+    try {
+      const [coupon] = await this.prisma.$transaction([
+        this.prisma.coupon.update({
+          where: { id: couponId },
+          data: { isActive: false },
+        }),
+        this.prisma.cart.updateMany({
+          where: { couponId },
+          data: { couponId: null },
+        }),
+      ]);
+
+      return coupon;
+    } catch (error) {
+      if (this.isRecordNotFound(error)) {
+        throw new AppException(
+          AppException.errorCodes.adminCoupons.COUPON_NOT_FOUND,
+          "Cupom não encontrado.",
+          AppException.HttpStatus.NOT_FOUND,
+        );
+      }
+
+      throw error;
+    }
   }
 
   async removeCoupon(couponId: string) {
@@ -218,25 +226,35 @@ export class AdminCouponsService {
     }
   }
 
-  private assertStartsAtEditable(existing: CouponModel, newStartsAt: Date) {
-    const startOfToday = getStartOfDay();
+  private async getUsageLimitReachedCouponIds(): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT c.id
+      FROM coupons c
+      JOIN coupon_usages cu ON cu.coupon_id = c.id
+      WHERE c.usage_limit IS NOT NULL
+      GROUP BY c.id, c.usage_limit
+      HAVING COUNT(cu.id) >= c.usage_limit
+    `;
 
-    if (existing.startsAt <= startOfToday) {
+    return rows.map((row) => row.id);
+  }
+
+  private assertStartsAtEditable(existing: CouponModel) {
+    const now = getNowSaoPaulo();
+
+    if (existing.startsAt <= now) {
       throw new AppException(
         AppException.errorCodes.adminCoupons.COUPON_START_NOT_EDITABLE,
         "Não é possível alterar a data de início de um cupom que já foi iniciado.",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
-
-    this.assertStartsAtInFuture(newStartsAt);
   }
 
   private assertStartsAtInFuture(startsAt: Date) {
-    const startOfToday = getStartOfDay();
-    const fixedStartsAt = fixStartsAtTimeZone(startsAt);
+    const now = getNowSaoPaulo();
 
-    if (fixedStartsAt < startOfToday) {
+    if (startsAt <= now) {
       throw new AppException(
         AppException.errorCodes.adminCoupons.COUPON_START_NOT_EDITABLE,
         "A data de início deve ser uma data futura.",
@@ -247,10 +265,8 @@ export class AdminCouponsService {
 
   private async assertUsageLimitAboveUsage(
     couponId: string,
-    usageLimit?: number | null,
+    usageLimit: number,
   ) {
-    if (!usageLimit) return;
-
     const usageCount = await this.prisma.couponUsage.count({
       where: { couponId },
     });
@@ -259,16 +275,6 @@ export class AdminCouponsService {
       throw new AppException(
         AppException.errorCodes.adminCoupons.INVALID_USAGE_LIMIT,
         "O limite de uso deve ser maior que a quantidade já utilizada do cupom.",
-        AppException.HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  private assertValidDateRange(startsAt: Date, endsAt?: Date | null) {
-    if (endsAt && endsAt < startsAt) {
-      throw new AppException(
-        AppException.errorCodes.adminCoupons.INVALID_DATE_RANGE,
-        "A data de término deve ser posterior à data de início.",
         AppException.HttpStatus.BAD_REQUEST,
       );
     }

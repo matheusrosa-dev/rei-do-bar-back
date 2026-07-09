@@ -16,9 +16,24 @@ export const prismaMock = {
   },
   cart: {
     update: jest.fn(),
+    updateMany: jest.fn(),
     deleteMany: jest.fn(),
   },
   cartItem: {
+    deleteMany: jest.fn(),
+  },
+  coupon: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+  couponUsage: {
+    count: jest.fn(),
+    create: jest.fn(),
+    findUnique: jest.fn(),
     deleteMany: jest.fn(),
   },
   order: {
@@ -90,4 +105,11 @@ export const productsServiceMock = {
 
 export const settingsServiceMock = {
   findAll: jest.fn(),
+};
+
+export const couponsServiceMock = {
+  isCouponUnavailable: jest.fn(),
+  calculateDiscount: jest.fn(),
+  hasReachedUsageLimit: jest.fn(),
+  hasCustomerUsedCoupon: jest.fn(),
 };

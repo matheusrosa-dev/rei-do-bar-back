@@ -40,6 +40,14 @@ Codes are namespaced by domain on the application exception's static registry. A
 | cart | `PRODUCT_OUT_OF_STOCK` | `CART_006` |
 | cart | `CUSTOMER_NOT_FOUND` | `CART_007` |
 | cart | `PRODUCT_INACTIVE` | `CART_008` |
+| cart | `INVALID_SESSION` | `CART_009` |
+| cart | `COUPON_NOT_FOUND` | `CART_010` |
+| cart | `COUPON_UNAVAILABLE` | `CART_011` |
+| cart | `COUPON_MIN_ORDER_NOT_MET` | `CART_012` |
+| cart | `COUPON_USAGE_LIMIT_REACHED` | `CART_013` |
+| cart | `COUPON_ALREADY_USED` | `CART_014` |
+| cart | `COUPON_REQUIRES_AUTH` | `CART_015` |
+| cart | `COUPON_NOT_ASSIGNED` | `CART_016` |
 | auth | `ANONYMOUS_CUSTOMER_NOT_FOUND` | `AUTH_001` |
 | auth | `INVALID_VERIFICATION_CODE` | `AUTH_002` |
 | auth | `INVALID_REFRESH_TOKEN` | `AUTH_004` |
@@ -68,6 +76,10 @@ Codes are namespaced by domain on the application exception's static registry. A
 | order | `BELOW_MIN_ORDER_VALUE` | `ORDER_011` |
 | order | `OUTSIDE_BUSINESS_HOURS` | `ORDER_012` |
 | order | `ON_BREAK` | `ORDER_013` |
+| order | `COUPON_UNAVAILABLE` | `ORDER_014` |
+| order | `COUPON_MIN_ORDER_NOT_MET` | `ORDER_015` |
+| order | `COUPON_USAGE_LIMIT_REACHED` | `ORDER_016` |
+| order | `COUPON_ALREADY_USED` | `ORDER_017` |
 | products | `INVALID_SESSION` | `PRODUCTS_001` |
 | adminProducts | `INSUFFICIENT_STOCK` | `ADMIN_PRODUCTS_001` |
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
@@ -88,7 +100,6 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminInventory | `DUPLICATE_PRODUCT` | `ADMIN_INVENTORY_003` |
 | adminCoupons | `COUPON_NOT_FOUND` | `ADMIN_COUPONS_001` |
 | adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
-| adminCoupons | `INVALID_DATE_RANGE` | `ADMIN_COUPONS_003` |
 | adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |
 | adminCoupons | `INVALID_USAGE_LIMIT` | `ADMIN_COUPONS_005` |
 

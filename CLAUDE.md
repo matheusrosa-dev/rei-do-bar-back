@@ -15,6 +15,9 @@ For the stable API contract (response envelope, error response shape, the error-
 - **NEVER alter the directory structure or create new scaffolding folders/files without first asking the user and receiving explicit confirmation.**
 - **NEVER install, remove, or update dependencies without first asking the user.** Present the package and the justification, then wait for approval.
 - **NEVER run destructive database commands** (`migrate reset`, `db push`, `db drop`) without explicit user confirmation.
+- **NEVER stage or unstage files (`git add`, `git reset`, etc.) on your own initiative.**
+- **NEVER run `git commit`.**
+- **NEVER run `git push`.**
 - Do not over-engineer. Implement exactly what was requested — nothing more.
 - Do not add comments, docstrings, or type annotations to code you did not change.
 - Do not nest ternaries.

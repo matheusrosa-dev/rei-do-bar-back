@@ -1,27 +1,30 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AddToCartDto, RemoveFromCartDto } from "./dtos";
+import { AddToCartDto, AssignCouponToCartDto, RemoveFromCartDto } from "./dtos";
 import {
   CartItem,
+  Coupon,
   Prisma,
   Product,
 } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
 import { SettingsService } from "../settings/settings.service";
+import { CouponsService } from "../coupons/coupons.service";
 
 @Injectable()
 export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
+    private readonly couponsService: CouponsService,
   ) {}
 
   async getCart(session: ICurrentSession) {
     const customerOrAnonymous =
       await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    return this.formatCart(customerOrAnonymous.cart.items);
+    return this.formatCart(customerOrAnonymous.cart);
   }
 
   async addToCart(session: ICurrentSession, dto: AddToCartDto) {
@@ -87,10 +90,11 @@ export class CartService {
               product: true,
             },
           },
+          coupon: true,
         },
       });
 
-      return this.formatCart(updatedCart.items);
+      return this.formatCart(updatedCart);
     } catch (error) {
       // Em requisições concorrentes, a checagem em memória acima pode não
       // enxergar o item recém-adicionado. A constraint única (cartId, productId)
@@ -109,6 +113,124 @@ export class CartService {
 
       throw error;
     }
+  }
+
+  async assignCouponToCart(
+    session: ICurrentSession,
+    dto: AssignCouponToCartDto,
+  ) {
+    if (!session?.customerId) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_REQUIRES_AUTH,
+        "Faça login para utilizar um cupom",
+        AppException.HttpStatus.UNAUTHORIZED,
+      );
+    }
+
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
+
+    const coupon = await this.prisma.coupon.findUnique({
+      where: { code: dto.couponCode },
+    });
+
+    if (!coupon) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_NOT_FOUND,
+        "Cupom indisponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (this.couponsService.isCouponUnavailable(coupon)) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_UNAVAILABLE,
+        "Cupom indisponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const subtotal = customerOrAnonymous.cart.items.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
+    );
+
+    if (subtotal < coupon.minOrderValue) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_MIN_ORDER_NOT_MET,
+        "O valor do carrinho não atinge o mínimo para este cupom",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const hasReachedUsageLimit = await this.couponsService.hasReachedUsageLimit(
+      coupon.id,
+      coupon.usageLimit,
+    );
+
+    if (hasReachedUsageLimit) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_USAGE_LIMIT_REACHED,
+        "Cupom indisponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const alreadyUsed = await this.couponsService.hasCustomerUsedCoupon(
+      coupon.id,
+      session.customerId,
+    );
+
+    if (alreadyUsed) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_ALREADY_USED,
+        "Você já utilizou este cupom",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const updatedCart = await this.prisma.cart.update({
+      where: { id: customerOrAnonymous.cart.id },
+      data: { couponId: coupon.id },
+      select: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        coupon: true,
+      },
+    });
+
+    return this.formatCart(updatedCart);
+  }
+
+  async removeCouponFromCart(session: ICurrentSession) {
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
+
+    if (!customerOrAnonymous.cart.couponId) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_NOT_ASSIGNED,
+        "Nenhum cupom aplicado ao carrinho",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const updatedCart = await this.prisma.cart.update({
+      where: { id: customerOrAnonymous.cart.id },
+      data: { couponId: null },
+      select: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        coupon: true,
+      },
+    });
+
+    return this.formatCart(updatedCart);
   }
 
   async incrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
@@ -167,10 +289,11 @@ export class CartService {
             product: true,
           },
         },
+        coupon: true,
       },
     });
 
-    return this.formatCart(updatedCart.items);
+    return this.formatCart(updatedCart);
   }
 
   async decrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
@@ -203,10 +326,11 @@ export class CartService {
           items: {
             include: { product: true },
           },
+          coupon: true,
         },
       });
 
-      return this.formatCart(updatedCart.items);
+      return this.formatCart(updatedCart);
     }
 
     const updatedCart = await this.prisma.cart.update({
@@ -227,10 +351,11 @@ export class CartService {
         items: {
           include: { product: true },
         },
+        coupon: true,
       },
     });
 
-    return this.formatCart(updatedCart.items);
+    return this.formatCart(updatedCart);
   }
 
   async removeFromCart(session: ICurrentSession, dto: RemoveFromCartDto) {
@@ -266,10 +391,11 @@ export class CartService {
             product: true,
           },
         },
+        coupon: true,
       },
     });
 
-    return this.formatCart(updatedCart.items);
+    return this.formatCart(updatedCart);
   }
 
   private async findAnonymousOrCustomerWithCartOrThrow(
@@ -283,6 +409,7 @@ export class CartService {
               product: true,
             },
           },
+          coupon: true,
         },
       },
     };
@@ -356,28 +483,33 @@ export class CartService {
     };
   }
 
-  private async formatCart(
-    cartItems: Array<
+  private async formatCart(cart: {
+    coupon?: Coupon | null;
+    items: Array<
       CartItem & {
         product: Product;
       }
-    >,
-  ) {
+    >;
+  }) {
     const settings = await this.settingsService.findAll();
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
     let productsCount = 0;
 
-    const subtotal = cartItems.reduce((sum, item) => {
+    const subtotal = cart.items.reduce((sum, item) => {
       productsCount += item.quantity;
       return sum + item.product.price * item.quantity;
     }, 0);
 
-    const total = subtotal + deliveryFee;
+    const discount = cart.coupon
+      ? this.couponsService.calculateDiscount(cart.coupon, subtotal)
+      : 0;
+
+    const total = subtotal + deliveryFee - discount;
 
     return {
-      products: cartItems.map((cartItem) => {
+      products: cart.items.map((cartItem) => {
         const { product, quantity } = cartItem;
 
         let remainingStock: number | null = null;
@@ -402,12 +534,17 @@ export class CartService {
         };
       }),
       minOrderValue,
+      remainingToMinOrderValue: subtotal
+        ? Math.max(minOrderValue - total, 0)
+        : 0,
       outsideBusinessHours: settings?.OUTSIDE_BUSINESS_HOURS ?? null,
       onBreak: settings?.ON_BREAK ?? null,
-      deliveryFee,
+      deliveryFee: subtotal ? deliveryFee : 0,
       subtotal,
       productsCount,
-      total,
+      discount,
+      couponCode: cart?.coupon?.code ?? null,
+      total: subtotal ? total : 0,
     };
   }
 }

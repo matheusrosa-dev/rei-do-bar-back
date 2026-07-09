@@ -3,16 +3,22 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { CartService } from "../cart.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
-import { prismaMock, settingsServiceMock } from "@shared/testing/mocks";
+import {
+  couponsServiceMock,
+  prismaMock,
+  settingsServiceMock,
+} from "@shared/testing/mocks";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import {
   CartFactory,
   CartItemFactory,
   AnonymousCustomerFactory,
+  CouponFactory,
   ProductFactory,
   CustomerFactory,
 } from "@shared/testing/factories";
 import { SettingsService } from "../../settings/settings.service";
+import { CouponsService } from "../../coupons/coupons.service";
 
 describe("CartService", () => {
   let service: CartService;
@@ -26,6 +32,7 @@ describe("CartService", () => {
         CartService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: SettingsService, useValue: settingsServiceMock },
+        { provide: CouponsService, useValue: couponsServiceMock },
       ],
     }).compile();
 
@@ -48,7 +55,7 @@ describe("CartService", () => {
       session: { deviceId: "device-123" },
       mockEmptyCart: () => {
         prismaMock.anonymousCustomer.findUnique.mockResolvedValue({
-          cart: { items: [] },
+          cart: { items: [], couponId: null, coupon: null },
         });
       },
       mockCustomerWithCart: (items: any[]) => {
@@ -64,7 +71,7 @@ describe("CartService", () => {
       session: { customerId: "customer-123" },
       mockEmptyCart: () => {
         prismaMock.customer.findFirst.mockResolvedValue({
-          cart: { items: [] },
+          cart: { items: [], couponId: null, coupon: null },
         });
       },
       mockCustomerWithCart: (items: any[]) => {
@@ -94,7 +101,10 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = await (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
 
       let productsCount = 0;
       const subtotal = cartItems.reduce((sum, item) => {
@@ -115,11 +125,14 @@ describe("CartService", () => {
           quantity: item.quantity,
         })),
         minOrderValue: 0,
+        remainingToMinOrderValue: 0,
         outsideBusinessHours: null,
         onBreak: null,
         deliveryFee: 200,
         subtotal,
         productsCount,
+        discount: 0,
+        couponCode: null,
         total,
       });
     });
@@ -137,7 +150,10 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = await (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
 
       expect(result.products[0].compareAtPrice).toBe(compareAtPrice);
     });
@@ -154,7 +170,10 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = await (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
 
       expect(result.products[0].compareAtPrice).toBeNull();
     });
@@ -171,7 +190,10 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = await (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
 
       expect(result.products[0].remainingStock).toBe(0);
     });
@@ -184,7 +206,10 @@ describe("CartService", () => {
         ON_BREAK: "Estamos temporariamente fechados. Voltaremos em breve!",
       });
 
-      const result = await (service as any).formatCart([]);
+      const result = await (service as any).formatCart({
+        items: [],
+        coupon: null,
+      });
 
       expect(result.minOrderValue).toBe(5000);
       expect(result.outsideBusinessHours).toBe("Estamos fechados no momento.");
@@ -205,10 +230,87 @@ describe("CartService", () => {
         }),
       ];
 
-      const result = await (service as any).formatCart(cartItems);
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
 
       expect(result.products[0].remainingStock).toBe(5);
       expect(result.products[1].remainingStock).toBeNull();
+    });
+
+    it("should zero out deliveryFee, total and remainingToMinOrderValue when cart is empty", async () => {
+      settingsServiceMock.findAll.mockResolvedValue({
+        DELIVERY_FEE: "200",
+        MIN_ORDER_VALUE: "5000",
+      });
+
+      const result = await (service as any).formatCart({
+        items: [],
+        coupon: null,
+      });
+
+      expect(result.deliveryFee).toBe(0);
+      expect(result.total).toBe(0);
+      expect(result.remainingToMinOrderValue).toBe(0);
+    });
+
+    it("should report remainingToMinOrderValue when total is below minOrderValue", async () => {
+      settingsServiceMock.findAll.mockResolvedValue({
+        DELIVERY_FEE: "200",
+        MIN_ORDER_VALUE: "5000",
+      });
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ price: 1000, stockQuantity: 20 }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
+
+      // subtotal 1000 + deliveryFee 200 = 1200 total; minOrderValue 5000
+      expect(result.remainingToMinOrderValue).toBe(3800);
+    });
+
+    it("should include couponCode and subtract the discount from the total when a coupon is applied", async () => {
+      const coupon = CouponFactory.createOne({ code: "PROMO10" });
+      couponsServiceMock.calculateDiscount.mockReturnValue(500);
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ price: 5000, stockQuantity: 20 }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon,
+      });
+
+      expect(couponsServiceMock.calculateDiscount).toHaveBeenCalledWith(
+        coupon,
+        5000,
+      );
+      expect(result.couponCode).toBe("PROMO10");
+      expect(result.discount).toBe(500);
+      expect(result.total).toBe(5000 + 200 - 500);
+    });
+
+    it("should not call calculateDiscount when the cart has no coupon", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({ price: 5000, stockQuantity: 20 }),
+          quantity: 1,
+        }),
+      ];
+
+      await (service as any).formatCart({ items: cartItems, coupon: null });
+
+      expect(couponsServiceMock.calculateDiscount).not.toHaveBeenCalled();
     });
   });
 
@@ -244,6 +346,7 @@ describe("CartService", () => {
                   product: true,
                 },
               },
+              coupon: true,
             },
           },
         },
@@ -275,6 +378,7 @@ describe("CartService", () => {
                   product: true,
                 },
               },
+              coupon: true,
             },
           },
         },
@@ -305,6 +409,7 @@ describe("CartService", () => {
                   product: true,
                 },
               },
+              coupon: true,
             },
           },
         },
@@ -391,6 +496,7 @@ describe("CartService", () => {
 
       expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
+      expect(formatCartSpy).toHaveBeenCalledWith(cart);
     });
 
     it("should call findAnonymousOrCustomerWithCartOrThrow and formatCart with customer", async () => {
@@ -402,6 +508,7 @@ describe("CartService", () => {
 
       expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
+      expect(formatCartSpy).toHaveBeenCalledWith(cart);
     });
   });
 
@@ -429,6 +536,9 @@ describe("CartService", () => {
           expect.objectContaining({
             data: expect.objectContaining({
               items: { create: { productId: product.id, quantity: 1 } },
+            }),
+            select: expect.objectContaining({
+              coupon: true,
             }),
           }),
         );
@@ -497,6 +607,210 @@ describe("CartService", () => {
           httpStatus: AppException.HttpStatus.BAD_REQUEST,
         });
       });
+    });
+  });
+
+  describe("assignCouponToCart", () => {
+    const customerId = "customer-123";
+    const couponCode = "PROMO10";
+
+    beforeEach(() => {
+      settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "0" });
+      couponsServiceMock.isCouponUnavailable.mockReturnValue(false);
+      couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(false);
+      couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(false);
+    });
+
+    it("should throw COUPON_REQUIRES_AUTH when session has no customerId", async () => {
+      await expect(
+        service.assignCouponToCart({ deviceId: "device-123" }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_REQUIRES_AUTH,
+        message: "Faça login para utilizar um cupom",
+        httpStatus: AppException.HttpStatus.UNAUTHORIZED,
+      });
+
+      expect(findAnonymousOrCustomerWithCartOrThrow).not.toHaveBeenCalled();
+      expect(prismaMock.coupon.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should throw COUPON_NOT_FOUND when the coupon code does not exist", async () => {
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_NOT_FOUND,
+        message: "Cupom indisponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw COUPON_UNAVAILABLE when the coupon is not currently redeemable", async () => {
+      const coupon = CouponFactory.createOne({ code: couponCode });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_UNAVAILABLE,
+        message: "Cupom indisponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw COUPON_MIN_ORDER_NOT_MET when the cart subtotal is below the coupon's minOrderValue", async () => {
+      const coupon = CouponFactory.createOne({
+        code: couponCode,
+        minOrderValue: 10000,
+      });
+      const product = ProductFactory.createOne({
+        price: 100,
+        stockQuantity: 20,
+      });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({
+          items: [CartItemFactory.createOne({ product, quantity: 1 })],
+        }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_MIN_ORDER_NOT_MET,
+        message: "O valor do carrinho não atinge o mínimo para este cupom",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should throw COUPON_USAGE_LIMIT_REACHED when the coupon's global usage limit was reached", async () => {
+      const coupon = CouponFactory.createOne({
+        code: couponCode,
+        usageLimit: 5,
+      });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(true);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_USAGE_LIMIT_REACHED,
+        message: "Cupom indisponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(couponsServiceMock.hasReachedUsageLimit).toHaveBeenCalledWith(
+        coupon.id,
+        coupon.usageLimit,
+      );
+    });
+
+    it("should throw COUPON_ALREADY_USED when the customer already redeemed this coupon", async () => {
+      const coupon = CouponFactory.createOne({ code: couponCode });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(true);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_ALREADY_USED,
+        message: "Você já utilizou este cupom",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(couponsServiceMock.hasCustomerUsedCoupon).toHaveBeenCalledWith(
+        coupon.id,
+        customerId,
+      );
+    });
+
+    it("should assign the coupon to the cart when every rule passes", async () => {
+      const coupon = CouponFactory.createOne({ code: couponCode });
+      const cart = CartFactory.createOne({ items: [] });
+      const customer = CustomerFactory.createOne({ cart });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.cart.update.mockResolvedValue({
+        items: [],
+        coupon,
+      });
+
+      await service.assignCouponToCart({ customerId }, { couponCode });
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith({
+        where: { id: cart.id },
+        data: { couponId: coupon.id },
+        select: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          coupon: true,
+        },
+      });
+      expect(formatCartSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("removeCouponFromCart", () => {
+    describe.each(sessionCases)("$label", ({ session, mockEmptyCart }) => {
+      it("should throw COUPON_NOT_ASSIGNED when the cart has no coupon applied", async () => {
+        mockEmptyCart();
+
+        await expect(
+          service.removeCouponFromCart(session),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.cart.COUPON_NOT_ASSIGNED,
+          message: "Nenhum cupom aplicado ao carrinho",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      });
+    });
+
+    it("should clear the couponId when a coupon is applied", async () => {
+      const coupon = CouponFactory.createOne();
+      const cart = CartFactory.createOne({ items: [], coupon });
+      const customer = CustomerFactory.createOne({ cart });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.cart.update.mockResolvedValue({ items: [], coupon: null });
+
+      await service.removeCouponFromCart({ customerId: customer.id });
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith({
+        where: { id: cart.id },
+        data: { couponId: null },
+        select: {
+          items: {
+            include: {
+              product: true,
+            },
+          },
+          coupon: true,
+        },
+      });
+      expect(formatCartSpy).toHaveBeenCalledTimes(1);
     });
   });
 

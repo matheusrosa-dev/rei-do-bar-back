@@ -9,13 +9,16 @@ import { CancelOrderDto, CreateOrderDto } from "./dtos";
 import {
   Cart,
   CartItem,
+  Coupon,
   Customer,
   Order,
   OrderItem,
+  Prisma,
   Product,
   SettingKey,
 } from "@shared/database/prisma/generated/client";
 import { SettingsService } from "../settings/settings.service";
+import { CouponsService } from "../coupons/coupons.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { OrderCreatedEvent, OrderCancelledEvent } from "@shared/events/order";
 
@@ -23,6 +26,7 @@ type CustomerWithCartItems = Customer & {
   cart:
     | (Cart & {
         items: Array<CartItem>;
+        coupon: Coupon | null;
       })
     | null;
 };
@@ -32,6 +36,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settingsService: SettingsService,
+    private readonly couponsService: CouponsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -72,6 +77,7 @@ export class OrdersService {
                 product: true,
               },
             },
+            coupon: true,
           },
         },
       },
@@ -86,11 +92,22 @@ export class OrdersService {
 
     this.assertThereAreInvalidItemsInCart(assuredCustomer.cart.items);
 
-    this.assertOrderMeetsMinValue(
-      assuredCustomer.cart.items,
-      deliveryFee,
-      settings,
+    const coupon = assuredCustomer.cart.coupon;
+
+    const subtotal = assuredCustomer.cart.items.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
     );
+
+    if (coupon) {
+      await this.assertCouponIsRedeemable(coupon, subtotal, customerId);
+    }
+
+    const discount = coupon
+      ? this.couponsService.calculateDiscount(coupon, subtotal)
+      : 0;
+
+    this.assertOrderMeetsMinValue(subtotal, discount, settings);
 
     const mainAddress = assuredCustomer.addresses.find(
       (address) => address.isMain,
@@ -137,6 +154,9 @@ export class OrdersService {
           address: `${mainAddress.street}, ${mainAddress.number} - ${mainAddress.neighborhood}/${mainAddress.zipCode}`,
           status: OrderStatus.PENDING,
           deliveryFee,
+          couponId: coupon?.id ?? null,
+          couponCode: coupon?.code ?? null,
+          discount,
           paymentType: dto.paymentType,
           items: {
             createMany: {
@@ -171,10 +191,58 @@ export class OrdersService {
         }
       }
 
-      // Limpa o carrinho do cliente
-      await tx.cartItem.deleteMany({
-        where: {
-          cartId: assuredCustomer.cart.id,
+      // Registra o uso do cupom; a constraint única (couponId, customerId)
+      // garante um único uso por cliente mesmo em requisições concorrentes
+      if (coupon) {
+        if (coupon.usageLimit) {
+          // Bloqueia a linha do cupom para serializar usos concorrentes
+          // de clientes diferentes e não estourar o limite global
+          await tx.$queryRaw`SELECT id FROM coupons WHERE id = ${coupon.id} FOR UPDATE`;
+
+          const usageCount = await tx.couponUsage.count({
+            where: { couponId: coupon.id },
+          });
+
+          if (usageCount >= coupon.usageLimit) {
+            throw new AppException(
+              AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
+              "Este cupom atingiu o limite de uso",
+              AppException.HttpStatus.BAD_REQUEST,
+            );
+          }
+        }
+
+        try {
+          await tx.couponUsage.create({
+            data: {
+              couponId: coupon.id,
+              customerId: assuredCustomer.id,
+            },
+          });
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002"
+          ) {
+            throw new AppException(
+              AppException.errorCodes.order.COUPON_ALREADY_USED,
+              "Você já utilizou este cupom",
+              AppException.HttpStatus.BAD_REQUEST,
+            );
+          }
+
+          throw error;
+        }
+      }
+
+      // Limpa o carrinho do cliente e desvincula o cupom consumido
+      await tx.cart.update({
+        where: { id: assuredCustomer.cart.id },
+        data: {
+          couponId: null,
+          items: {
+            deleteMany: {},
+          },
         },
       });
     });
@@ -186,7 +254,7 @@ export class OrdersService {
       }),
     );
 
-    const orders = await this.getOrders(customerId);
+    const orders = await this.findAndFormatOrders(customerId);
 
     return orders;
   }
@@ -233,6 +301,13 @@ export class OrdersService {
           data: { stockQuantity: { increment: item.quantity } },
         });
       }
+
+      // Reverte o uso do cupom aplicado ao pedido
+      if (order.couponId) {
+        await tx.couponUsage.deleteMany({
+          where: { couponId: order.couponId, customerId },
+        });
+      }
     });
 
     this.eventEmitter.emit(
@@ -243,7 +318,7 @@ export class OrdersService {
       }),
     );
 
-    const orders = await this.getOrders(customerId);
+    const orders = await this.findAndFormatOrders(customerId);
 
     return orders;
   }
@@ -262,7 +337,7 @@ export class OrdersService {
         return sum + item.price * item.quantity;
       }, 0);
 
-      const total = subtotal + order.deliveryFee;
+      const total = subtotal + order.deliveryFee - order.discount;
 
       return {
         ...order,
@@ -302,27 +377,67 @@ export class OrdersService {
     }
   }
 
+  private async assertCouponIsRedeemable(
+    coupon: Coupon,
+    subtotal: number,
+    customerId: string,
+  ) {
+    if (this.couponsService.isCouponUnavailable(coupon)) {
+      throw new AppException(
+        AppException.errorCodes.order.COUPON_UNAVAILABLE,
+        "Cupom indisponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (subtotal < coupon.minOrderValue) {
+      throw new AppException(
+        AppException.errorCodes.order.COUPON_MIN_ORDER_NOT_MET,
+        "O valor do carrinho não atinge o mínimo para este cupom",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const hasReachedUsageLimit = await this.couponsService.hasReachedUsageLimit(
+      coupon.id,
+      coupon.usageLimit,
+    );
+
+    if (hasReachedUsageLimit) {
+      throw new AppException(
+        AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
+        "Este cupom atingiu o limite de uso",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const alreadyUsed = await this.couponsService.hasCustomerUsedCoupon(
+      coupon.id,
+      customerId,
+    );
+
+    if (alreadyUsed) {
+      throw new AppException(
+        AppException.errorCodes.order.COUPON_ALREADY_USED,
+        "Você já utilizou este cupom",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   private assertOrderMeetsMinValue(
-    cartItems: Array<
-      CartItem & {
-        product: Product;
-      }
-    >,
-    deliveryFee: number,
+    subtotal: number,
+    discount: number,
     settings: Record<SettingKey, string>,
   ) {
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
+    const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
     if (minOrderValue <= 0) {
       return;
     }
 
-    const subtotal = cartItems.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0,
-    );
-
-    const total = subtotal + deliveryFee;
+    const total = subtotal + deliveryFee - discount;
 
     if (total < minOrderValue) {
       const formattedMinValue = (minOrderValue / 100)

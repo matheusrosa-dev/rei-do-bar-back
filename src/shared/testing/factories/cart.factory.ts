@@ -1,4 +1,5 @@
 import Chance from "chance";
+import { Coupon } from "@shared/database/prisma/generated/client";
 import { CartItemWithProduct, CartWithItems } from "./types";
 
 const chance = new Chance();
@@ -7,6 +8,8 @@ type Props = {
   id?: string;
   customerId?: string;
   anonymousCustomerId?: string;
+  couponId?: string | null;
+  coupon?: Coupon | null;
   items: CartItemWithProduct[];
 };
 
@@ -24,6 +27,8 @@ const makeCart = (props: Props): CartWithItems => ({
   id: props?.id ?? chance.guid(),
   customerId: props?.customerId ?? chance.guid(),
   anonymousCustomerId: props?.anonymousCustomerId ?? chance.guid(),
+  couponId: props?.couponId ?? props?.coupon?.id ?? null,
+  coupon: props?.coupon ?? null,
   items: props.items,
   createdAt: new Date(),
   updatedAt: new Date(),

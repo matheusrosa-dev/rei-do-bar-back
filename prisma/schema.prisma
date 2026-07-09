@@ -105,11 +105,13 @@ model Cart {
   id                  String   @id @default(uuid())
   customerId          String?  @unique @map("customer_id")
   anonymousCustomerId String?  @unique @map("anonymous_customer_id")
+  couponId            String?  @map("coupon_id")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: Cascade)
   anonymousCustomer AnonymousCustomer? @relation(fields: [anonymousCustomerId], references: [id])
+  coupon            Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
   items             CartItem[]
 
   @@map("cart")
@@ -205,15 +207,20 @@ model Order {
   status       OrderStatus
   statusReason String?     @map("status_reason")
   deliveryFee  Int         @map("delivery_fee")
+  couponId     String?     @map("coupon_id")
+  couponCode   String?     @map("coupon_code")
+  discount     Int         @default(0)
   paymentType  PaymentType @map("payment_type")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
   customer           Customer            @relation(fields: [customerId], references: [id])
+  coupon             Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
   items              OrderItem[]
   inventoryMovements InventoryMovement[]
 
   @@index([customerId])
+  @@index([couponId])
   @@map("orders")
 }
 
@@ -249,6 +256,8 @@ model Coupon {
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
   usages CouponUsage[]
+  carts  Cart[]
+  orders Order[]
 
   @@map("coupons")
 }

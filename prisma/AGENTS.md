@@ -30,8 +30,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Monetary values | Stored as integer cents — never floats |
 | Soft delete | Availability is an `isActive` flag. Logical deletion uses a nullable deletion timestamp that all reads filter out — applied wherever a row must survive deletion (e.g. to preserve linked history); on records holding personal data, deletion also scrubs that data (anonymization) |
 | Sequences | Human-friendly sequential numbers (where present) are backed by a Postgres sequence alongside the UUID id |
-
-Planned-but-commented-out models must not be implemented until the feature is prioritized.
+| Snapshots | Order rows denormalize purchase-time data (item details, applied coupon code and discount) into their own columns so later changes never rewrite history; a snapshot may coexist with a nullable live reference to the source row (nulled on deletion) when the reference is needed operationally |
 
 ---
 

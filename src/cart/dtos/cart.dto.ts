@@ -38,6 +38,15 @@ export class CartDto {
   productsCount!: number;
 
   @Expose()
+  remainingToMinOrderValue!: number;
+
+  @Expose()
+  discount!: number;
+
+  @Expose()
+  couponCode!: string | null;
+
+  @Expose()
   total!: number;
 
   @Expose()
