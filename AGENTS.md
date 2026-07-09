@@ -84,13 +84,14 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates the NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers feature modules + global providers
-│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, settings (HTTP Basic Auth)
+│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, settings, notifications (HTTP Basic Auth)
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
 │   ├── coupons/                 # Coupon redemption rules: availability, discount calc, usage limits (no public controller)
 │   ├── customers/               # Internal customer service (no public controller)
 │   ├── me/                      # Authenticated customer self-management
+│   ├── notifications/           # Push token registration for authenticated customers
 │   ├── orders/                  # Order creation, listing, and cancellation (authenticated customers)
 │   ├── products/                # Product catalog (best-sellers listing)
 │   ├── settings/               # Client-facing read of active runtime settings (delivery fee, alerts, etc.)
