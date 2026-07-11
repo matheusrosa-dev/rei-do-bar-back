@@ -80,6 +80,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | order | `COUPON_MIN_ORDER_NOT_MET` | `ORDER_015` |
 | order | `COUPON_USAGE_LIMIT_REACHED` | `ORDER_016` |
 | order | `COUPON_ALREADY_USED` | `ORDER_017` |
+| order | `WELCOME_COUPON_UNAVAILABLE` | `ORDER_018` |
 | products | `INVALID_SESSION` | `PRODUCTS_001` |
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
 | adminProducts | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` |

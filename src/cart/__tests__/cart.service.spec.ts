@@ -496,7 +496,9 @@ describe("CartService", () => {
 
       expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledWith(cart);
+      expect(formatCartSpy).toHaveBeenCalledWith(cart, {
+        deviceId: "device-123",
+      });
     });
 
     it("should call findAnonymousOrCustomerWithCartOrThrow and formatCart with customer", async () => {
@@ -508,7 +510,9 @@ describe("CartService", () => {
 
       expect(findAnonymousOrCustomerWithCartOrThrow).toHaveBeenCalledTimes(1);
       expect(formatCartSpy).toHaveBeenCalledTimes(1);
-      expect(formatCartSpy).toHaveBeenCalledWith(cart);
+      expect(formatCartSpy).toHaveBeenCalledWith(cart, {
+        customerId: "customer-123",
+      });
     });
   });
 

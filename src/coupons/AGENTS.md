@@ -34,3 +34,13 @@ Availability is evaluated at **day granularity** against the start of the curren
 | Exported service | Consumed via NestJS module imports, not direct instantiation |
 | Pure where possible | Availability/discount calculations take a `Coupon` and return a value — no side effects |
 | Monetary values | Stored/handled in cents; discount is capped at the subtotal for both discount types |
+
+---
+
+## Welcome Coupon
+
+The welcome coupon is **not a `Coupon` row** — it lives entirely in the `settings` table under `SettingKey.WELCOME_COUPON` (`SettingType.COUPON`), its value a JSON string `{ discountValue, minOrderValue }` (both in cents). Because it has no id, it can never be referenced by `Cart.couponId`, `Order.couponId`, or `CouponUsage` — there is no assignment step, no usage-limit tracking, and no way for a customer to "already have used" it in the `CouponUsage` sense.
+
+Eligibility is derived instead of stored: a customer is eligible while they have zero non-cancelled orders (`OrderStatus.CANCELLED` orders don't count, so cancelling a first order restores eligibility). `getWelcomeCoupon` parses and validates the setting's JSON (returning `null` on anything malformed or absent, per the "missing/invalid = not configured" convention), `isEligibleForWelcomeCoupon` checks the order count, and `calculateWelcomeDiscount` combines both — cheap checks (setting present, subtotal meets minimum) run before the eligibility query. Callers pass in the already-fetched settings map (`SettingsService.findAll()`) rather than this service re-fetching it.
+
+It surfaces to consumers as the fixed code `WELCOME_COUPON_CODE` (`"BOAS-VINDAS"`), so cart and order responses look identical to a real coupon redemption from the client's perspective.

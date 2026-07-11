@@ -51,6 +51,10 @@ The discount is computed at **format time** via `CouponsService.calculateDiscoun
 
 Removing a coupon simply clears `couponId` (throwing `COUPON_NOT_ASSIGNED` if the cart has none); it does not require authentication, since an anonymous cart can never have a coupon assigned in the first place.
 
+### Welcome Coupon
+
+Unlike a real coupon, the welcome coupon is applied **automatically** at format time — there is no assignment endpoint, no code to submit, and no `couponId` involved (it isn't a `Coupon` row; see `src/coupons/AGENTS.md`). `formatCart` computes it via `CouponsService.calculateWelcomeDiscount` only when the cart has **no coupon assigned** (a real coupon always takes priority) and the session carries an authenticated `customerId` (anonymous sessions never qualify). When it applies, the response looks exactly like a normal coupon redemption: `discount` is set and `couponCode` reports the fixed `WELCOME_COUPON_CODE` value.
+
 ---
 
 ## DTOs

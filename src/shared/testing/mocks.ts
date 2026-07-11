@@ -112,4 +112,7 @@ export const couponsServiceMock = {
   calculateDiscount: jest.fn(),
   hasReachedUsageLimit: jest.fn(),
   hasCustomerUsedCoupon: jest.fn(),
+  getWelcomeCoupon: jest.fn(),
+  isEligibleForWelcomeCoupon: jest.fn(),
+  calculateWelcomeDiscount: jest.fn().mockResolvedValue(0),
 };

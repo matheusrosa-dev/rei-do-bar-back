@@ -69,6 +69,7 @@ export class AppException extends HttpException {
       COUPON_MIN_ORDER_NOT_MET: "ORDER_015",
       COUPON_USAGE_LIMIT_REACHED: "ORDER_016",
       COUPON_ALREADY_USED: "ORDER_017",
+      WELCOME_COUPON_UNAVAILABLE: "ORDER_018",
     },
     products: {
       INVALID_SESSION: "PRODUCTS_001",

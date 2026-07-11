@@ -9,7 +9,10 @@ import {
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
 import { SettingsService } from "../settings/settings.service";
-import { CouponsService } from "../coupons/coupons.service";
+import {
+  CouponsService,
+  WELCOME_COUPON_CODE,
+} from "../coupons/coupons.service";
 import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
 
 @Injectable()
@@ -24,7 +27,7 @@ export class CartService {
     const customerOrAnonymous =
       await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    return this.formatCart(customerOrAnonymous.cart);
+    return this.formatCart(customerOrAnonymous.cart, session);
   }
 
   async addToCart(session: ICurrentSession, dto: AddToCartDto) {
@@ -94,7 +97,7 @@ export class CartService {
         },
       });
 
-      return this.formatCart(updatedCart);
+      return this.formatCart(updatedCart, session);
     } catch (error) {
       // Em requisições concorrentes, a checagem em memória acima pode não
       // enxergar o item recém-adicionado. A constraint única (cartId, productId)
@@ -199,7 +202,7 @@ export class CartService {
       },
     });
 
-    return this.formatCart(updatedCart);
+    return this.formatCart(updatedCart, session);
   }
 
   async removeCouponFromCart(session: ICurrentSession) {
@@ -227,7 +230,7 @@ export class CartService {
       },
     });
 
-    return this.formatCart(updatedCart);
+    return this.formatCart(updatedCart, session);
   }
 
   async incrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
@@ -290,7 +293,7 @@ export class CartService {
       },
     });
 
-    return this.formatCart(updatedCart);
+    return this.formatCart(updatedCart, session);
   }
 
   async decrementProductQuantity(session: ICurrentSession, dto: AddToCartDto) {
@@ -327,7 +330,7 @@ export class CartService {
         },
       });
 
-      return this.formatCart(updatedCart);
+      return this.formatCart(updatedCart, session);
     }
 
     const updatedCart = await this.prisma.cart.update({
@@ -352,7 +355,7 @@ export class CartService {
       },
     });
 
-    return this.formatCart(updatedCart);
+    return this.formatCart(updatedCart, session);
   }
 
   async removeFromCart(session: ICurrentSession, dto: RemoveFromCartDto) {
@@ -392,7 +395,7 @@ export class CartService {
       },
     });
 
-    return this.formatCart(updatedCart);
+    return this.formatCart(updatedCart, session);
   }
 
   private async findAnonymousOrCustomerWithCartOrThrow(
@@ -480,14 +483,17 @@ export class CartService {
     };
   }
 
-  private async formatCart(cart: {
-    coupon?: Coupon | null;
-    items: Array<
-      CartItem & {
-        product: Product;
-      }
-    >;
-  }) {
+  private async formatCart(
+    cart: {
+      coupon?: Coupon | null;
+      items: Array<
+        CartItem & {
+          product: Product;
+        }
+      >;
+    },
+    session: ICurrentSession,
+  ) {
     const settings = await this.settingsService.findAll();
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
@@ -499,9 +505,19 @@ export class CartService {
       return sum + item.product.price * item.quantity;
     }, 0);
 
+    let welcomeDiscount = 0;
+
+    if (!cart.coupon && session?.customerId) {
+      welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
+        session.customerId,
+        subtotal,
+        settings,
+      );
+    }
+
     const discount = cart.coupon
       ? this.couponsService.calculateDiscount(cart.coupon, subtotal)
-      : 0;
+      : welcomeDiscount;
 
     const total = subtotal + deliveryFee - discount;
 
@@ -540,7 +556,9 @@ export class CartService {
       subtotal,
       productsCount,
       discount,
-      couponCode: cart?.coupon?.code ?? null,
+      couponCode:
+        cart?.coupon?.code ??
+        (welcomeDiscount > 0 ? WELCOME_COUPON_CODE : null),
       total: subtotal ? total : 0,
     };
   }

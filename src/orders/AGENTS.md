@@ -28,6 +28,8 @@ The entire controller is protected by the access-token guard. The authenticated 
 
 **Coupon snapshot**: the applied coupon's code and the computed discount are stored on the order at creation time, so later coupon changes or deletion never affect past orders. The order also keeps a nullable reference to the coupon row (nulled if the coupon is deleted), used to revert the usage exactly on cancellation.
 
+**Welcome coupon**: when the cart carries no real coupon, the customer's welcome-coupon discount (see `src/coupons/AGENTS.md`) is computed the same way as in the cart and folded into `discount` before the minimum-order check. Because it isn't backed by a `Coupon` row, the order snapshots `couponId: null` and `couponCode: WELCOME_COUPON_CODE` — no `CouponUsage` row is created and cancellation has nothing to revert (eligibility is re-derived from the order history itself, so cancelling the order already restores it). Eligibility is checked once before the transaction and re-checked under the customer row lock, right where the ongoing-order check happens, to close the race with a concurrent order creation.
+
 ---
 
 ## Cancel Order Flow

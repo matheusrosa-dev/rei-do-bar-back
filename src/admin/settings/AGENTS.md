@@ -16,6 +16,7 @@ Admin management of runtime settings: reading every setting and updating a setti
 - **Keyed by enum**: endpoints address a setting by its `SettingKey`, not by a generated id.
 - **Activate/deactivate**: toggling the active flag controls whether the client-facing read surfaces the setting.
 - **Prisma error translation**: known Prisma errors become domain `AppException`s and never leak.
+- **Structured values**: most settings hold a plain string, but `SettingType.COUPON` (currently only `WELCOME_COUPON`) holds a JSON-encoded object (`{ discountValue, minOrderValue }`, both in cents) inside `value`. Updates to a `COUPON`-typed setting are validated against that shape before being persisted.
 
 ---
 

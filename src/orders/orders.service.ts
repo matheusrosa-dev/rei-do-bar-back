@@ -17,7 +17,10 @@ import {
   SettingKey,
 } from "@shared/database/prisma/generated/client";
 import { SettingsService } from "../settings/settings.service";
-import { CouponsService } from "../coupons/coupons.service";
+import {
+  CouponsService,
+  WELCOME_COUPON_CODE,
+} from "../coupons/coupons.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { OrderCreatedEvent, OrderCancelledEvent } from "@shared/events/order";
 import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
@@ -103,9 +106,19 @@ export class OrdersService {
       await this.assertCouponIsRedeemable(coupon, subtotal, customerId);
     }
 
+    let welcomeDiscount = 0;
+
+    if (!coupon) {
+      welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
+        customerId,
+        subtotal,
+        settings,
+      );
+    }
+
     const discount = coupon
       ? this.couponsService.calculateDiscount(coupon, subtotal)
-      : 0;
+      : welcomeDiscount;
 
     this.assertOrderMeetsMinValue(subtotal, discount, settings);
 
@@ -147,6 +160,25 @@ export class OrdersService {
         );
       }
 
+      // Fecha a janela de corrida entre a checagem de elegibilidade fora
+      // da transação e a criação do pedido
+      if (welcomeDiscount > 0) {
+        const nonCancelledOrdersCount = await tx.order.count({
+          where: {
+            customerId: assuredCustomer.id,
+            status: { not: OrderStatus.CANCELLED },
+          },
+        });
+
+        if (nonCancelledOrdersCount > 0) {
+          throw new AppException(
+            AppException.errorCodes.order.WELCOME_COUPON_UNAVAILABLE,
+            "Cupom de boas-vindas indisponível",
+            AppException.HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
       // Cria o pedido com os itens do carrinho
       order = await tx.order.create({
         data: {
@@ -155,7 +187,8 @@ export class OrdersService {
           status: OrderStatus.PENDING,
           deliveryFee,
           couponId: coupon?.id ?? null,
-          couponCode: coupon?.code ?? null,
+          couponCode:
+            coupon?.code ?? (welcomeDiscount > 0 ? WELCOME_COUPON_CODE : null),
           discount,
           paymentType: dto.paymentType,
           items: {
