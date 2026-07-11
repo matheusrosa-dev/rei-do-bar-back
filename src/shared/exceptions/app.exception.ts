@@ -105,6 +105,9 @@ export class AppException extends HttpException {
       COUPON_START_NOT_EDITABLE: "ADMIN_COUPONS_004",
       INVALID_USAGE_LIMIT: "ADMIN_COUPONS_005",
     },
+    adminSettings: {
+      INVALID_SETTING_VALUE: "ADMIN_SETTINGS_001",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

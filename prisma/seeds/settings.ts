@@ -27,7 +27,7 @@ export const settings = [
     key: SettingKey.WHATSAPP_CONTACT,
     type: SettingType.PHONE,
     value: "11964645573",
-    isActive: true,
+    isActive: false,
   },
   {
     key: SettingKey.OUTSIDE_BUSINESS_HOURS,
@@ -41,6 +41,15 @@ export const settings = [
     type: SettingType.TEXT,
     value:
       "Estamos temporariamente fechados. Voltaremos a receber pedidos em 23/06. Até breve! 🍻",
+    isActive: false,
+  },
+  {
+    key: SettingKey.WELCOME_COUPON,
+    type: SettingType.COUPON,
+    value: JSON.stringify({
+      discountValue: 700,
+      minOrderValue: 4000,
+    }),
     isActive: false,
   },
 ];

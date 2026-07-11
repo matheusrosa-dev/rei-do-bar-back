@@ -1,5 +1,5 @@
 import { SettingKey } from "@shared/database/prisma/generated/enums";
-import { IsEnum, IsString } from "class-validator";
+import { IsEnum, IsInt, IsString, Min } from "class-validator";
 
 export class UpdateSettingParamsDto {
   @IsEnum(SettingKey)
@@ -9,4 +9,14 @@ export class UpdateSettingParamsDto {
 export class UpdateSettingBodyDto {
   @IsString()
   value!: string;
+}
+
+export class WelcomeCouponValue {
+  @IsInt()
+  @Min(0)
+  discountValue!: number;
+
+  @IsInt()
+  @Min(0)
+  minOrderValue!: number;
 }
