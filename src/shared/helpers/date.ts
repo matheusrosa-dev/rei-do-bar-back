@@ -6,10 +6,6 @@ export function getStartOfTodaySaoPaulo() {
     .toJSDate();
 }
 
-export function getNowSaoPaulo() {
-  return DateTime.now().toJSDate();
-}
-
 export function getEndOfDate(date: Date) {
   return DateTime.fromJSDate(date).endOf("day").toJSDate();
 }

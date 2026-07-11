@@ -1,4 +1,4 @@
-import { getEndOfDate, getNowSaoPaulo, getStartOfTodaySaoPaulo } from "../date";
+import { getEndOfDate, getStartOfTodaySaoPaulo } from "../date";
 
 describe("Date Helpers", () => {
   afterEach(() => {
@@ -21,23 +21,6 @@ describe("Date Helpers", () => {
       const result = getStartOfTodaySaoPaulo();
 
       expect(result).toEqual(new Date("2026-07-01T03:00:00.000Z"));
-    });
-  });
-
-  describe("getNowSaoPaulo", () => {
-    it("should return the current instant", () => {
-      const now = new Date("2026-07-02T12:34:56.789Z");
-      jest.useFakeTimers().setSystemTime(now);
-
-      const result = getNowSaoPaulo();
-
-      expect(result).toEqual(now);
-    });
-
-    it("should return a Date instance", () => {
-      const result = getNowSaoPaulo();
-
-      expect(result).toBeInstanceOf(Date);
     });
   });
 

@@ -6,7 +6,6 @@ import {
   CouponOrderByWithRelationInput,
 } from "@shared/database/prisma/generated/models";
 import { AppException } from "@shared/exceptions/app.exception";
-import { getNowSaoPaulo } from "@shared/helpers/date";
 import {
   CreateCouponDto,
   FindAllCouponsDto,
@@ -22,7 +21,7 @@ export class AdminCouponsService {
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const now = getNowSaoPaulo();
+    const now = new Date();
 
     const usageLimitReachedIds = await this.getUsageLimitReachedCouponIds();
 
@@ -240,7 +239,7 @@ export class AdminCouponsService {
   }
 
   private assertStartsAtEditable(existing: CouponModel) {
-    const now = getNowSaoPaulo();
+    const now = new Date();
 
     if (existing.startsAt <= now) {
       throw new AppException(
@@ -252,7 +251,7 @@ export class AdminCouponsService {
   }
 
   private assertStartsAtInFuture(startsAt: Date) {
-    const now = getNowSaoPaulo();
+    const now = new Date();
 
     if (startsAt <= now) {
       throw new AppException(

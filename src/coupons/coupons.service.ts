@@ -1,14 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { Coupon } from "@shared/database/prisma/generated/client";
-import { getNowSaoPaulo } from "@shared/helpers/date";
 
 @Injectable()
 export class CouponsService {
   constructor(private readonly prisma: PrismaService) {}
 
   isCouponUnavailable(coupon: Coupon): boolean {
-    const now = getNowSaoPaulo();
+    const now = new Date();
 
     if (!coupon.isActive) {
       return true;
