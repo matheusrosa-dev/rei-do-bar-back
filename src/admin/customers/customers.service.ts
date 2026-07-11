@@ -4,6 +4,7 @@ import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
 import { CustomerWithRelations } from "./helpers";
+import { isRecordNotFound } from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class AdminCustomersService {
@@ -217,10 +218,7 @@ export class AdminCustomersService {
         data,
       });
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2025"
-      ) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
           "Cliente não encontrado.",

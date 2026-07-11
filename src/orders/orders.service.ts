@@ -13,7 +13,6 @@ import {
   Customer,
   Order,
   OrderItem,
-  Prisma,
   Product,
   SettingKey,
 } from "@shared/database/prisma/generated/client";
@@ -21,6 +20,7 @@ import { SettingsService } from "../settings/settings.service";
 import { CouponsService } from "../coupons/coupons.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { OrderCreatedEvent, OrderCancelledEvent } from "@shared/events/order";
+import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
 
 type CustomerWithCartItems = Customer & {
   cart:
@@ -220,10 +220,7 @@ export class OrdersService {
             },
           });
         } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          ) {
+          if (isUniqueConstraintViolation(error)) {
             throw new AppException(
               AppException.errorCodes.order.COUPON_ALREADY_USED,
               "Você já utilizou este cupom",

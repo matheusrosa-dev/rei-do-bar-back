@@ -11,6 +11,10 @@ import {
   FindAllCouponsDto,
   UpdateCouponBodyDto,
 } from "./dtos";
+import {
+  isRecordNotFound,
+  isUniqueConstraintViolation,
+} from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class AdminCouponsService {
@@ -100,7 +104,7 @@ export class AdminCouponsService {
         },
       });
     } catch (error) {
-      if (this.isUniqueConstraintViolation(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new AppException(
           AppException.errorCodes.adminCoupons.COUPON_ALREADY_EXISTS,
           "Já existe um cupom com esse código.",
@@ -167,7 +171,7 @@ export class AdminCouponsService {
 
       return coupon;
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCoupons.COUPON_NOT_FOUND,
           "Cupom não encontrado.",
@@ -183,7 +187,7 @@ export class AdminCouponsService {
     try {
       await this.prisma.coupon.delete({ where: { id: couponId } });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCoupons.COUPON_NOT_FOUND,
           "Cupom não encontrado.",
@@ -205,7 +209,7 @@ export class AdminCouponsService {
         data,
       });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCoupons.COUPON_NOT_FOUND,
           "Cupom não encontrado.",
@@ -213,7 +217,7 @@ export class AdminCouponsService {
         );
       }
 
-      if (this.isUniqueConstraintViolation(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new AppException(
           AppException.errorCodes.adminCoupons.COUPON_ALREADY_EXISTS,
           "Já existe um cupom com esse código.",
@@ -277,19 +281,5 @@ export class AdminCouponsService {
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
-  }
-
-  private isRecordNotFound(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    );
-  }
-
-  private isUniqueConstraintViolation(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    );
   }
 }

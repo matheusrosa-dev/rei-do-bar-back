@@ -4,13 +4,13 @@ import { AddToCartDto, AssignCouponToCartDto, RemoveFromCartDto } from "./dtos";
 import {
   CartItem,
   Coupon,
-  Prisma,
   Product,
 } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
 import { SettingsService } from "../settings/settings.service";
 import { CouponsService } from "../coupons/coupons.service";
+import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class CartService {
@@ -100,10 +100,7 @@ export class CartService {
       // enxergar o item recém-adicionado. A constraint única (cartId, productId)
       // garante a unicidade e o conflito (P2002) é traduzido para o erro de
       // negócio em vez de virar um 500.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
+      if (isUniqueConstraintViolation(error)) {
         throw new AppException(
           AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
           "Produto já existe no carrinho",

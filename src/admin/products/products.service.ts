@@ -9,6 +9,7 @@ import {
   UpdateProductsOrderDto,
 } from "./dtos";
 import { ProductOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
+import { isRecordNotFound } from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class AdminProductsService {
@@ -186,7 +187,7 @@ export class AdminProductsService {
 
       return product;
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminProducts.INVALID_CATEGORY,
           "Categoria inválida.",
@@ -230,7 +231,7 @@ export class AdminProductsService {
         });
       });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
           "Produto não encontrado.",
@@ -287,7 +288,7 @@ export class AdminProductsService {
         },
       });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminProducts.PRODUCT_NOT_FOUND,
           "Produto não encontrado.",
@@ -297,12 +298,5 @@ export class AdminProductsService {
 
       throw error;
     }
-  }
-
-  private isRecordNotFound(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    );
   }
 }

@@ -7,7 +7,6 @@ import {
   AnonymousCustomer,
   Cart,
   Customer,
-  Prisma,
 } from "@shared/database/prisma/generated/client";
 import { ConfigService } from "@nestjs/config";
 import { IAuthConfig } from "@shared/config/env-config.interface";
@@ -16,6 +15,7 @@ import { hashString } from "@shared/helpers/string";
 import { generateOtpCode } from "@shared/helpers/otp-code";
 import { CustomersService } from "../customers/customers.service";
 import { ICurrentSession } from "@shared/types/jwt";
+import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class AuthService {
@@ -228,10 +228,7 @@ export class AuthService {
       // Em logins concorrentes com o mesmo telefone, outra requisição pode ter
       // criado o cliente primeiro, violando a unicidade do telefone (P2002).
       // Nesse caso, recupera o cliente já existente em vez de falhar.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
+      if (isUniqueConstraintViolation(error)) {
         const existingCustomer = await this.prisma.customer.findUnique({
           where: { phone },
         });

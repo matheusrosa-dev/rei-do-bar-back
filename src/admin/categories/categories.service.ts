@@ -8,6 +8,10 @@ import {
   UpdateCategoriesOrderDto,
   UpdateCategoryBodyDto,
 } from "./dtos";
+import {
+  isRecordNotFound,
+  isUniqueConstraintViolation,
+} from "@shared/helpers/prisma-errors";
 
 @Injectable()
 export class AdminCategoriesService {
@@ -98,7 +102,7 @@ export class AdminCategoriesService {
         },
       });
     } catch (error) {
-      if (this.isUniqueConstraintViolation(error)) {
+      if (isUniqueConstraintViolation(error)) {
         throw new AppException(
           AppException.errorCodes.adminCategories.CATEGORY_ALREADY_EXISTS,
           "Já existe uma categoria com esse nome.",
@@ -159,7 +163,7 @@ export class AdminCategoriesService {
     try {
       await this.prisma.category.delete({ where: { id: categoryId } });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCategories.CATEGORY_NOT_FOUND,
           "Categoria não encontrada.",
@@ -181,7 +185,7 @@ export class AdminCategoriesService {
         data,
       });
     } catch (error) {
-      if (this.isRecordNotFound(error)) {
+      if (isRecordNotFound(error)) {
         throw new AppException(
           AppException.errorCodes.adminCategories.CATEGORY_NOT_FOUND,
           "Categoria não encontrada.",
@@ -191,19 +195,5 @@ export class AdminCategoriesService {
 
       throw error;
     }
-  }
-
-  private isRecordNotFound(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    );
-  }
-
-  private isUniqueConstraintViolation(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2002"
-    );
   }
 }
