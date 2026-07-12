@@ -350,7 +350,7 @@ export class AdminOrdersService {
         return sum + item.price * item.quantity;
       }, 0);
 
-      const total = subtotal + order.deliveryFee;
+      const total = subtotal - order.discount + order.deliveryFee;
 
       return {
         ...order,
