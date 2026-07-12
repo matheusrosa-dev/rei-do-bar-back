@@ -45,11 +45,8 @@ export const settings = [
   },
   {
     key: SettingKey.WELCOME_COUPON,
-    type: SettingType.COUPON,
-    value: JSON.stringify({
-      discountValue: 700,
-      minOrderValue: 4000,
-    }),
+    type: SettingType.CURRENCY,
+    value: "500",
     isActive: false,
   },
 ];

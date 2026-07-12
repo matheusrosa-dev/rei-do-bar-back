@@ -508,10 +508,12 @@ export class CartService {
     let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
 
-    if (!cart.coupon && session?.customerId) {
-      isWelcomeCoupon = await this.couponsService.isEligibleForWelcomeCoupon(
-        session.customerId,
-      );
+    if (!cart.coupon) {
+      isWelcomeCoupon = session?.customerId
+        ? await this.couponsService.isCustomerEligibleForWelcomeCoupon(
+            session.customerId,
+          )
+        : true;
     }
 
     if (isWelcomeCoupon) {

@@ -111,7 +111,9 @@ export class OrdersService {
 
     if (!coupon) {
       isWelcomeCoupon =
-        await this.couponsService.isEligibleForWelcomeCoupon(customerId);
+        await this.couponsService.isCustomerEligibleForWelcomeCoupon(
+          customerId,
+        );
 
       if (isWelcomeCoupon) {
         welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(

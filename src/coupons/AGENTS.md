@@ -40,19 +40,20 @@ Availability is evaluated against the exact current timestamp: `startsAt`/`endsA
 
 ## Welcome Coupon
 
-The welcome coupon is **not a `Coupon` row** — it lives entirely in the `settings` table under `SettingKey.WELCOME_COUPON` (`SettingType.COUPON`), its value a JSON string `{ discountValue, minOrderValue }` (both in cents). Because it has no id, it can never be referenced by `Cart.couponId`, `Order.couponId`, or `CouponUsage` — there is no assignment step, no usage-limit tracking, and no way for a customer to "already have used" it in the `CouponUsage` sense.
+The welcome coupon is **not a `Coupon` row** — it lives entirely in the `settings` table under `SettingKey.WELCOME_COUPON` (`SettingType.CURRENCY`), its value a plain discount amount in cents (e.g. `"500"`). Because it has no id, it can never be referenced by `Cart.couponId`, `Order.couponId`, or `CouponUsage` — there is no assignment step, no usage-limit tracking, and no way for a customer to "already have used" it in the `CouponUsage` sense.
 
 Eligibility is derived instead of stored: a customer is eligible while they have zero non-cancelled orders (`OrderStatus.CANCELLED` orders don't count, so cancelling a first order restores eligibility).
 
-Three methods split the work, and **the split is load-bearing**:
+Two methods split the work, and **the split is load-bearing**:
 
 | Method | Does | Does NOT |
 |---|---|---|
-| `getWelcomeCoupon(settings)` | Parses and validates the setting's JSON, returning `null` on anything malformed or absent (per the "missing/invalid = not configured" convention) | Touch the database |
-| `isEligibleForWelcomeCoupon(customerId)` | Queries the customer's non-cancelled order count | Look at the setting or the subtotal |
-| `calculateWelcomeDiscount(subtotal, settings)` | Computes the discount from the setting and subtotal (zero when the subtotal is below the minimum, capped at the subtotal) | **Check eligibility at all** |
+| `isCustomerEligibleForWelcomeCoupon(customerId)` | Queries the customer's non-cancelled order count | Look at the setting or the subtotal |
+| `calculateWelcomeDiscount(subtotal, settings)` | Reads the discount amount from the setting and caps it at the subtotal | **Check eligibility at all** |
 
-`calculateWelcomeDiscount` does **not** call `isEligibleForWelcomeCoupon`. Gating on eligibility is the **caller's** responsibility, and both callers (cart formatting and order placement) run the eligibility query **first** and only then compute the discount. Calling `calculateWelcomeDiscount` on its own would hand a welcome discount to a repeat customer — if you add a third consumer, replicate the gate.
+There is no minimum-order gate on the welcome coupon — the only cap is the subtotal itself (so an empty cart yields `0`). The setting value is trusted as-is: a non-numeric value produces `NaN`, just like any other `CURRENCY` setting (e.g. `DELIVERY_FEE`); keeping it valid is the admin write path's responsibility.
+
+`calculateWelcomeDiscount` does **not** call `isCustomerEligibleForWelcomeCoupon`. Gating on eligibility is the **caller's** responsibility, and both callers (cart formatting and order placement) run the eligibility check **first** and only then compute the discount. Calling `calculateWelcomeDiscount` on its own would hand a welcome discount to a repeat customer — if you add a third consumer, replicate the gate.
 
 Callers pass in the already-fetched settings map (`SettingsService.findAll()`) rather than this service re-fetching it.
 

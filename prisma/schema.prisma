@@ -301,7 +301,6 @@ enum SettingKey {
 
 enum SettingType {
   CURRENCY
-  COUPON
   TEXT
   PHONE
 }

@@ -17,13 +17,12 @@ The service is also exported and injected by other feature modules (cart, orders
 
 `findAll()` loads every `Setting` row and reduces it to a `Record<SettingKey, string>`, **keeping only active settings**. Inactive settings are absent from the map, so consumers must treat a missing key as "not configured" and fall back to a sensible default (e.g. a delivery fee of `0`) rather than throwing.
 
-Values are always stored as strings, in one of three flavors:
+Values are always stored as strings, in one of two flavors:
 
 | Flavor | Keys | Parsing |
 |---|---|---|
-| Numeric (cents) | delivery fee, minimum order value | Parsed to an integer by the consumer |
+| Numeric (cents) | delivery fee, minimum order value, welcome coupon (`SettingType.CURRENCY`) | Parsed to an integer by the consumer; a non-numeric value yields `NaN` (not defended against — the admin write path is trusted to keep it valid) |
 | Plain text | alert message, WhatsApp contact, on-break, outside-business-hours | Used as-is |
-| **JSON** | welcome coupon (`SettingType.COUPON`) | Parsed into `{ discountValue, minOrderValue }`, both in cents, by `CouponsService` — which treats a malformed payload as "not configured" rather than throwing. The admin write path validates the shape precisely so this stays true |
 
 ---
 

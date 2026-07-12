@@ -782,7 +782,9 @@ describe("OrdersService", () => {
         });
         const items = [CartItemFactory.createOne({ product, quantity: 2 })];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(300);
 
         const createdOrder = {
@@ -825,7 +827,9 @@ describe("OrdersService", () => {
           }),
         ];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
         prismaMock.order.create.mockResolvedValue({
           id: "order-uuid",
@@ -853,7 +857,9 @@ describe("OrdersService", () => {
           }),
         ];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(false);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          false,
+        );
         prismaMock.order.create.mockResolvedValue({
           id: "order-uuid",
           items: [],
@@ -903,7 +909,7 @@ describe("OrdersService", () => {
         await service.createOrder(customerId, dto);
 
         expect(
-          couponsServiceMock.isEligibleForWelcomeCoupon,
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
         ).not.toHaveBeenCalled();
       });
 
@@ -915,7 +921,9 @@ describe("OrdersService", () => {
           }),
         ];
         prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(300);
         // pre-check passed (0), but a concurrent order was placed before the row lock
         prismaMock.order.count

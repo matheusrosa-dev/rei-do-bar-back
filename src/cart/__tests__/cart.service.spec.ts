@@ -41,7 +41,9 @@ describe("CartService", () => {
 
     service = module.get<CartService>(CartService);
 
-    couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(false);
+    couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+      false,
+    );
 
     findAnonymousOrCustomerWithCartOrThrow = jest.spyOn(
       service as any,
@@ -137,8 +139,8 @@ describe("CartService", () => {
         subtotal,
         productsCount,
         discount: 0,
-        couponCode: null,
-        isWelcomeCoupon: false,
+        couponCode: WELCOME_COUPON_CODE,
+        isWelcomeCoupon: true,
         total,
       });
     });
@@ -332,7 +334,9 @@ describe("CartService", () => {
             quantity: 1,
           }),
         ];
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(500);
 
         const result = await (service as any).formatCart(
@@ -341,7 +345,7 @@ describe("CartService", () => {
         );
 
         expect(
-          couponsServiceMock.isEligibleForWelcomeCoupon,
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
         ).toHaveBeenCalledWith(customerId);
         expect(result.isWelcomeCoupon).toBe(true);
         expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
@@ -349,7 +353,7 @@ describe("CartService", () => {
         expect(result.total).toBe(5000 + 200 - 500);
       });
 
-      it("should report isWelcomeCoupon true with zero discount when the subtotal does not meet the welcome coupon's minimum", async () => {
+      it("should report isWelcomeCoupon true with zero discount when the welcome discount computes to zero", async () => {
         const cartItems = [
           CartItemFactory.createOne({
             product: ProductFactory.createOne({
@@ -359,7 +363,9 @@ describe("CartService", () => {
             quantity: 1,
           }),
         ];
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
 
         const result = await (service as any).formatCart(
@@ -391,13 +397,13 @@ describe("CartService", () => {
         );
 
         expect(
-          couponsServiceMock.isEligibleForWelcomeCoupon,
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
         ).not.toHaveBeenCalled();
         expect(result.isWelcomeCoupon).toBe(false);
         expect(result.couponCode).toBe("PROMO10");
       });
 
-      it("should not check welcome coupon eligibility for an anonymous session", async () => {
+      it("should not report the welcome coupon when the authenticated customer is not eligible", async () => {
         const cartItems = [
           CartItemFactory.createOne({
             product: ProductFactory.createOne({
@@ -407,6 +413,37 @@ describe("CartService", () => {
             quantity: 1,
           }),
         ];
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          false,
+        );
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        expect(
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
+        ).toHaveBeenCalledWith(customerId);
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).not.toHaveBeenCalled();
+        expect(result.isWelcomeCoupon).toBe(false);
+        expect(result.couponCode).toBeNull();
+        expect(result.discount).toBe(0);
+      });
+
+      it("should treat an anonymous session as eligible without querying the database", async () => {
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(500);
 
         const result = await (service as any).formatCart(
           { items: cartItems, coupon: null },
@@ -414,10 +451,43 @@ describe("CartService", () => {
         );
 
         expect(
-          couponsServiceMock.isEligibleForWelcomeCoupon,
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).toHaveBeenCalledWith(5000, expect.anything());
+        expect(result.isWelcomeCoupon).toBe(true);
+        expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
+        expect(result.discount).toBe(500);
+      });
+
+      it("should not report the welcome coupon when an anonymous cart already has a real coupon", async () => {
+        const coupon = CouponFactory.createOne({ code: "PROMO10" });
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.calculateDiscount.mockReturnValue(500);
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon },
+          { deviceId: "device-123" },
+        );
+
+        expect(
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
         ).not.toHaveBeenCalled();
         expect(result.isWelcomeCoupon).toBe(false);
-        expect(result.couponCode).toBeNull();
+        expect(result.couponCode).toBe("PROMO10");
+        expect(result.discount).toBe(500);
       });
 
       it("should compute remainingToMinOrderValue against the total after the welcome discount", async () => {
@@ -434,7 +504,9 @@ describe("CartService", () => {
             quantity: 1,
           }),
         ];
-        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
         couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(1000);
 
         const result = await (service as any).formatCart(

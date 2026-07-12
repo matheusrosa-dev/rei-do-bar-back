@@ -7,7 +7,7 @@ Admin coupon management: paginated listing, creation, update, activation/deactiv
 ## What does NOT belong here
 
 - Coupon redemption rules (availability, discount calculation, usage limits) → the shared coupons module (`src/coupons/`); assigning/removing a coupon on a cart → the cart module; revalidation and usage recording at order placement → the orders module.
-- **The welcome coupon.** It is not a `Coupon` row and is not manageable here. It lives as a JSON payload in the `WELCOME_COUPON` runtime setting (edited through `src/admin/settings/`) and is evaluated by `src/coupons/`. Creating a real coupon whose code happens to be the welcome code does **not** make it the welcome coupon.
+- **The welcome coupon.** It is not a `Coupon` row and is not manageable here. It lives as a discount amount in cents in the `WELCOME_COUPON` runtime setting (edited through `src/admin/settings/`) and is evaluated by `src/coupons/`. Creating a real coupon whose code happens to be the welcome code does **not** make it the welcome coupon.
 
 ---
 

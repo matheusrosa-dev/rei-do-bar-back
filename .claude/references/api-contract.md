@@ -117,7 +117,6 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
 | adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |
 | adminCoupons | `INVALID_USAGE_LIMIT` | `ADMIN_COUPONS_005` |
-| adminSettings | `INVALID_SETTING_VALUE` | `ADMIN_SETTINGS_001` |
 
 ---
 
