@@ -817,7 +817,7 @@ describe("OrdersService", () => {
         ]);
       });
 
-      it("should not snapshot a couponCode when the eligible customer's welcome discount is zero", async () => {
+      it("should snapshot the welcome couponCode even when the eligible customer's discount is zero", async () => {
         const items = [
           CartItemFactory.createOne({
             product: ProductFactory.createOne({ stockQuantity: 20 }),
@@ -838,7 +838,7 @@ describe("OrdersService", () => {
         expect(prismaMock.order.create).toHaveBeenCalledWith(
           expect.objectContaining({
             data: expect.objectContaining({
-              couponCode: null,
+              couponCode: WELCOME_COUPON_CODE,
               discount: 0,
             }),
           }),

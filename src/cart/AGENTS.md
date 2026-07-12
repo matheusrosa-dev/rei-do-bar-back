@@ -77,7 +77,7 @@ Unlike a real coupon, the welcome coupon is applied **automatically** at format 
 
 Note carefully what the two exposed fields mean here: `isWelcomeCoupon` and `couponCode` are driven by **eligibility alone** (`CouponsService.isEligibleForWelcomeCoupon` — a first-time customer), *not* by a non-zero discount. The discount itself is computed separately and can legitimately be `0` — an empty cart, or a subtotal below the welcome coupon's `minOrderValue`. So an eligible customer with an empty cart is reported as `isWelcomeCoupon: true`, `couponCode: "BEMVINDO"`, `discount: 0`.
 
-This is **not** how orders behave: at order placement, the welcome code is snapshotted only when the computed discount is actually greater than zero. Treat the cart's flag as "you qualify for this coupon" and the order's as "this coupon was applied". If you touch either side, keep that distinction deliberate rather than accidentally aligning one to the other.
+Orders mirror this: the welcome code is snapshotted on the order under the same eligibility condition, `discount` included even when it is `0`. Keep the two in sync — if the eligibility rule changes on one side, it must change on the other.
 
 ---
 

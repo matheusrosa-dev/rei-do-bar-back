@@ -193,7 +193,7 @@ export class OrdersService {
           deliveryFee,
           couponId: coupon?.id ?? null,
           couponCode:
-            coupon?.code ?? (welcomeDiscount > 0 ? WELCOME_COUPON_CODE : null),
+            coupon?.code ?? (isWelcomeCoupon ? WELCOME_COUPON_CODE : null),
           discount,
           paymentType: dto.paymentType,
           items: {
