@@ -5,24 +5,31 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   ValidateNested,
 } from "class-validator";
 
 class AddressDto {
   @IsString()
+  @Length(1, 100)
   street!: string;
 
   @IsString()
+  @Length(1, 10)
   number!: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @Length(5, 255)
   complement?: string;
 
   @IsString()
+  @Length(1, 100)
   neighborhood!: string;
 
   @IsString()
+  @Length(8, 8)
+  @Matches(/^\d+$/)
   zipCode!: string;
 }
 

@@ -52,7 +52,6 @@ export class AppException extends HttpException {
       CANNOT_DELETE_WITH_ACTIVE_ORDER: "ME_009",
     },
     order: {
-      CUSTOMER_NOT_FOUND: "ORDER_001",
       CUSTOMER_NOT_INITIALIZED: "ORDER_002",
       CART_EMPTY: "ORDER_003",
       ONGOING_ORDER: "ORDER_004",

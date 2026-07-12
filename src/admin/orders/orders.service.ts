@@ -183,6 +183,7 @@ export class AdminOrdersService {
       select: {
         id: true,
         deliveryFee: true,
+        discount: true,
         items: {
           select: {
             price: true,
@@ -248,7 +249,7 @@ export class AdminOrdersService {
       0,
     );
 
-    return subtotal + order.deliveryFee;
+    return subtotal - order.discount + order.deliveryFee;
   }
 
   async updateOrderStatus(orderId: string, dto: UpdateOrderStatusBodyDto) {

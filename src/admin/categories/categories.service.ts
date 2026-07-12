@@ -193,6 +193,14 @@ export class AdminCategoriesService {
         );
       }
 
+      if (isUniqueConstraintViolation(error)) {
+        throw new AppException(
+          AppException.errorCodes.adminCategories.CATEGORY_ALREADY_EXISTS,
+          "Já existe uma categoria com esse nome.",
+          AppException.HttpStatus.CONFLICT,
+        );
+      }
+
       throw error;
     }
   }

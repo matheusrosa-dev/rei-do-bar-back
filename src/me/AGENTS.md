@@ -48,7 +48,7 @@ Contrast this with admin customer deletion, which is a plain hard delete refused
 
 The response DTO exposes profile fields plus a nested address collection (nested transformation is declared explicitly) and is applied at class level on **both** controllers. Route-param identifiers are validated as UUIDs.
 
-Postal-code validation is **not uniform**: the standalone add/update address DTOs enforce a fixed-length digit string, but the address nested inside the profile-initialization DTO validates its fields as plain strings — so an address created at initialization bypasses the postal-code format rule. Worth aligning before relying on the format anywhere downstream.
+Address field validation is shared across all three entry points (standalone add/update and the address nested inside profile initialization): `zipCode` is an 8-digit string, `street`/`neighborhood` are non-empty up to 100 chars, `number` up to 10 chars, and the optional `complement` is 5–255 chars when present.
 
 ---
 

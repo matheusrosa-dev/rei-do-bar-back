@@ -79,7 +79,6 @@ Codes are namespaced by domain on the application exception's static registry. A
 | me | `LIMITED_NUMBER_OF_ADDRESSES` | `ME_007` |
 | me | `ADDRESS_ALREADY_MAIN` | `ME_008` |
 | me | `CANNOT_DELETE_WITH_ACTIVE_ORDER` | `ME_009` |
-| order | `CUSTOMER_NOT_FOUND` | `ORDER_001` |
 | order | `CUSTOMER_NOT_INITIALIZED` | `ORDER_002` |
 | order | `CART_EMPTY` | `ORDER_003` |
 | order | `ONGOING_ORDER` | `ORDER_004` |

@@ -94,7 +94,9 @@ export class AdminInventoryService {
         origin: InventoryMovementOrigin.ADMIN_RESTOCK,
         movementProducts: movementProducts.map((movementProduct) => ({
           ...movementProduct,
-          price: movementProduct.totalCost / movementProduct.quantity,
+          price: Math.round(
+            movementProduct.totalCost / movementProduct.quantity,
+          ),
         })),
       });
     });
