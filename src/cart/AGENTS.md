@@ -53,7 +53,7 @@ Removing a coupon simply clears `couponId` (throwing `COUPON_NOT_ASSIGNED` if th
 
 ### Welcome Coupon
 
-Unlike a real coupon, the welcome coupon is applied **automatically** at format time — there is no assignment endpoint, no code to submit, and no `couponId` involved (it isn't a `Coupon` row; see `src/coupons/AGENTS.md`). `formatCart` computes it via `CouponsService.calculateWelcomeDiscount` only when the cart has **no coupon assigned** (a real coupon always takes priority) and the session carries an authenticated `customerId` (anonymous sessions never qualify). When it applies, the response looks exactly like a normal coupon redemption: `discount` is set and `couponCode` reports the fixed `WELCOME_COUPON_CODE` value.
+Unlike a real coupon, the welcome coupon is applied **automatically** at format time — there is no assignment endpoint, no code to submit, and no `couponId` involved (it isn't a `Coupon` row; see `src/coupons/AGENTS.md`). `formatCart` computes it via `CouponsService.calculateWelcomeDiscount` only when the cart has **no coupon assigned** (a real coupon always takes priority) and the session carries an authenticated `customerId` (anonymous sessions never qualify). When it applies, `discount` is set and `couponCode` reports the fixed `WELCOME_COUPON_CODE` value, same as a real coupon redemption; the response additionally exposes an `isWelcomeCoupon` boolean so the client can distinguish the two.
 
 ---
 

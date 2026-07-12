@@ -100,7 +100,7 @@ describe("AuthService", () => {
       expect(prismaMock.anonymousCustomer.create).not.toHaveBeenCalled();
     });
 
-    it("should return the same deviceId when its provided but no existing anonymous customer is found", async () => {
+    it("should return the same deviceId and create an anonymous customer with cart when provided deviceId has no existing anonymous customer", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
       prismaMock.anonymousCustomer.create.mockResolvedValue({
         id: anonymousCustomerId,
@@ -109,16 +109,6 @@ describe("AuthService", () => {
       const result = await service.syncDeviceId({ deviceId });
 
       expect(result).toEqual({ deviceId });
-    });
-
-    it("should create anonymous customer with cart when provided deviceId has no existing anonymous customer", async () => {
-      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
-      prismaMock.anonymousCustomer.create.mockResolvedValue({
-        id: anonymousCustomerId,
-      });
-
-      await service.syncDeviceId({ deviceId });
-
       expect(prismaMock.anonymousCustomer.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -142,43 +132,41 @@ describe("AuthService", () => {
       });
     });
 
-    it("should create a new OTP code", async () => {
+    it("should create a new OTP code with an expiration based on config, inside a transaction", async () => {
       const spy = jest.spyOn(service as any, "findAnonymousCustomer");
+      const now = new Date("2026-07-09T12:00:00.000Z");
 
-      prismaMock.otpCode.findFirst.mockResolvedValue(null);
+      jest.useFakeTimers().setSystemTime(now);
 
-      await service.sendOtpCode(deviceId, {
-        phone: "11999999999",
-      });
+      try {
+        await service.sendOtpCode(deviceId, {
+          phone: "11999999999",
+        });
 
-      expect(prismaMock.otpCode.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            hashedCode: expect.any(String),
-            anonymousCustomerId: anonymousCustomerId,
-            expiresAt: expect.any(Date),
+        expect(prismaMock.$transaction).toHaveBeenCalled();
+        expect(prismaMock.otpCode.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              hashedCode: expect.any(String),
+              anonymousCustomerId: anonymousCustomerId,
+              expiresAt: new Date(now.getTime() + 5 * 60 * 1000),
+            }),
           }),
-        }),
-      );
+        );
 
-      expect(spy).toHaveBeenCalledWith(
-        deviceId,
-        expect.objectContaining({
-          throwIfNotFound: true,
-        }),
-      );
+        expect(spy).toHaveBeenCalledWith(
+          deviceId,
+          expect.objectContaining({
+            throwIfNotFound: true,
+          }),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("should delete all old OTP codes associated with the anonymous customer before creating a new one", async () => {
-      const anonymousCustomerId = "anonymous-customer-id";
-
-      prismaMock.otpCode.findFirst.mockResolvedValue({
-        id: "old-otp-code-id",
-        hashedCode: "hashed-code",
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      });
-
-      await service.sendOtpCode("device-id", {
+      await service.sendOtpCode(deviceId, {
         phone: "11999999999",
       });
 
@@ -189,6 +177,19 @@ describe("AuthService", () => {
           },
         }),
       );
+    });
+
+    it("should throw ANONYMOUS_CUSTOMER_NOT_FOUND when the device has no anonymous customer", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.sendOtpCode(deviceId, { phone: "11999999999" }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.auth.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        httpStatus: AppException.HttpStatus.FORBIDDEN,
+      });
+
+      expect(prismaMock.otpCode.create).not.toHaveBeenCalled();
     });
 
     // TODO: adicionar teste de quando enviar o sms
@@ -222,6 +223,7 @@ describe("AuthService", () => {
       );
 
       prismaMock.customer.findUnique.mockResolvedValue(activeCustomer);
+      prismaMock.refreshToken.create.mockResolvedValue({});
 
       const result = await service.loginWithOtpCode(deviceId, dto);
 
@@ -241,6 +243,7 @@ describe("AuthService", () => {
         ...activeCustomer,
         name: null,
       });
+      prismaMock.refreshToken.create.mockResolvedValue({});
 
       const result = await service.loginWithOtpCode(deviceId, dto);
 
@@ -251,20 +254,34 @@ describe("AuthService", () => {
       });
     });
 
-    it("should return false for hasToInitAccount when a new customer has a name", async () => {
+    it("should throw ANONYMOUS_CUSTOMER_NOT_FOUND when the device has no anonymous customer", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.loginWithOtpCode(deviceId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.auth.ANONYMOUS_CUSTOMER_NOT_FOUND,
+        httpStatus: AppException.HttpStatus.FORBIDDEN,
+      });
+
+      expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should throw INVALID_VERIFICATION_CODE and not look up the customer when the OTP code is invalid or expired", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
         anonymousCustomer,
       );
+      prismaMock.otpCode.deleteMany.mockResolvedValue({ count: 0 });
 
-      prismaMock.customer.findUnique.mockResolvedValue(activeCustomer);
-
-      const result = await service.loginWithOtpCode(deviceId, dto);
-
-      expect(result).toEqual({
-        hasToInitAccount: false,
-        accessToken: expect.any(String),
-        refreshToken: expect.any(String),
+      await expect(
+        service.loginWithOtpCode(deviceId, dto),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.auth.INVALID_VERIFICATION_CODE,
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
       });
+
+      expect(prismaMock.customer.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.refreshToken.create).not.toHaveBeenCalled();
     });
 
     it("should call validateOtpCode with correct parameters", async () => {
@@ -336,6 +353,29 @@ describe("AuthService", () => {
         accessToken: expect.any(String),
         refreshToken: expect.any(String),
       });
+    });
+
+    it("should rethrow the unique constraint error when the conflicting customer cannot be found", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        anonymousCustomer,
+      );
+
+      prismaMock.customer.findUnique.mockResolvedValue(null);
+
+      const uniqueConstraintError = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed",
+        {
+          code: "P2002",
+          clientVersion: "test",
+        },
+      );
+      customersServiceMock.createCustomerFromAnonymous.mockRejectedValue(
+        uniqueConstraintError,
+      );
+
+      await expect(service.loginWithOtpCode(deviceId, dto)).rejects.toBe(
+        uniqueConstraintError,
+      );
     });
 
     it("should rethrow non-unique errors raised while creating the customer", async () => {

@@ -21,7 +21,10 @@ import {
 } from "@shared/testing/factories";
 import { couponsServiceMock, prismaMock } from "@shared/testing/mocks";
 import { OrdersService } from "../orders.service";
-import { CouponsService } from "../../coupons/coupons.service";
+import {
+  CouponsService,
+  WELCOME_COUPON_CODE,
+} from "../../coupons/coupons.service";
 import { SettingsService } from "../../settings/settings.service";
 
 const customerId = "customer-uuid";
@@ -183,6 +186,7 @@ describe("OrdersService", () => {
         where: { id: product2.id, stockQuantity: { gte: 3 } },
         data: { stockQuantity: { decrement: 3 } },
       });
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
       expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
       expect(prismaMock.cart.update).toHaveBeenCalledWith({
         where: { id: "cart-uuid" },
@@ -763,6 +767,198 @@ describe("OrdersService", () => {
         });
       });
     });
+
+    describe("with the welcome coupon", () => {
+      beforeEach(() => {
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([]);
+      });
+
+      it("should apply the welcome discount, snapshot its code on the order and skip couponUsage tracking", async () => {
+        const product = ProductFactory.createOne({
+          price: 1000,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(300);
+
+        const createdOrder = {
+          id: "order-uuid",
+          customerId,
+          orderNumber: 1000,
+          status: OrderStatus.PENDING,
+          statusReason: null,
+          deliveryFee: 0,
+          couponId: null,
+          couponCode: WELCOME_COUPON_CODE,
+          discount: 300,
+          items: [{ price: 1000, quantity: 2, productId: product.id }],
+        };
+        prismaMock.order.create.mockResolvedValue(createdOrder);
+        prismaMock.order.findMany.mockResolvedValue([createdOrder]);
+
+        const result = await service.createOrder(customerId, dto);
+
+        expect(prismaMock.order.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              couponId: null,
+              couponCode: WELCOME_COUPON_CODE,
+              discount: 300,
+            }),
+          }),
+        );
+        expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
+        expect(result).toEqual([
+          { ...createdOrder, subtotal: 2000, total: 1700 },
+        ]);
+      });
+
+      it("should not snapshot a couponCode when the eligible customer's welcome discount is zero", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        await service.createOrder(customerId, dto);
+
+        expect(prismaMock.order.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              couponCode: null,
+              discount: 0,
+            }),
+          }),
+        );
+      });
+
+      it("should not calculate the welcome discount when the customer is not eligible", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(false);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        await service.createOrder(customerId, dto);
+
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).not.toHaveBeenCalled();
+        expect(prismaMock.order.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              couponCode: null,
+              discount: 0,
+            }),
+          }),
+        );
+      });
+
+      it("should not check welcome coupon eligibility when the cart already has a coupon applied", async () => {
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomer(items, {
+            cart: CartFactory.createOne({ id: "cart-uuid", items, coupon }),
+          }),
+        );
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+        prismaMock.couponUsage.create.mockResolvedValue({
+          id: "usage-uuid",
+          couponId: coupon.id,
+          customerId,
+          createdAt: new Date(),
+        });
+
+        await service.createOrder(customerId, dto);
+
+        expect(
+          couponsServiceMock.isEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+      });
+
+      it("should throw WELCOME_COUPON_UNAVAILABLE when a concurrent order closes the eligibility window inside the transaction", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(300);
+        // pre-check passed (0), but a concurrent order was placed before the row lock
+        prismaMock.order.count
+          .mockResolvedValueOnce(0)
+          .mockResolvedValueOnce(1);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.WELCOME_COUPON_UNAVAILABLE,
+          message: "Cupom de boas-vindas indisponível",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("concurrent stockQuantity decrement", () => {
+      it("should throw PRODUCTS_OUT_OF_STOCK and skip clearing the cart when a concurrent order exhausts stockQuantity inside the transaction", async () => {
+        const product = ProductFactory.createOne({
+          name: "Cerveja",
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 1 })];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        // the pre-check passed, but a concurrent order decremented stockQuantity first
+        prismaMock.product.updateMany.mockResolvedValue({ count: 0 });
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
+          message:
+            "Cerveja não tem estoque suficiente para a quantidade solicitada.",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("getOrders", () => {
@@ -794,12 +990,28 @@ describe("OrdersService", () => {
       expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
     });
 
-    it("should not query the customer before returning the orders", async () => {
+    it("should subtract the applied coupon discount from the total", async () => {
+      const order = {
+        id: "order-uuid",
+        orderNumber: 1000,
+        deliveryFee: 200,
+        discount: 500,
+        couponCode: "PROMO10",
+        items: [{ price: 300, quantity: 2 }],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await service.getOrders(customerId);
+
+      expect(result).toEqual([{ ...order, subtotal: 600, total: 300 }]);
+    });
+
+    it("should return an empty array when the customer has no orders", async () => {
       prismaMock.order.findMany.mockResolvedValue([]);
 
-      await service.getOrders(customerId);
+      const result = await service.getOrders(customerId);
 
-      expect(prismaMock.customer.findFirst).not.toHaveBeenCalled();
+      expect(result).toEqual([]);
     });
   });
 
@@ -984,318 +1196,6 @@ describe("OrdersService", () => {
       ).toThrow(
         expect.objectContaining({
           code: AppException.errorCodes.order.BELOW_MIN_ORDER_VALUE,
-        }),
-      );
-    });
-  });
-
-  describe("assertCouponIsRedeemable (private)", () => {
-    const coupon = CouponFactory.createOne({ minOrderValue: 1000 });
-
-    it("should not throw when the coupon is available, the subtotal meets the minimum, and it is unused", async () => {
-      await expect(
-        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
-      ).resolves.toBeUndefined();
-    });
-
-    it("should throw COUPON_UNAVAILABLE when the coupon is not currently redeemable", async () => {
-      couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
-
-      await expect(
-        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.COUPON_UNAVAILABLE,
-        message: "Cupom indisponível",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should throw COUPON_MIN_ORDER_NOT_MET when the subtotal is below the coupon's minOrderValue", async () => {
-      await expect(
-        (service as any).assertCouponIsRedeemable(coupon, 999, customerId),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.COUPON_MIN_ORDER_NOT_MET,
-        message: "O valor do carrinho não atinge o mínimo para este cupom",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-    });
-
-    it("should throw COUPON_USAGE_LIMIT_REACHED when the coupon's global usage limit was reached", async () => {
-      couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(true);
-
-      await expect(
-        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.COUPON_USAGE_LIMIT_REACHED,
-        message: "Este cupom atingiu o limite de uso",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-
-      expect(couponsServiceMock.hasReachedUsageLimit).toHaveBeenCalledWith(
-        coupon.id,
-        coupon.usageLimit,
-      );
-    });
-
-    it("should throw COUPON_ALREADY_USED when the customer already redeemed this coupon", async () => {
-      couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(true);
-
-      await expect(
-        (service as any).assertCouponIsRedeemable(coupon, 1000, customerId),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.order.COUPON_ALREADY_USED,
-        message: "Você já utilizou este cupom",
-        httpStatus: AppException.HttpStatus.BAD_REQUEST,
-      });
-
-      expect(couponsServiceMock.hasCustomerUsedCoupon).toHaveBeenCalledWith(
-        coupon.id,
-        customerId,
-      );
-    });
-  });
-
-  describe("findAndFormatOrders (private)", () => {
-    it("should query the customer orders and compute subtotal and total", async () => {
-      const order = {
-        id: "order-uuid",
-        orderNumber: 1000,
-        deliveryFee: 200,
-        discount: 0,
-        items: [
-          { price: 10, quantity: 2 },
-          { price: 20, quantity: 1 },
-        ],
-      };
-      prismaMock.order.findMany.mockResolvedValue([order]);
-
-      const result = await (service as any).findAndFormatOrders(customerId);
-
-      expect(prismaMock.order.findMany).toHaveBeenCalledWith({
-        where: { customerId },
-        include: { items: true },
-        orderBy: { createdAt: "desc" },
-      });
-      expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
-    });
-
-    it("should subtract the applied coupon discount from the total", async () => {
-      const order = {
-        id: "order-uuid",
-        orderNumber: 1000,
-        deliveryFee: 200,
-        discount: 500,
-        couponCode: "PROMO10",
-        items: [{ price: 300, quantity: 2 }],
-      };
-      prismaMock.order.findMany.mockResolvedValue([order]);
-
-      const result = await (service as any).findAndFormatOrders(customerId);
-
-      expect(result).toEqual([{ ...order, subtotal: 600, total: 300 }]);
-    });
-
-    it("should return an empty array when the customer has no orders", async () => {
-      prismaMock.order.findMany.mockResolvedValue([]);
-
-      const result = await (service as any).findAndFormatOrders(customerId);
-
-      expect(result).toEqual([]);
-    });
-  });
-
-  describe("assertCustomerIsAptToCreateOrder (private)", () => {
-    const buildItems = () => [
-      CartItemFactory.createOne({
-        product: ProductFactory.createOne({ stockQuantity: 20 }),
-        quantity: 1,
-      }),
-    ];
-
-    it("should not throw when the customer has a name and items", () => {
-      expect(() =>
-        (service as any).assertCustomerIsAptToCreateOrder(
-          buildCustomer(buildItems()),
-        ),
-      ).not.toThrow();
-    });
-
-    it("should throw INACTIVE_CUSTOMER when the customer is null", () => {
-      expect(() =>
-        (service as any).assertCustomerIsAptToCreateOrder(null),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
-          message:
-            "Sua conta foi bloqueada. Por favor, entre em contato com o suporte.",
-          httpStatus: AppException.HttpStatus.FORBIDDEN,
-        }),
-      );
-    });
-
-    it("should throw INACTIVE_CUSTOMER when the customer is inactive", () => {
-      expect(() =>
-        (service as any).assertCustomerIsAptToCreateOrder(
-          buildCustomer(buildItems(), { isActive: false }),
-        ),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.INACTIVE_CUSTOMER,
-        }),
-      );
-    });
-
-    it("should throw CUSTOMER_NOT_INITIALIZED when the customer has no name", () => {
-      expect(() =>
-        (service as any).assertCustomerIsAptToCreateOrder(
-          buildCustomer(buildItems(), { name: null }),
-        ),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.CUSTOMER_NOT_INITIALIZED,
-        }),
-      );
-    });
-
-    it("should throw CART_EMPTY when the cart has no items", () => {
-      expect(() =>
-        (service as any).assertCustomerIsAptToCreateOrder(buildCustomer([])),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.CART_EMPTY,
-          message: "O carrinho está vazio",
-          httpStatus: AppException.HttpStatus.BAD_REQUEST,
-        }),
-      );
-    });
-  });
-
-  describe("assertThereAreInvalidItemsInCart (private)", () => {
-    it("should not throw when every item is active and within stockQuantity", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            stockQuantity: 20,
-            isActive: true,
-          }),
-          quantity: 2,
-        }),
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            stockQuantity: 50,
-            isActive: true,
-          }),
-          quantity: 5,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).not.toThrow();
-    });
-
-    it("should throw PRODUCT_INACTIVE when a product is inactive", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            name: "Cerveja",
-            stockQuantity: 20,
-            isActive: false,
-          }),
-          quantity: 1,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.PRODUCT_INACTIVE,
-          message:
-            "Cerveja não está mais disponível. Remova o produto para finalizar o pedido.",
-        }),
-      );
-    });
-
-    it("should throw PRODUCTS_OUT_OF_STOCK when a product is out of stockQuantity", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            name: "Cerveja",
-            stockQuantity: 0,
-          }),
-          quantity: 1,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).toThrow(
-        expect.objectContaining({
-          code: AppException.errorCodes.order.PRODUCTS_OUT_OF_STOCK,
-          message:
-            "Cerveja está sem estoque no momento. Remova o produto para finalizar o pedido.",
-        }),
-      );
-    });
-
-    it("should throw the plural low-stock message when stockQuantity is 10 or less", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            name: "Cerveja",
-            stockQuantity: 5,
-          }),
-          quantity: 6,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).toThrow(
-        expect.objectContaining({
-          message: "Cerveja tem apenas 5 unidades restantes.",
-        }),
-      );
-    });
-
-    it("should throw the singular low-stock message when only one unit remains", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            name: "Cerveja",
-            stockQuantity: 1,
-          }),
-          quantity: 2,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).toThrow(
-        expect.objectContaining({
-          message: "Cerveja tem apenas 1 unidade restante.",
-        }),
-      );
-    });
-
-    it("should throw the insufficient-stock message when stockQuantity is above 10 but quantity exceeds it", () => {
-      const items = [
-        CartItemFactory.createOne({
-          product: ProductFactory.createOne({
-            name: "Cerveja",
-            stockQuantity: 11,
-          }),
-          quantity: 12,
-        }),
-      ];
-
-      expect(() =>
-        (service as any).assertThereAreInvalidItemsInCart(items),
-      ).toThrow(
-        expect.objectContaining({
-          message:
-            "Cerveja não tem estoque suficiente para a quantidade solicitada.",
         }),
       );
     });

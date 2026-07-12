@@ -303,6 +303,70 @@ describe("ProductsService", () => {
         );
       });
     });
+
+    it("should throw INVALID_SESSION when the session has neither deviceId nor customerId", async () => {
+      await expect(service.findBestSellers({})).rejects.toMatchObject({
+        code: AppException.errorCodes.products.INVALID_SESSION,
+        message: "Sessão inválida",
+        httpStatus: AppException.HttpStatus.INTERNAL_SERVER_ERROR,
+      });
+    });
+
+    it("should return quantityInCart=0 when the found record has no cart", async () => {
+      const product = ProductFactory.createOne({ stockQuantity: 20 });
+
+      prismaMock.product.findMany.mockResolvedValue([product]);
+      prismaMock.customer.findFirst.mockResolvedValue({
+        id: "customer-id",
+        cart: null,
+      });
+
+      const result = await service.findBestSellers({
+        customerId: "customer-123",
+      });
+
+      expect(result[0].quantityInCart).toBe(0);
+    });
+
+    it("should combine category and searchTerm filters when both are provided", async () => {
+      prismaMock.product.findMany.mockResolvedValue([]);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
+
+      await service.findBestSellers(
+        { customerId: "customer-123" },
+        { category: "Bebidas", searchTerm: "burger" },
+      );
+
+      expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            category: { name: "Bebidas" },
+            OR: [
+              { name: { contains: "burger", mode: "insensitive" } },
+              { description: { contains: "burger", mode: "insensitive" } },
+              {
+                category: {
+                  name: { contains: "burger", mode: "insensitive" },
+                },
+              },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it("should return remainingStock when stockQuantity is exactly 10", async () => {
+      const product = ProductFactory.createOne({ stockQuantity: 10 });
+
+      prismaMock.product.findMany.mockResolvedValue([product]);
+      prismaMock.customer.findFirst.mockResolvedValue(null);
+
+      const result = await service.findBestSellers({
+        customerId: "customer-123",
+      });
+
+      expect(result[0].remainingStock).toBe(10);
+    });
   });
 
   describe("findAnonymousOrCustomerWithCart", () => {
@@ -311,6 +375,7 @@ describe("ProductsService", () => {
         prismaMock.anonymousCustomer,
         "findUnique",
       );
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 
       await (service as any).findAnonymousOrCustomerWithCart({
         deviceId: "device-123",
@@ -334,6 +399,7 @@ describe("ProductsService", () => {
 
     it("should query customer with cart items when customerId is present in session", async () => {
       const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
+      prismaMock.customer.findFirst.mockResolvedValue(null);
       const sessionWithCustomerId = { customerId: "customer-123" };
 
       await (service as any).findAnonymousOrCustomerWithCart(
@@ -366,6 +432,7 @@ describe("ProductsService", () => {
 
     it("should query customer (not anonymous) when session has both deviceId and customerId", () => {
       const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
+      prismaMock.customer.findFirst.mockResolvedValue(null);
       const session = {
         deviceId: "device-123",
         customerId: "customer-123",

@@ -1,6 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { CouponsService } from "../coupons.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import {
+  OrderStatus,
+  SettingKey,
+} from "@shared/database/prisma/generated/client";
 import { prismaMock } from "@shared/testing/mocks";
 import { CouponFactory } from "@shared/testing/factories";
 
@@ -232,6 +236,136 @@ describe("CouponsService", () => {
           },
         },
       });
+    });
+  });
+
+  describe("getWelcomeCoupon", () => {
+    it("should return null when the WELCOME_COUPON setting is absent", () => {
+      expect(
+        service.getWelcomeCoupon({} as Record<SettingKey, string>),
+      ).toBeNull();
+    });
+
+    it("should return null when the setting value is not valid JSON", () => {
+      expect(
+        service.getWelcomeCoupon({
+          WELCOME_COUPON: "not-json",
+        } as Record<SettingKey, string>),
+      ).toBeNull();
+    });
+
+    it("should return null when discountValue is not a number", () => {
+      expect(
+        service.getWelcomeCoupon({
+          WELCOME_COUPON: JSON.stringify({
+            discountValue: "500",
+            minOrderValue: 0,
+          }),
+        } as Record<SettingKey, string>),
+      ).toBeNull();
+    });
+
+    it("should return null when minOrderValue is not a number", () => {
+      expect(
+        service.getWelcomeCoupon({
+          WELCOME_COUPON: JSON.stringify({
+            discountValue: 500,
+            minOrderValue: "0",
+          }),
+        } as Record<SettingKey, string>),
+      ).toBeNull();
+    });
+
+    it("should return the parsed discountValue and minOrderValue when the JSON is valid", () => {
+      expect(
+        service.getWelcomeCoupon({
+          WELCOME_COUPON: JSON.stringify({
+            discountValue: 500,
+            minOrderValue: 1000,
+          }),
+        } as Record<SettingKey, string>),
+      ).toEqual({ discountValue: 500, minOrderValue: 1000 });
+    });
+  });
+
+  describe("isEligibleForWelcomeCoupon", () => {
+    it("should return true when the customer has zero non-cancelled orders", async () => {
+      prismaMock.order.count.mockResolvedValue(0);
+
+      const result = await service.isEligibleForWelcomeCoupon("customer-1");
+
+      expect(result).toBe(true);
+    });
+
+    it("should return false when the customer has at least one non-cancelled order", async () => {
+      prismaMock.order.count.mockResolvedValue(1);
+
+      const result = await service.isEligibleForWelcomeCoupon("customer-1");
+
+      expect(result).toBe(false);
+    });
+
+    it("should query order.count excluding cancelled orders for the customer", async () => {
+      prismaMock.order.count.mockResolvedValue(0);
+
+      await service.isEligibleForWelcomeCoupon("customer-1");
+
+      expect(prismaMock.order.count).toHaveBeenCalledWith({
+        where: {
+          customerId: "customer-1",
+          status: { not: OrderStatus.CANCELLED },
+        },
+      });
+    });
+  });
+
+  describe("calculateWelcomeDiscount", () => {
+    it("should return 0 when the WELCOME_COUPON setting is not configured", async () => {
+      const result = await service.calculateWelcomeDiscount(
+        10000,
+        {} as Record<SettingKey, string>,
+      );
+
+      expect(result).toBe(0);
+    });
+
+    it("should return 0 when the subtotal is below the welcome coupon's minOrderValue", async () => {
+      const settings = {
+        WELCOME_COUPON: JSON.stringify({
+          discountValue: 500,
+          minOrderValue: 10000,
+        }),
+      } as Record<SettingKey, string>;
+
+      const result = await service.calculateWelcomeDiscount(9999, settings);
+
+      expect(result).toBe(0);
+    });
+
+    it("should return the discountValue when the subtotal meets the minimum", async () => {
+      const settings = {
+        WELCOME_COUPON: JSON.stringify({
+          discountValue: 500,
+          minOrderValue: 1000,
+        }),
+      } as Record<SettingKey, string>;
+
+      const result = await service.calculateWelcomeDiscount(1000, settings);
+
+      expect(result).toBe(500);
+    });
+
+    it("should cap the discount at the subtotal", async () => {
+      const settings = {
+        WELCOME_COUPON: JSON.stringify({
+          discountValue: 5000,
+          minOrderValue: 0,
+        }),
+      } as Record<SettingKey, string>;
+
+      const result = await service.calculateWelcomeDiscount(3000, settings);
+
+      expect(result).toBe(3000);
     });
   });
 });

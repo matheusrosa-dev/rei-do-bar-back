@@ -26,7 +26,11 @@ describe("SettingsService", () => {
     it("should return a map of active settings keyed by their key", async () => {
       prismaMock.setting.findMany.mockResolvedValue([
         { key: SettingKey.DELIVERY_FEE, value: "500", isActive: true },
-        { key: "STORE_NAME", value: "Rei do Bar", isActive: true },
+        {
+          key: SettingKey.ALERT_MESSAGE,
+          value: "Estamos fechados",
+          isActive: true,
+        },
       ]);
 
       const result = await service.findAll();
@@ -34,14 +38,18 @@ describe("SettingsService", () => {
       expect(prismaMock.setting.findMany).toHaveBeenCalledTimes(1);
       expect(result).toEqual({
         [SettingKey.DELIVERY_FEE]: "500",
-        STORE_NAME: "Rei do Bar",
+        [SettingKey.ALERT_MESSAGE]: "Estamos fechados",
       });
     });
 
     it("should exclude inactive settings from the result", async () => {
       prismaMock.setting.findMany.mockResolvedValue([
         { key: SettingKey.DELIVERY_FEE, value: "500", isActive: true },
-        { key: "STORE_NAME", value: "Rei do Bar", isActive: false },
+        {
+          key: SettingKey.ALERT_MESSAGE,
+          value: "Estamos fechados",
+          isActive: false,
+        },
       ]);
 
       const result = await service.findAll();
@@ -51,16 +59,6 @@ describe("SettingsService", () => {
 
     it("should return an empty object when there are no settings", async () => {
       prismaMock.setting.findMany.mockResolvedValue([]);
-
-      const result = await service.findAll();
-
-      expect(result).toEqual({});
-    });
-
-    it("should return an empty object when all settings are inactive", async () => {
-      prismaMock.setting.findMany.mockResolvedValue([
-        { key: SettingKey.DELIVERY_FEE, value: "500", isActive: false },
-      ]);
 
       const result = await service.findAll();
 

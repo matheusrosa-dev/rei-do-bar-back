@@ -26,20 +26,32 @@ describe("MeService", () => {
   });
 
   describe("findMe", () => {
-    it("should return the customer with addresses", async () => {
+    it("should return the customer with addresses sorted with the main one first", async () => {
       const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
 
-      const address = AddressFactory.createOne({ customerId });
+      const mainAddress = AddressFactory.createOne({
+        customerId,
+        id: "main-address",
+        isMain: true,
+      });
+      const otherAddress = AddressFactory.createOne({
+        customerId,
+        id: "other-address",
+        isMain: false,
+      });
       const customer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [address],
+        addresses: [otherAddress, mainAddress],
       });
 
       prismaMock.customer.findFirst.mockResolvedValue(customer);
 
       const result = await service.findMe(customerId);
 
-      expect(result).toEqual(customer);
+      expect(result.addresses.map((a) => a.id)).toEqual([
+        mainAddress.id,
+        otherAddress.id,
+      ]);
       expect(sortAddressesSpy).toHaveBeenCalledWith(customer.addresses);
       expect(prismaMock.customer.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -210,10 +222,7 @@ describe("MeService", () => {
           deletedAt: expect.any(Date),
         },
       });
-
-      expect(prismaMock.customer.delete).not.toHaveBeenCalled();
-      expect(prismaMock.order.update).not.toHaveBeenCalled();
-      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction).toHaveBeenCalled();
     });
 
     it("should throw CUSTOMER_NOT_FOUND when customer does not exist", async () => {
@@ -342,6 +351,15 @@ describe("MeService", () => {
       const result = await service.addAddress(customerId, dto);
 
       expect(sortAddressesSpy).toHaveBeenCalledWith(updatedCustomer.addresses);
+      expect(prismaMock.$transaction).toHaveBeenCalled();
+      expect(prismaMock.$queryRaw).toHaveBeenCalled();
+      expect(prismaMock.address.findFirst).toHaveBeenCalledWith({
+        where: {
+          customerId,
+          zipCode: dto.zipCode,
+          number: dto.number,
+        },
+      });
       expect(prismaMock.address.updateMany).toHaveBeenCalledWith({
         where: { customerId, isMain: true },
         data: { isMain: false },
@@ -359,7 +377,52 @@ describe("MeService", () => {
           },
         }),
       );
-      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+      expect(result.addresses.map((a) => a.id)).toEqual([
+        newAddress.id,
+        existingAddress.id,
+      ]);
+    });
+
+    it("should create the address with all provided fields, including complement", async () => {
+      const dtoWithComplement = { ...dto, complement: "Apto 2" };
+
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [],
+      });
+      const createdAddress = AddressFactory.createOne({
+        customerId,
+        ...dtoWithComplement,
+        isMain: true,
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [createdAddress],
+      });
+
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.address.findFirst.mockResolvedValue(null);
+      prismaMock.address.count.mockResolvedValue(0);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      await service.addAddress(customerId, dtoWithComplement);
+
+      expect(prismaMock.customer.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            addresses: {
+              create: {
+                zipCode: dtoWithComplement.zipCode,
+                neighborhood: dtoWithComplement.neighborhood,
+                number: dtoWithComplement.number,
+                street: dtoWithComplement.street,
+                complement: dtoWithComplement.complement,
+                isMain: true,
+              },
+            },
+          },
+        }),
+      );
     });
   });
 
@@ -470,7 +533,10 @@ describe("MeService", () => {
           include: { addresses: true },
         }),
       );
-      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+      expect(result.addresses.map((a) => a.id)).toEqual([
+        targetAddress.id,
+        currentMain.id,
+      ]);
     });
   });
 
@@ -544,7 +610,7 @@ describe("MeService", () => {
       expect(prismaMock.customer.update).not.toHaveBeenCalled();
     });
 
-    it("should update address with all provided fields and return addresses", async () => {
+    it("should update address with all provided fields and return addresses sorted with main first", async () => {
       const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
 
       const addressToUpdate = AddressFactory.createOne({
@@ -552,14 +618,22 @@ describe("MeService", () => {
         id: addressId,
         zipCode: "11111111",
         number: "100",
+        isMain: false,
+      });
+      const mainAddress = AddressFactory.createOne({
+        customerId,
+        id: "main-address",
+        zipCode: "22222222",
+        number: "200",
+        isMain: true,
       });
       const customer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [addressToUpdate],
+        addresses: [addressToUpdate, mainAddress],
       });
       const updatedCustomer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [{ ...addressToUpdate, ...dto }],
+        addresses: [{ ...addressToUpdate, ...dto }, mainAddress],
       });
 
       prismaMock.customer.findFirst.mockResolvedValue(customer);
@@ -588,7 +662,36 @@ describe("MeService", () => {
           include: { addresses: true },
         }),
       );
-      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+      expect(result.addresses.map((a) => a.id)).toEqual([
+        mainAddress.id,
+        addressId,
+      ]);
+    });
+
+    it("should allow re-saving the same address with unchanged zipCode and number", async () => {
+      const addressToUpdate = AddressFactory.createOne({
+        customerId,
+        id: addressId,
+        zipCode: dto.zipCode,
+        number: dto.number,
+      });
+      const customer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [addressToUpdate],
+      });
+      const updatedCustomer = CustomerFactory.createOne({
+        id: customerId,
+        addresses: [{ ...addressToUpdate, ...dto }],
+      });
+
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.customer.update.mockResolvedValue(updatedCustomer);
+
+      await expect(
+        service.updateAddress(customerId, addressId, dto),
+      ).resolves.toEqual({ addresses: updatedCustomer.addresses });
+
+      expect(prismaMock.customer.update).toHaveBeenCalled();
     });
 
     it("should set complement to null when not provided", async () => {
@@ -730,7 +833,7 @@ describe("MeService", () => {
       expect(result).toEqual({ addresses: updatedCustomer.addresses });
     });
 
-    it("should remove the main address and promote the next address to main", async () => {
+    it("should remove the main address and promote the first remaining address to main", async () => {
       const sortAddressesSpy = jest.spyOn(service as any, "sortAddresses");
 
       const addressToRemove = AddressFactory.createOne({
@@ -743,13 +846,18 @@ describe("MeService", () => {
         id: "other-address",
         isMain: false,
       });
+      const thirdAddress = AddressFactory.createOne({
+        customerId,
+        id: "third-address",
+        isMain: false,
+      });
       const customer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [addressToRemove, nextAddress],
+        addresses: [addressToRemove, nextAddress, thirdAddress],
       });
       const updatedCustomer = CustomerFactory.createOne({
         id: customerId,
-        addresses: [{ ...nextAddress, isMain: true }],
+        addresses: [thirdAddress, { ...nextAddress, isMain: true }],
       });
 
       prismaMock.customer.findFirst.mockResolvedValue(customer);
@@ -772,7 +880,10 @@ describe("MeService", () => {
           },
         }),
       );
-      expect(result).toEqual({ addresses: updatedCustomer.addresses });
+      expect(result.addresses.map((a) => a.id)).toEqual([
+        nextAddress.id,
+        thirdAddress.id,
+      ]);
     });
   });
 

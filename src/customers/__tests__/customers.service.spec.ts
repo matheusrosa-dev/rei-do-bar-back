@@ -3,6 +3,7 @@ import { CustomersService } from "../customers.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { prismaMock } from "@shared/testing/mocks";
 import { CartFactory, CustomerFactory } from "@shared/testing/factories";
+import { Prisma } from "@shared/database/prisma/generated/client";
 
 describe("CustomersService", () => {
   let service: CustomersService;
@@ -79,6 +80,24 @@ describe("CustomersService", () => {
       const result = await service.createCustomerFromAnonymous(input);
 
       expect(result).toEqual(createdCustomer);
+    });
+
+    it("should propagate the unique constraint error when the phone is already in use", async () => {
+      const uniqueConstraintError = new Prisma.PrismaClientKnownRequestError(
+        "Unique constraint failed",
+        {
+          code: "P2002",
+          clientVersion: "test",
+        },
+      );
+      prismaMock.customer.create.mockRejectedValue(uniqueConstraintError);
+
+      await expect(service.createCustomerFromAnonymous(input)).rejects.toBe(
+        uniqueConstraintError,
+      );
+
+      expect(prismaMock.cart.update).not.toHaveBeenCalled();
+      expect(prismaMock.anonymousCustomer.delete).not.toHaveBeenCalled();
     });
   });
 

@@ -27,4 +27,4 @@ Each factory exposes static "create one" and "create many" methods and uses a fa
 | Test-only | Never import anything from this directory in non-test code |
 | Keep the mock in sync | Add a mock function whenever a service calls a new Prisma method |
 | Explicit composition | Provide relational props explicitly and compose factories bottom-up |
-| Spying on privates | Spy on private methods through the documented bracket-access pattern, with the matching Biome suppression |
+| Spying on privates | Access private methods via an `as any` cast — `jest.spyOn(service as any, "method")` to assert calls, or direct bracket-access invocation — with the matching Biome suppression comments |

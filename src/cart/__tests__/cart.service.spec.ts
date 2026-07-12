@@ -18,7 +18,10 @@ import {
   CustomerFactory,
 } from "@shared/testing/factories";
 import { SettingsService } from "../../settings/settings.service";
-import { CouponsService } from "../../coupons/coupons.service";
+import {
+  CouponsService,
+  WELCOME_COUPON_CODE,
+} from "../../coupons/coupons.service";
 
 describe("CartService", () => {
   let service: CartService;
@@ -37,6 +40,8 @@ describe("CartService", () => {
     }).compile();
 
     service = module.get<CartService>(CartService);
+
+    couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(false);
 
     findAnonymousOrCustomerWithCartOrThrow = jest.spyOn(
       service as any,
@@ -133,6 +138,7 @@ describe("CartService", () => {
         productsCount,
         discount: 0,
         couponCode: null,
+        isWelcomeCoupon: false,
         total,
       });
     });
@@ -311,6 +317,134 @@ describe("CartService", () => {
       await (service as any).formatCart({ items: cartItems, coupon: null });
 
       expect(couponsServiceMock.calculateDiscount).not.toHaveBeenCalled();
+    });
+
+    describe("welcome coupon", () => {
+      const customerId = "customer-123";
+
+      it("should apply the welcome discount when the customer is eligible and has no coupon assigned", async () => {
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(500);
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        expect(
+          couponsServiceMock.isEligibleForWelcomeCoupon,
+        ).toHaveBeenCalledWith(customerId);
+        expect(result.isWelcomeCoupon).toBe(true);
+        expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
+        expect(result.discount).toBe(500);
+        expect(result.total).toBe(5000 + 200 - 500);
+      });
+
+      it("should report isWelcomeCoupon true with zero discount when the subtotal does not meet the welcome coupon's minimum", async () => {
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 100,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        expect(result.isWelcomeCoupon).toBe(true);
+        expect(result.discount).toBe(0);
+        expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
+      });
+
+      it("should not check welcome coupon eligibility when the cart already has a coupon assigned", async () => {
+        const coupon = CouponFactory.createOne({ code: "PROMO10" });
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.calculateDiscount.mockReturnValue(500);
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon },
+          { customerId },
+        );
+
+        expect(
+          couponsServiceMock.isEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+        expect(result.isWelcomeCoupon).toBe(false);
+        expect(result.couponCode).toBe("PROMO10");
+      });
+
+      it("should not check welcome coupon eligibility for an anonymous session", async () => {
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { deviceId: "device-123" },
+        );
+
+        expect(
+          couponsServiceMock.isEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+        expect(result.isWelcomeCoupon).toBe(false);
+        expect(result.couponCode).toBeNull();
+      });
+
+      it("should compute remainingToMinOrderValue against the total after the welcome discount", async () => {
+        settingsServiceMock.findAll.mockResolvedValue({
+          DELIVERY_FEE: "200",
+          MIN_ORDER_VALUE: "5000",
+        });
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 3000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.isEligibleForWelcomeCoupon.mockResolvedValue(true);
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(1000);
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        // subtotal 3000 + deliveryFee 200 - discount 1000 = 2200 total; minOrderValue 5000
+        expect(result.remainingToMinOrderValue).toBe(2800);
+      });
     });
   });
 

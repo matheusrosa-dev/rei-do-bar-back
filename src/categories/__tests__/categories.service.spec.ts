@@ -32,12 +32,11 @@ describe("CategoriesService", () => {
       const result = await service.findAll();
 
       expect(result).toEqual(categories);
-      expect(prismaMock.category.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { isActive: true },
-          select: { id: true, name: true, pluralName: true, imageUrl: true },
-        }),
-      );
+      expect(prismaMock.category.findMany).toHaveBeenCalledWith({
+        where: { isActive: true },
+        select: { id: true, name: true, pluralName: true, imageUrl: true },
+        orderBy: { sortOrder: "asc" },
+      });
     });
 
     it("should return empty array when no active categories exist", async () => {

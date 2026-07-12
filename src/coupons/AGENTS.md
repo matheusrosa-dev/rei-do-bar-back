@@ -22,7 +22,7 @@ The module provides and exports its service so other modules can depend on it. I
 
 Availability and discount rules are pure functions of a `Coupon` row (no I/O): a coupon is unavailable if inactive, not yet started, or past its end date; a discount is zero unless the coupon is available and the subtotal meets its minimum order value, otherwise `FIXED` discounts a cents amount and `PERCENTAGE` discounts a whole-number percent of the subtotal — both capped at the subtotal so a discount can never exceed it. Usage-limit checks (`hasReachedUsageLimit`, `hasCustomerUsedCoupon`) do read from `CouponUsage` and are the pieces callers must re-run at redemption time, since they depend on state that changes over time.
 
-Availability is evaluated at **day granularity** against the start of the current day in the store's timezone — a coupon whose window starts today is already available, and one whose window ends today remains available for the rest of the day.
+Availability is evaluated against the exact current timestamp: `startsAt`/`endsAt` are compared directly to `new Date()`, with no truncation to day boundaries and no timezone adjustment.
 
 ---
 
@@ -43,4 +43,4 @@ The welcome coupon is **not a `Coupon` row** — it lives entirely in the `setti
 
 Eligibility is derived instead of stored: a customer is eligible while they have zero non-cancelled orders (`OrderStatus.CANCELLED` orders don't count, so cancelling a first order restores eligibility). `getWelcomeCoupon` parses and validates the setting's JSON (returning `null` on anything malformed or absent, per the "missing/invalid = not configured" convention), `isEligibleForWelcomeCoupon` checks the order count, and `calculateWelcomeDiscount` combines both — cheap checks (setting present, subtotal meets minimum) run before the eligibility query. Callers pass in the already-fetched settings map (`SettingsService.findAll()`) rather than this service re-fetching it.
 
-It surfaces to consumers as the fixed code `WELCOME_COUPON_CODE` (`"BOAS-VINDAS"`), so cart and order responses look identical to a real coupon redemption from the client's perspective.
+It surfaces to consumers as the fixed code `WELCOME_COUPON_CODE`, so cart and order responses carry a `couponCode`/`discount` pair identical in shape to a real coupon redemption from the client's perspective.

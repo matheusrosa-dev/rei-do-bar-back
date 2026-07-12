@@ -22,7 +22,7 @@ The listing fetches products and the current session's cart **in parallel**, reu
 
 ## Filtering
 
-The service derives whether any filter (category or search term) is active. With no filter, the query is constrained to products explicitly flagged as best-sellers; when any filter is present that constraint is dropped and all matching active products are returned. Best-seller ordering is applied by the explicit sort field regardless of the active filter.
+The query always returns active, non-deleted products. Category and search-term filters are additive and optional — either, both, or neither may be present; a search term matches product name, description, or category name (case-insensitive). Results are always ordered by an explicit sort field, and each product's response includes its compare-at price alongside the current price.
 
 ---
 
@@ -38,5 +38,5 @@ The query DTO validates the optional filter params. The response DTO (applied at
 |---|---|
 | Parallel I/O | Product and cart lookups run together, not sequentially |
 | Reuse the duality | Session resolution mirrors the cart domain's anonymous/customer branching |
-| Filter toggles best-seller scope | Best-seller-only constraint applies solely when no filter is active |
+| Explicit ordering | Results are always sorted by the explicit sort field, independent of active filters |
 | Errors | Thrown as `AppException`; codes are listed in the API contract reference |

@@ -27,8 +27,8 @@ The entire controller is protected by the access-token guard; there is no public
 Each service method first calls a private "load me or throw" helper to confirm the customer exists (excluding soft-deleted accounts), optionally including addresses. Mutations then proceed via nested Prisma writes on the customer's relations.
 
 **Address management**:
-- Adding an address runs in a transaction that demotes all existing addresses to non-main and creates the new one as main — the newly added address always becomes the main address.
-- A duplicate guard checks in memory for an address with the same postal code and number before adding, and a per-customer address-count limit is enforced.
+- Adding an address runs inside a transaction that takes a row lock on the customer (to serialize concurrent inserts), checks the database for a duplicate address (same postal code and number), enforces a per-customer address-count limit, demotes all existing addresses to non-main, and creates the new one as main — the newly added address always becomes the main address.
+- Updating an address checks for duplicates in memory instead, excluding the address being updated from the comparison.
 - Removing an address is blocked when it is the customer's only address; when the removed address was the main one (and others remain), the next address is promoted to main in the same write.
 
 **Profile update**: the name is trimmed before validation and must contain a full name; an update with no recognized fields is rejected.

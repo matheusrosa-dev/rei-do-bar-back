@@ -19,8 +19,8 @@ Everything related to identity and session lifecycle:
 ## Auth Flow (stages)
 
 1. **Device-id sync** — the only public auth step; creates an anonymous customer and its cart, returning a device id used as the anonymous session key.
-2. **OTP issuance** — clears any previous codes for the anonymous customer and stores a new hashed code (the plaintext is logged to the console; SMS is not integrated). Returns no content.
-3. **OTP login** — validates the submitted code, finds or creates the customer for the phone number, migrates the anonymous cart to the customer, and returns a token pair.
+2. **OTP issuance** — clears any previous codes for the anonymous customer and stores a new hashed code, both inside a single transaction (the plaintext is logged to the console; SMS is not integrated). Returns no content.
+3. **OTP login** — validates the submitted code, finds or creates the customer for the phone number, migrates the anonymous cart to the customer, and returns a token pair. If customer creation races with a concurrent login for the same phone number, the resulting unique-constraint conflict is recovered by re-fetching the existing customer instead of failing.
 4. **Token refresh** — validated by the refresh-token guard (a separate Passport strategy), rotates the stored token, and returns a new pair.
 
 The anonymous-to-customer migration is delegated to the internal customers service and runs in a single transaction (create customer, reassign the cart, delete the anonymous record).
