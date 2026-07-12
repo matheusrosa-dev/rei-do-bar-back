@@ -53,7 +53,7 @@ Two methods split the work, and **the split is load-bearing**:
 
 There is no minimum-order gate on the welcome coupon — the only cap is the subtotal itself (so an empty cart yields `0`). The setting value is trusted as-is: a non-numeric value produces `NaN`, just like any other `CURRENCY` setting (e.g. `DELIVERY_FEE`); keeping it valid is the admin write path's responsibility.
 
-`calculateWelcomeDiscount` does **not** call `isCustomerEligibleForWelcomeCoupon`. Gating on eligibility is the **caller's** responsibility, and both callers (cart formatting and order placement) run the eligibility check **first** and only then compute the discount. Calling `calculateWelcomeDiscount` on its own would hand a welcome discount to a repeat customer — if you add a third consumer, replicate the gate.
+`calculateWelcomeDiscount` does **not** call `isCustomerEligibleForWelcomeCoupon`, nor does it check whether the setting is configured at all. Both are the **caller's** responsibility: both callers (cart formatting and order placement) first check that `WELCOME_COUPON` is present in the settings map (`SettingsService.findAll()` drops inactive keys), then run the eligibility check, and only then compute the discount. Calling `calculateWelcomeDiscount` on its own would hand a welcome discount to a repeat customer or to an unconfigured setting (returning `0` rather than signaling "not configured") — if you add a third consumer, replicate both gates.
 
 Callers pass in the already-fetched settings map (`SettingsService.findAll()`) rather than this service re-fetching it.
 

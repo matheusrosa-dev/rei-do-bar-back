@@ -109,7 +109,7 @@ export class OrdersService {
     let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
 
-    if (!coupon) {
+    if (!coupon && SettingKey.WELCOME_COUPON in settings) {
       isWelcomeCoupon =
         await this.couponsService.isCustomerEligibleForWelcomeCoupon(
           customerId,

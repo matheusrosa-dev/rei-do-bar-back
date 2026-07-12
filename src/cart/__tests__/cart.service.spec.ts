@@ -139,8 +139,8 @@ describe("CartService", () => {
         subtotal,
         productsCount,
         discount: 0,
-        couponCode: WELCOME_COUPON_CODE,
-        isWelcomeCoupon: true,
+        couponCode: null,
+        isWelcomeCoupon: false,
         total,
       });
     });
@@ -324,6 +324,13 @@ describe("CartService", () => {
     describe("welcome coupon", () => {
       const customerId = "customer-123";
 
+      beforeEach(() => {
+        settingsServiceMock.findAll.mockResolvedValue({
+          DELIVERY_FEE: "200",
+          WELCOME_COUPON: "500",
+        });
+      });
+
       it("should apply the welcome discount when the customer is eligible and has no coupon assigned", async () => {
         const cartItems = [
           CartItemFactory.createOne({
@@ -461,6 +468,34 @@ describe("CartService", () => {
         expect(result.discount).toBe(500);
       });
 
+      it("should not consider the welcome coupon when the WELCOME_COUPON setting is not configured", async () => {
+        settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "200" });
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 5000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+
+        const result = await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        expect(
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).not.toHaveBeenCalled();
+        expect(result.isWelcomeCoupon).toBe(false);
+        expect(result.couponCode).toBeNull();
+        expect(result.discount).toBe(0);
+      });
+
       it("should not report the welcome coupon when an anonymous cart already has a real coupon", async () => {
         const coupon = CouponFactory.createOne({ code: "PROMO10" });
         const cartItems = [
@@ -494,6 +529,7 @@ describe("CartService", () => {
         settingsServiceMock.findAll.mockResolvedValue({
           DELIVERY_FEE: "200",
           MIN_ORDER_VALUE: "5000",
+          WELCOME_COUPON: "500",
         });
         const cartItems = [
           CartItemFactory.createOne({

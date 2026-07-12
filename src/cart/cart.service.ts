@@ -5,6 +5,7 @@ import {
   CartItem,
   Coupon,
   Product,
+  SettingKey,
 } from "@shared/database/prisma/generated/client";
 import { AppException } from "@shared/exceptions/app.exception";
 import { ICurrentSession } from "@shared/types/jwt";
@@ -508,7 +509,7 @@ export class CartService {
     let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
 
-    if (!cart.coupon) {
+    if (!cart.coupon && SettingKey.WELCOME_COUPON in settings) {
       isWelcomeCoupon = session?.customerId
         ? await this.couponsService.isCustomerEligibleForWelcomeCoupon(
             session.customerId,

@@ -772,7 +772,9 @@ describe("OrdersService", () => {
       beforeEach(() => {
         prismaMock.order.count.mockResolvedValue(0);
         prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
-        prismaMock.setting.findMany.mockResolvedValue([]);
+        prismaMock.setting.findMany.mockResolvedValue([
+          { key: SettingKey.WELCOME_COUPON, value: "500", isActive: true },
+        ]);
       });
 
       it("should apply the welcome discount, snapshot its code on the order and skip couponUsage tracking", async () => {
@@ -868,6 +870,39 @@ describe("OrdersService", () => {
 
         await service.createOrder(customerId, dto);
 
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).not.toHaveBeenCalled();
+        expect(prismaMock.order.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              couponCode: null,
+              discount: 0,
+            }),
+          }),
+        );
+      });
+
+      it("should not check welcome coupon eligibility when the WELCOME_COUPON setting is not configured", async () => {
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        await service.createOrder(customerId, dto);
+
+        expect(
+          couponsServiceMock.isCustomerEligibleForWelcomeCoupon,
+        ).not.toHaveBeenCalled();
         expect(
           couponsServiceMock.calculateWelcomeDiscount,
         ).not.toHaveBeenCalled();
