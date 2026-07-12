@@ -55,19 +55,12 @@ export class CouponsService {
   }
 
   async calculateWelcomeDiscount(
-    customerId: string,
     subtotal: number,
     settings: Record<SettingKey, string>,
   ): Promise<number> {
     const welcomeCoupon = this.getWelcomeCoupon(settings);
 
     if (!welcomeCoupon || subtotal < welcomeCoupon.minOrderValue) {
-      return 0;
-    }
-
-    const isEligible = await this.isEligibleForWelcomeCoupon(customerId);
-
-    if (!isEligible) {
       return 0;
     }
 

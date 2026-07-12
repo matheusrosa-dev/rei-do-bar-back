@@ -47,6 +47,9 @@ export class CartDto {
   couponCode!: string | null;
 
   @Expose()
+  isWelcomeCoupon!: boolean;
+
+  @Expose()
   total!: number;
 
   @Expose()

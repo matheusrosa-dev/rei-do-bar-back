@@ -106,14 +106,19 @@ export class OrdersService {
       await this.assertCouponIsRedeemable(coupon, subtotal, customerId);
     }
 
+    let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
 
     if (!coupon) {
-      welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
-        customerId,
-        subtotal,
-        settings,
-      );
+      isWelcomeCoupon =
+        await this.couponsService.isEligibleForWelcomeCoupon(customerId);
+
+      if (isWelcomeCoupon) {
+        welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
+          subtotal,
+          settings,
+        );
+      }
     }
 
     const discount = coupon
@@ -162,7 +167,7 @@ export class OrdersService {
 
       // Fecha a janela de corrida entre a checagem de elegibilidade fora
       // da transação e a criação do pedido
-      if (welcomeDiscount > 0) {
+      if (isWelcomeCoupon) {
         const nonCancelledOrdersCount = await tx.order.count({
           where: {
             customerId: assuredCustomer.id,

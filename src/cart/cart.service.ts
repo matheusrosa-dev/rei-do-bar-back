@@ -505,11 +505,17 @@ export class CartService {
       return sum + item.product.price * item.quantity;
     }, 0);
 
+    let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
 
     if (!cart.coupon && session?.customerId) {
-      welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
+      isWelcomeCoupon = await this.couponsService.isEligibleForWelcomeCoupon(
         session.customerId,
+      );
+    }
+
+    if (isWelcomeCoupon) {
+      welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
         subtotal,
         settings,
       );
@@ -557,8 +563,8 @@ export class CartService {
       productsCount,
       discount,
       couponCode:
-        cart?.coupon?.code ??
-        (welcomeDiscount > 0 ? WELCOME_COUPON_CODE : null),
+        cart?.coupon?.code ?? (isWelcomeCoupon ? WELCOME_COUPON_CODE : null),
+      isWelcomeCoupon,
       total: subtotal ? total : 0,
     };
   }
