@@ -10,16 +10,16 @@ Cross-cutting infrastructure used by every feature module. Nothing here is domai
 |---|---|
 | `config/` | Env loading, namespaced config, the validation schema, and typed config interfaces |
 | `database/` | The Prisma service and the generated client |
-| `decorators/` | Route/param decorators (public marker, current-session extractor, admin-auth composite) |
+| `decorators/` | Route/param decorators (public marker, current-session extractor, admin-auth composite, throttle composites) |
 | `events/` | Cross-module event payload classes carried by the event emitter (e.g. order lifecycle events) |
 | `exceptions/` | The single application exception type and its error-code registry |
 | `filters/` | The global exception filter |
 | `guards/` | Device-id, access-token, refresh-token, basic-auth, and throttler (rate-limiting) guards |
-| `helpers/` | Pure utility functions with no class wrappers |
-| `interceptors/` | Response wrapping, serialization, and artificial delay |
+| `helpers/` | Standalone utility functions with no class wrappers |
+| `interceptors/` | Response wrapping, serialization, artificial delay, and HTTP request logging |
 | `libs/` | Thin wrappers over third-party SDKs, exposed as injectable modules/services (e.g. the Expo push-notification transport) |
 | `testing/` | Test factories and mocks — imported only from test files |
-| `types/` | Shared interfaces and framework type augmentation |
+| `types/` | Shared interfaces, framework type augmentation, and cross-cutting enums |
 
 ---
 
@@ -33,11 +33,20 @@ The Prisma service extends the generated client and is provided by a global modu
 
 ## helpers/
 
-Small **pure functions** (no classes) built on Node's crypto primitives — e.g. hashing and one-time-code generation. Add new cross-cutting pure utilities here rather than embedding them in feature services.
+Standalone functions (no classes) covering four concerns: hashing and constant-time comparison, one-time-code generation, timezone-aware dates (luxon, `America/Sao_Paulo`), and **Prisma error predicates**. The last one is the canonical way to branch on a Prisma failure — never match on the raw error code inline:
+
+| Predicate | Prisma code | Typical use |
+|---|---|---|
+| `isRecordNotFound` | `P2025` | Translate a missing row into a domain not-found exception |
+| `isUniqueConstraintViolation` | `P2002` | Translate a duplicate into a domain conflict exception |
+
+Add new cross-cutting utilities here rather than embedding them in feature services.
 
 ## types/
 
-Defines the unified current-session interface, whose shape encodes the anonymous/authenticated duality (an anonymous device id **or** an authenticated customer identity, plus the token only on refresh), and augments the framework request type to carry it.
+Defines the unified current-session interface (plus cross-cutting enums such as the push-notification action) and augments the framework request type to carry it.
+
+The session is **additive, not exclusive**: the current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId`/`phone` on top of it when a valid token is present — an authenticated session carries both. The raw `token` is attached only on the refresh and logout routes, which are the only handlers that need it.
 
 ## events/
 
@@ -57,3 +66,4 @@ Thin adapters around external SDKs, each wrapped in its own injectable module/se
 | No domain logic | Keep feature-specific rules out of shared |
 | Direct Prisma access | No repository layer; services inject the Prisma service |
 | Config only via `ConfigService` | Never read `process.env` in application code |
+| Prisma errors via predicates | Branch on `isRecordNotFound` / `isUniqueConstraintViolation` from `helpers/`, never on raw error codes |

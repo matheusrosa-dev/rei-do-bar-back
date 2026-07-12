@@ -2,12 +2,13 @@
 
 ## Interceptors
 
-Three interceptors live here — two global, one per-controller.
+Four interceptors live here — three global, one per-controller.
 
 | Interceptor | Registration | Effect |
 |---|---|---|
-| Response wrapper | Global | Wraps every response in a `data` envelope |
-| Artificial delay | Global | Adds a configurable response delay for frontend development |
+| Response wrapper | Global (`applyGlobalConfig`) | Wraps every response in a `data` envelope |
+| Logging | Global (`applyGlobalConfig`) | Logs `METHOD path status ms` for every request |
+| Artificial delay | Global (`APP_INTERCEPTOR` factory in `AppModule`) | Adds a configurable response delay for frontend development |
 | Serializer | Per-controller, via the serialize decorator | Reduces the response to only the DTO's exposed fields |
 
 ---
@@ -21,6 +22,10 @@ Wraps the response body in a `data` envelope. **Passthrough**: a falsy body, or 
 The canonical way to control response shape. The decorator is applied at controller **class level** and runs the body through class-transformer with extraneous values excluded, so only fields explicitly marked as exposed are returned; nested objects require an explicit nested-type declaration.
 
 **Ordering**: the serializer runs closer to the handler than the response wrapper, so the final shape is the serialized DTO inside the `data` envelope.
+
+## Logging
+
+Logs one line per request (`METHOD path status ms`) through a dedicated `HTTP` logger context. Failures are logged on the error path and **rethrown untouched** — the interceptor observes, it never swallows or reshapes; turning an error into a response body is the exception filter's job.
 
 ## Artificial Delay
 

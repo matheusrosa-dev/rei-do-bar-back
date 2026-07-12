@@ -16,8 +16,9 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 |---|---|
 | `@nestjs/common`, `@nestjs/core` | Framework foundation — modules, controllers, providers, guards, interceptors, filters |
 | `@nestjs/platform-express` | Express adapter for the NestJS HTTP layer |
-| `rxjs` | Used internally by interceptors (`map`, `delay` operators on response streams) |
+| `rxjs` | Used internally by interceptors (`map`, `delay`, `tap`, `catchError` operators on response streams) |
 | `reflect-metadata` | Required for decorator metadata (`emitDecoratorMetadata`) |
+| `@nestjs/event-emitter` | In-process event bus — registered in `AppModule`; order lifecycle events live in `shared/events/`, and the admin inventory/notifications listeners react to them |
 
 ### Database
 
@@ -52,12 +53,19 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 | `@nestjs/config` | Environment config — loaded via `ConfigModule` with `registerAs` namespaces and Joi validation |
 | `joi` | Schema validation for environment variables at startup |
 
+### Integrations & Utilities
+
+| Dependency | Usage in this project |
+|---|---|
+| `expo-server-sdk` | Push notification delivery — wrapped by the Expo service under `shared/libs/` |
+| `luxon` | Timezone-aware date helpers (`America/Sao_Paulo`) in `shared/helpers/date.ts` |
+
 ### Testing
 
 | Dependency | Usage in this project |
 |---|---|
 | `jest` + `@types/jest` | Test runner; root configured at `src/` |
-| `@swc/jest` | Fast TypeScript transpilation for tests (replaces `ts-jest`) |
+| `@swc/jest` + `@swc/core` | Fast TypeScript transpilation for tests — configured in `.swcrc`, which also resolves the `@shared` path alias |
 | `@nestjs/testing` | `Test.createTestingModule()` for unit tests with the DI container |
 | `chance` | Fake data generation in factory classes |
 | `supertest` | HTTP integration testing (e2e) |
@@ -84,7 +92,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates the NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers feature modules + global providers
-│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, settings, notifications (HTTP Basic Auth)
+│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, coupons, settings, notifications (HTTP Basic Auth)
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
@@ -98,14 +106,16 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │   └── shared/                  # Cross-cutting concerns
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
-│       ├── decorators/          # Route/param decorators
+│       ├── decorators/          # Route/param decorators (public, current-session, admin-auth, throttle)
+│       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
 │       ├── guards/              # Device-id, access-token, refresh-token, basic-auth, throttler guards
-│       ├── helpers/             # Pure functions (hashing, OTP generation)
-│       ├── interceptors/        # Response wrapping, serialization, artificial delay
+│       ├── helpers/             # Hashing, OTP generation, timezone dates, Prisma error predicates
+│       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
+│       ├── libs/                # Third-party wrappers (Expo push notifications)
 │       ├── testing/             # Test factories and mocks (test-only)
-│       └── types/               # Shared TypeScript interfaces
+│       └── types/               # Shared TypeScript interfaces and enums
 └── test/                        # E2E tests (supertest)
 ```
 
@@ -116,7 +126,9 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 ### File & Directory Naming
 
 - All filenames are **kebab-case**.
-- Each feature module directory contains exactly: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory.
+- A feature module directory typically contains: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory. Two deviations are expected:
+  - **Internal modules** (`coupons/`, `customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP.
+  - Modules add supporting files when the domain needs them: `strategies/` (auth), `helpers.ts` (several admin sub-modules), `validators/` (admin coupons), `*.listener.ts` (admin inventory/notifications), and a second controller (`me/address.controller.ts`).
 - Test files live in `__tests__/` subdirectories named `<subject>.spec.ts`.
 
 ### Exports
@@ -133,7 +145,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 
 ### Path Aliases
 
-A single alias is defined in both `tsconfig.json` and `jest.config.ts`:
+A single alias is defined in both `tsconfig.json` (for the compiler) and `.swcrc` (which is what resolves it under `@swc/jest` at test time):
 
 ```
 @shared/* → ./src/shared/*
@@ -154,9 +166,10 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `AUTH_JWT_SECRET` | Access token signing secret |
 | `AUTH_JWT_REFRESH_SECRET` | Refresh token signing secret |
 | `AUTH_JWT_EXPIRATION_TIME` | Access token TTL (e.g. `900s`) |
-| `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `14d`) |
+| `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `30d`) |
 | `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
 | `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
+| `EXPO_ACCESS_TOKEN` | Expo access token for push notification delivery (required — startup fails without it) |
 | `RATE_LIMIT_DEVICE_SYNC_TTL` / `_LIMIT` | Rate limit for `sync-device-id` (per IP); TTL in seconds |
 | `RATE_LIMIT_OTP_SEND_TTL` / `_LIMIT` | Short-window rate limit for OTP send (per device-id); TTL in seconds |
 | `RATE_LIMIT_OTP_SEND_LONG_TTL` / `_LIMIT` | Long-window rate limit for OTP send (per device-id); TTL in seconds |
@@ -187,4 +200,11 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 
 `ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 
-The response-wrapping interceptor and the global exception filter are applied in `applyGlobalConfig()` (called from `main.ts`), not in `AppModule`.
+`EventEmitterModule.forRoot()` is registered in `AppModule` as well — it backs the order lifecycle events in `shared/events/` that the admin listeners consume.
+
+`applyGlobalConfig()` (called from `main.ts`, not `AppModule`) applies the rest of the global pipeline:
+
+- the **response-wrapping interceptor** (`{ "data": ... }` envelope) and the **logging interceptor** (`METHOD path status ms`);
+- the **global exception filter**;
+- the global **`ValidationPipe`** with `transform: true`, `whitelist: true`, and `errorHttpStatusCode: 422` — DTO validation failures return **422**, not 400;
+- CORS.

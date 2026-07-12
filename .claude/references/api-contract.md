@@ -16,13 +16,29 @@ Passthrough rules: a falsy body, or a body that already contains a `data` key, i
 
 ## Error Response Shape
 
-Handled application errors:
+The global filter emits **three** shapes. Only the first comes from `AppException`; clients must handle all three.
+
+**1. Handled application errors** (`AppException`) — the status is chosen at the throw site:
 
 ```json
 { "code": "DOMAIN_NNN", "message": "Mensagem em pt-BR" }
 ```
 
-Unexpected (non-HTTP) errors fall back to a generic internal code with a generic pt-BR message. The `message` is always user-facing pt-BR; the `code` is stable and machine-readable.
+**2. Validation errors** — the global `ValidationPipe` is configured with `errorHttpStatusCode: 422`, so a DTO validation failure returns **422** with no domain code. Note `message` is an **array** here, and its contents are class-validator output, not curated pt-BR copy:
+
+```json
+{ "code": "UNKNOWN", "message": ["phone must be a string"] }
+```
+
+`UNKNOWN` is the filter's fallback for any `HttpException` carrying no `code` — framework-generated 401/403/404 responses land here too.
+
+**3. Unexpected (non-HTTP) errors** — HTTP 500:
+
+```json
+{ "code": "INTERNAL_ERROR", "message": "Erro interno do servidor" }
+```
+
+The `code` is always stable and machine-readable. The `message` is user-facing pt-BR **for shape 1 and 3 only** — do not render shape 2's array to end users as-is.
 
 ---
 
@@ -102,6 +118,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
 | adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |
 | adminCoupons | `INVALID_USAGE_LIMIT` | `ADMIN_COUPONS_005` |
+| adminSettings | `INVALID_SETTING_VALUE` | `ADMIN_SETTINGS_001` |
 
 ---
 
@@ -114,8 +131,10 @@ Admin list endpoints accept the following query params:
 | `page` | int | defaults to 1, min 1 |
 | `limit` | int | defaults to 20, range 1–100 |
 | `searchTerm` | string | optional, case-insensitive OR search |
-| `sortKey` | string | optional; allowed keys depend on the resource |
+| `sortKey` | string | optional; the allowed keys are declared per resource on its DTO |
 | `sortDirection` | `asc` \| `desc` | optional; defaults to `desc` when a sort key is present |
+
+Resources add their own filters on top of these (e.g. `categoryId` / `isActive` on products, `status` / `paymentType` on orders). With no `sortKey`, listings fall back to newest-first (`createdAt desc`).
 
 The response is a normalized page:
 
@@ -126,14 +145,18 @@ The response is a normalized page:
 }
 ```
 
+**Exception**: the admin categories listing is not paginated — it returns a flat array with no `meta`.
+
 ---
 
 ## Monetary Values
 
-All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00). Division by 100 happens only when formatting a response.
+All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00). **Responses carry cents too** — the API does not convert to currency, and formatting is the client's responsibility.
 
 ---
 
 ## Session Context
 
-Authenticated/anonymous duality: the current session carries **either** an anonymous device id **or** an authenticated customer identity — never both (plus the token only on refresh). Cart-, product-, and order-related reads branch on exactly this distinction.
+The session is **additive, not exclusive**. The current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId` / `phone` on top when a valid access token is present — so an authenticated session carries **both**. Cart-, product-, and order-related reads branch on *whether a `customerId` is present*, not on an either/or.
+
+The raw `token` is attached only on the two routes that consume a refresh token: `/auth/refresh` and `/auth/logout`.

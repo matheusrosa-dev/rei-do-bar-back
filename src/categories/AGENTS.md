@@ -15,7 +15,7 @@ Client-facing category listing: a single read-only endpoint that returns the act
 
 The endpoint requires a valid `x-device-id` header (it passes through the global device-id guard and is **not** marked public) and does not require a JWT. It returns only active categories, ordered by an explicit sort field.
 
-The response DTO is applied at the controller class level and exposes only the client-relevant identity and display-name fields; internal flags and timestamps are excluded.
+The response DTO is applied at the controller class level and exposes the identity, the two display names (singular and plural), and the image URL; internal flags and timestamps are excluded.
 
 ---
 

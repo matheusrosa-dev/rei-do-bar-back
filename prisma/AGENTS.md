@@ -36,7 +36,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 
 ## Migrations
 
-Use the project scripts (`migrate:dev` to create/apply in development, `migrate:deploy` for production, `generate` to refresh the client). Each migration is a timestamped folder containing its SQL.
+Use the project scripts (`migrate:dev` to create/apply in development, `migrate:deploy` for production, `prisma:generate` to refresh the client). Each migration is a timestamped folder containing its SQL.
 
 **Destructive migration commands (reset/drop) require explicit user confirmation** — never run them autonomously.
 
@@ -45,3 +45,12 @@ Use the project scripts (`migrate:dev` to create/apply in development, `migrate:
 ## Seeds
 
 The seed entrypoint bootstraps a Prisma client directly (outside NestJS DI) and runs domain seed functions in order. **Seed functions must be idempotent** — check for existing records and only insert what is missing.
+
+Seeding is **gated by `NODE_ENV`**: the runtime settings seed always runs, while the catalog seeds (categories, products) run only in development. Two scripts expose this:
+
+| Script | Behavior |
+|---|---|
+| `seed` | Forces `NODE_ENV=development` — seeds settings **and** the demo catalog |
+| `seed:production` | Runs without the override — seeds settings only |
+
+A new seed that inserts demo/fixture data belongs behind the development gate; one that bootstraps data the app requires to boot belongs outside it.

@@ -10,7 +10,7 @@ Test infrastructure exclusively — manual mocks and data factories. **Nothing i
 
 A manually maintained mock object mirrors the Prisma client's shape and is injected in place of the Prisma service when building the testing module. The transaction method is mocked to invoke its callback immediately with the mock itself, so transactional code runs inline in tests. When a service starts calling a new Prisma method, add the corresponding mock function here. Mocks are reset between tests by the runner config.
 
-Partial service mocks are also exported here for controller tests that should not exercise real service logic.
+Partial service mocks are also exported here for controller tests that should not exercise real service logic. A few of them ship a **default return value** declared at definition time (e.g. the welcome-discount calculation resolving to `0`). This relies on the runner using `clearMocks` — which clears recorded calls but keeps implementations. Switching the config to `resetMocks` would silently drop those defaults and break the suites that depend on them.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## What belongs here
 
-Admin order oversight: a full management listing, a paginated/sortable listing, and status-transition management.
+Admin order oversight: a status-grouped management board, a paginated/sortable listing, and status-transition management.
 
 ## What does NOT belong here
 
@@ -13,9 +13,13 @@ Admin order oversight: a full management listing, a paginated/sortable listing, 
 
 ## Core Patterns
 
-- **Two listings**: a management endpoint returns the full, freshly computed order set with totals; a separate endpoint returns a paginated, filterable, sortable page. Values Prisma can order on are sorted at the DB level; computed/relation values (e.g. order total) are sorted in application memory via a two-step fetch.
-- **Status state machine**: transitions are constrained by an explicit per-status map of allowed next statuses. An already-finalized order or an illegal transition raises the corresponding `adminOrders` error. The transition runs as a guarded conditional update inside a transaction (a zero-row result means the status changed concurrently).
-- **Cancellation side effects**: cancelling restores each item's stock inside the transaction, then emits an order-cancelled event (with an admin-cancellation origin) so the inventory ledger records the movement, plus a status-updated event consumed by the notifications listener.
+- **Two listings, different shapes**:
+  - The **management board** is not a page object and not the full order set. It returns an object **keyed by order status**, where the ongoing statuses (pending, preparing, shipped) carry *all* their orders (oldest first, so the kitchen works a queue), while the finalized ones (delivered, cancelled) are a **recent-activity window only** — the last 4 hours, capped at 30, newest first. It is a live operations board, not an archive.
+  - The **paginated listing** is the archive: filterable (status, payment type, free-text on customer name or exact order number), sortable, and paginated.
+- **Totals**: the `total` returned for an order is `subtotal - discount + deliveryFee`. The discount is a snapshot on the order row (from a coupon or the welcome coupon).
+- **Sorting**: `createdAt` is sorted at the DB level. `total` and item quantity are computed aggregates Prisma cannot order on, so they go through the in-memory two-step fetch (ids + computed value, then the page slice). **Known divergence**: the value the sort computes for `total` is `subtotal + deliveryFee` — it does **not** subtract the discount, unlike the total actually returned. So sorting by total ranks orders by their pre-discount value while the column shows the post-discount one, and the two disagree for any discounted order. Deriving a total in a new code path means subtracting the discount; do not copy the sort path.
+- **Status state machine**: transitions are constrained by an explicit per-status map of allowed next statuses — pending → preparing/cancelled; preparing → shipped/cancelled; shipped → delivered/cancelled; delivered and cancelled are terminal. An already-finalized order or an illegal transition raises the corresponding `adminOrders` error. The transition runs as a guarded conditional update inside a transaction, and a zero-row result (the status changed concurrently) raises the invalid-transition error rather than silently passing. A status reason is persisted only when the target status is *cancelled*.
+- **Cancellation side effects**: cancelling restores each item's stock inside the transaction. Both events — order-cancelled (carrying the admin-cancellation origin, so the inventory listener records the movement without inferring it) and status-updated (consumed by the notifications listener) — are emitted **after the transaction commits**, so a listener never observes a state the database has not accepted yet. The status endpoint returns the **refreshed management board**, not the updated order.
 - **No create/delete**: orders are never created or deleted from the admin surface — only listed and transitioned.
 
 ---
@@ -26,5 +30,6 @@ Admin order oversight: a full management listing, a paginated/sortable listing, 
 |---|---|
 | Status via state machine | Never an unchecked status update; always through the allowed-transition map |
 | Stock-affecting transitions | Run inside a transaction with guarded updates |
-| Side effects via events | Stock-ledger and notifications are decoupled through emitted order events |
-| Computed sorts in memory | Totals and relation counts are sorted via a two-step fetch |
+| Side effects via events | Stock-ledger and notifications are decoupled through order events, emitted only after the transaction commits |
+| A returned total subtracts the discount | `subtotal - discount + deliveryFee` — mind the sort path, which currently does not |
+| Computed sorts in memory | Totals and item quantities are sorted via a two-step fetch |

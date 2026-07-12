@@ -8,7 +8,15 @@ Error codes are organized into a static registry, namespaced by domain. New fail
 
 ## Error Response Shape
 
-The global exception filter converts every HTTP exception into a `{ code, message }` body and uses a generic internal-error code/message for unexpected (non-HTTP) errors. The exact shapes are in the API contract reference.
+The global exception filter converts every HTTP exception into a `{ code, message }` body. Two of the three shapes it can emit do **not** come from the application exception, and clients must handle them:
+
+| Origin | Shape |
+|---|---|
+| An `AppException` | `{ code: "DOMAIN_NNN", message: "<pt-BR string>" }` with the declared status |
+| An HTTP exception with no `code` — chiefly the global `ValidationPipe` | `{ code: "UNKNOWN", message: [ ...class-validator messages ] }` with **422**; note `message` is an **array** here, not a string |
+| Any unexpected (non-HTTP) error | `{ code: "INTERNAL_ERROR", message: "Erro interno do servidor" }` with 500 |
+
+The exact shapes are catalogued in the API contract reference.
 
 ---
 
