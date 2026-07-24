@@ -15,6 +15,7 @@ export const prismaMock = {
     updateMany: jest.fn(),
   },
   cart: {
+    findUnique: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
@@ -24,6 +25,7 @@ export const prismaMock = {
   },
   coupon: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     create: jest.fn(),
@@ -33,6 +35,7 @@ export const prismaMock = {
   couponUsage: {
     count: jest.fn(),
     create: jest.fn(),
+    findFirst: jest.fn(),
     findUnique: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -48,6 +51,7 @@ export const prismaMock = {
   setting: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    update: jest.fn(),
   },
   category: {
     findMany: jest.fn(),

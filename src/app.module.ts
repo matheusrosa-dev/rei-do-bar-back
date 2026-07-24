@@ -22,6 +22,7 @@ import { OrdersModule } from "./orders/orders.module";
 import { AdminModule } from "./admin/admin.module";
 import { SettingsModule } from "./settings/settings.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { CouponsModule } from "./coupons/coupons.module";
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
     CategoriesModule,
     ProductsModule,
     CartModule,
+    CouponsModule,
     CustomersModule,
     MeModule,
     OrdersModule,

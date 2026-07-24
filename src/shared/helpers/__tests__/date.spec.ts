@@ -25,46 +25,40 @@ describe("Date Helpers", () => {
   });
 
   describe("getEndOfDate", () => {
-    it("should return the end of the day for the given date", () => {
-      const date = new Date("2026-07-02T15:34:12.500");
+    it("should close the day at 23:59:59.999 in the America/Sao_Paulo timezone", () => {
+      const date = new Date("2026-07-02T00:00:00.000Z");
 
       const result = getEndOfDate(date);
 
-      expect(result.getFullYear()).toBe(date.getFullYear());
-      expect(result.getMonth()).toBe(date.getMonth());
-      expect(result.getDate()).toBe(date.getDate());
-      expect(result.getHours()).toBe(23);
-      expect(result.getMinutes()).toBe(59);
-      expect(result.getSeconds()).toBe(59);
-      expect(result.getMilliseconds()).toBe(999);
+      expect(result).toEqual(new Date("2026-07-03T02:59:59.999Z"));
+    });
+
+    it("should keep the calendar day sent by the client, regardless of the time of day", () => {
+      const date = new Date("2026-07-02T15:34:12.500Z");
+
+      const result = getEndOfDate(date);
+
+      expect(result).toEqual(new Date("2026-07-03T02:59:59.999Z"));
     });
 
     it("should handle the last day of a leap-year February correctly", () => {
-      const date = new Date("2024-02-29T08:00:00.000");
+      const date = new Date("2024-02-29T08:00:00.000Z");
 
       const result = getEndOfDate(date);
 
-      expect(result.getFullYear()).toBe(2024);
-      expect(result.getMonth()).toBe(1);
-      expect(result.getDate()).toBe(29);
-      expect(result.getHours()).toBe(23);
-      expect(result.getMinutes()).toBe(59);
-      expect(result.getSeconds()).toBe(59);
-      expect(result.getMilliseconds()).toBe(999);
+      expect(result).toEqual(new Date("2024-03-01T02:59:59.999Z"));
     });
 
     it("should not roll over into the next year when given December 31st", () => {
-      const date = new Date("2026-12-31T20:00:00.000");
+      const date = new Date("2026-12-31T20:00:00.000Z");
 
       const result = getEndOfDate(date);
 
-      expect(result.getFullYear()).toBe(2026);
-      expect(result.getMonth()).toBe(11);
-      expect(result.getDate()).toBe(31);
+      expect(result).toEqual(new Date("2027-01-01T02:59:59.999Z"));
     });
 
     it("should not mutate the original date", () => {
-      const date = new Date("2026-07-02T15:34:12.500");
+      const date = new Date("2026-07-02T15:34:12.500Z");
       const original = date.getTime();
 
       getEndOfDate(date);

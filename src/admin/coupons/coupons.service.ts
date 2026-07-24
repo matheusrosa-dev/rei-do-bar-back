@@ -15,6 +15,9 @@ import {
   isRecordNotFound,
   isUniqueConstraintViolation,
 } from "@shared/helpers/prisma-errors";
+import { CouponDiscountType } from "@shared/database/prisma/generated/enums";
+
+const MAX_PERCENTAGE_DISCOUNT = 100;
 
 @Injectable()
 export class AdminCouponsService {
@@ -90,6 +93,8 @@ export class AdminCouponsService {
   }
 
   async createCoupon(dto: CreateCouponDto) {
+    this.assertDiscountValueIsValid(dto.discountType, dto.discountValue);
+
     try {
       return await this.prisma.coupon.create({
         data: {
@@ -128,6 +133,8 @@ export class AdminCouponsService {
         AppException.HttpStatus.NOT_FOUND,
       );
     }
+
+    this.assertDiscountValueIsValid(dto.discountType, dto.discountValue);
 
     const isEditingStartsAt =
       dto.startsAt.getTime() !== existing.startsAt.getTime();
@@ -261,6 +268,22 @@ export class AdminCouponsService {
       throw new AppException(
         AppException.errorCodes.adminCoupons.COUPON_START_NOT_EDITABLE,
         "A data de início deve ser uma data futura.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private assertDiscountValueIsValid(
+    discountType: CouponDiscountType,
+    discountValue: number,
+  ) {
+    if (
+      discountType === CouponDiscountType.PERCENTAGE &&
+      discountValue > MAX_PERCENTAGE_DISCOUNT
+    ) {
+      throw new AppException(
+        AppException.errorCodes.adminCoupons.INVALID_DISCOUNT_VALUE,
+        `O desconto percentual não pode ser maior que ${MAX_PERCENTAGE_DISCOUNT}%.`,
         AppException.HttpStatus.BAD_REQUEST,
       );
     }

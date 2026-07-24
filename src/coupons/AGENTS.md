@@ -2,19 +2,49 @@
 
 ## What belongs here
 
-The internal service layer for coupon **redemption rules** shared across feature modules: whether a coupon is currently available (active, started, not expired), how much discount it yields for a given subtotal, and whether its usage limits (global or per-customer) have been reached. This module has **no public HTTP controller** — it exists to expose its service to other modules that import it: the cart module (at coupon assignment **and on every cart format**, since discount and welcome-coupon state are recomputed on each read) and the orders module (at order placement).
+The service layer for coupon **redemption rules** shared across feature modules: whether a coupon is currently available (active, started, not expired), how much discount it yields for a given subtotal, and whether its usage limits (global or per-customer) have been reached. Most of this module is consumed in-process by other modules that import it: the cart module (at coupon assignment **and on every cart format**, since discount and welcome-coupon state are recomputed on each read) and the orders module (at order placement).
+
+It also owns the single **client-facing** coupon route — the authenticated customer's coupon listing (see below).
 
 ## What does NOT belong here
 
 - Coupon CRUD (create/update/activate/deactivate/delete) and admin-facing listing/filtering → `admin/coupons`.
 - Recording that a coupon was used (usage-row creation) → the orders module does this at order placement, not here.
-- Any route handler.
+- Assigning a coupon to a cart or removing it → `cart`.
 
 ---
 
 ## Module Design
 
-The module provides and exports its service so other modules can depend on it. It registers no controller and owns no routes.
+The module provides and exports its service so other modules can depend on it, **and** registers a controller for the client-facing listing. It is imported both by `AppModule` (for the route) and by the modules that consume the service (`cart`, `orders`).
+
+---
+
+## Client Listing
+
+The module's only route. Authenticated only (`AccessTokenGuard` on the controller class); returns the coupons an authenticated customer can see, serialized through the response DTO. A coupon is listed when it is active and has started — including coupons the customer can no longer redeem, each carrying a flag saying **why**, so the client renders them disabled instead of them silently disappearing.
+
+A coupon the customer already redeemed (they have a `CouponUsage` row for it) stays in the list flagged as used, with no time limit.
+
+A coupon that became unusable for **everyone** stays in the list for a **sold-out visibility window** (`SOLD_OUT_VISIBILITY_DAYS`) counted from that moment, flagged as sold out, so the client can show scarcity. There are two sold-out causes and they share the **same flag**:
+
+| Cause | Sold-out instant |
+|---|---|
+| Global `usageLimit` reached | The `createdAt` of the usage that reached the limit — the row at offset `usageLimit - 1` of the coupon's usages ordered oldest-first |
+| `endsAt` passed | The `endsAt` itself |
+
+When both apply, the **earliest** instant wins — the window counts from the moment the coupon first became unusable. Past the window the coupon drops out entirely. Expiry is filtered in the query (`endsAt` within the window or null); the usage-limit case is filtered in memory, since its instant is only known after resolving the limit-reaching usage.
+
+| Field | Meaning |
+|---|---|
+| `isSoldOut` | `true` when the coupon is inside the visibility window for either cause. Always present |
+| `isUsed` | `true` when the customer has a `CouponUsage` row for the coupon. Always present |
+| `isInCart` | `true` when the coupon is the one currently applied to the customer's cart (`Cart.couponId`), read in the same round trip as the listing. Always present, and at most one coupon carries it — the cart holds a single coupon |
+| `remainingUses` | How many uses are left — **only** when the coupon has a `usageLimit`, is not sold out (for any cause), and 10 or fewer remain. `null` otherwise (unlimited coupon, plenty left, or sold out) |
+
+The 10-use threshold lives in `LOW_REMAINING_USES_THRESHOLD` at the top of the service. Coupons come back newest first (`createdAt desc`), then re-sorted so the ones the customer can still redeem lead the list and every unusable one (sold out **or** already used) is pushed to the end.
+
+There is no persisted usage counter and no persisted sold-out timestamp: the count is derived from the `usages` relation (`_count`), the same source of truth `admin/coupons` uses, and the sold-out instant is resolved with a targeted lookup of the limit-reaching usage — **only** for the coupons whose count actually reached the limit, so the relation is never hydrated in full. The welcome coupon is **not** in this listing — it has no `Coupon` row (see below) and reaches the client through the cart's `isWelcomeCoupon` flag.
 
 ---
 
@@ -30,7 +60,7 @@ Availability is evaluated against the exact current timestamp: `startsAt`/`endsA
 
 | Rule | Detail |
 |---|---|
-| No controller | This is a service-only module; never add routes here |
+| One client route only | The controller exposes the customer-facing listing; redemption itself happens through `cart`/`orders`, and CRUD through `admin/coupons` |
 | Exported service | Consumed via NestJS module imports, not direct instantiation |
 | Pure where possible | Real-coupon availability/discount calculations take a `Coupon` and return a value — no side effects |
 | Welcome discount is not self-gating | Callers must check eligibility before applying it; the calculation trusts them |

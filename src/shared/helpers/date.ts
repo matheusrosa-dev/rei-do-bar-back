@@ -7,5 +7,8 @@ export function getStartOfTodaySaoPaulo() {
 }
 
 export function getEndOfDate(date: Date) {
-  return DateTime.fromJSDate(date).endOf("day").toJSDate();
+  return DateTime.fromJSDate(date, { zone: "utc" })
+    .setZone("America/Sao_Paulo", { keepLocalTime: true })
+    .endOf("day")
+    .toJSDate();
 }

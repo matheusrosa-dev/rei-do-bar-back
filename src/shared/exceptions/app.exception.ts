@@ -104,6 +104,10 @@ export class AppException extends HttpException {
       COUPON_ALREADY_EXISTS: "ADMIN_COUPONS_002",
       COUPON_START_NOT_EDITABLE: "ADMIN_COUPONS_004",
       INVALID_USAGE_LIMIT: "ADMIN_COUPONS_005",
+      INVALID_DISCOUNT_VALUE: "ADMIN_COUPONS_006",
+    },
+    adminSettings: {
+      INVALID_SETTING_VALUE: "ADMIN_SETTINGS_001",
     },
   };
 

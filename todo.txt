@@ -16,4 +16,4 @@ adicionar logs para alterações em produtos e categorias
 implementar sistema de XP
 fazer app de entregas
 corrigir o menu na barra de navegação no android
-notificacoes internas no app para mostrar cupons disponiveis
+nao deve ser possivel alterar status de um cupom que já foi finalizado

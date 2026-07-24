@@ -877,7 +877,7 @@ describe("CartService", () => {
       });
 
       expect(findAnonymousOrCustomerWithCartOrThrow).not.toHaveBeenCalled();
-      expect(prismaMock.coupon.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.coupon.findFirst).not.toHaveBeenCalled();
     });
 
     it("should throw COUPON_NOT_FOUND when the coupon code does not exist", async () => {
@@ -885,7 +885,7 @@ describe("CartService", () => {
         cart: CartFactory.createOne({ items: [] }),
       });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(null);
+      prismaMock.coupon.findFirst.mockResolvedValue(null);
 
       await expect(
         service.assignCouponToCart({ customerId }, { couponCode }),
@@ -896,13 +896,34 @@ describe("CartService", () => {
       });
     });
 
+    it("should look the coupon up ignoring the code case", async () => {
+      const coupon = CouponFactory.createOne({ code: couponCode });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
+      couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_UNAVAILABLE,
+      });
+
+      expect(prismaMock.coupon.findFirst).toHaveBeenCalledWith({
+        where: { code: { equals: couponCode, mode: "insensitive" } },
+        orderBy: { createdAt: "asc" },
+      });
+    });
+
     it("should throw COUPON_UNAVAILABLE when the coupon is not currently redeemable", async () => {
       const coupon = CouponFactory.createOne({ code: couponCode });
       const customer = CustomerFactory.createOne({
         cart: CartFactory.createOne({ items: [] }),
       });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
       couponsServiceMock.isCouponUnavailable.mockReturnValue(true);
 
       await expect(
@@ -929,7 +950,7 @@ describe("CartService", () => {
         }),
       });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
 
       await expect(
         service.assignCouponToCart({ customerId }, { couponCode }),
@@ -949,7 +970,7 @@ describe("CartService", () => {
         cart: CartFactory.createOne({ items: [] }),
       });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
       couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(true);
 
       await expect(
@@ -972,7 +993,7 @@ describe("CartService", () => {
         cart: CartFactory.createOne({ items: [] }),
       });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
       couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(true);
 
       await expect(
@@ -994,7 +1015,7 @@ describe("CartService", () => {
       const cart = CartFactory.createOne({ items: [] });
       const customer = CustomerFactory.createOne({ cart });
       prismaMock.customer.findFirst.mockResolvedValue(customer);
-      prismaMock.coupon.findUnique.mockResolvedValue(coupon);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
       prismaMock.cart.update.mockResolvedValue({
         items: [],
         coupon,

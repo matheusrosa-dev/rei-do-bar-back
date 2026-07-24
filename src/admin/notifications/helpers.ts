@@ -11,8 +11,5 @@ export enum NotificationTarget {
 export const INACTIVITY_DAYS = 30;
 
 export function getInactivityCutoff(): Date {
-  return DateTime.now()
-    .setZone("America/Sao_Paulo")
-    .minus({ days: INACTIVITY_DAYS })
-    .toJSDate();
+  return DateTime.now().minus({ days: INACTIVITY_DAYS }).toJSDate();
 }

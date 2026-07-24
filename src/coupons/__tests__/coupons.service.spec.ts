@@ -26,6 +26,275 @@ describe("CouponsService", () => {
     expect(service).toBeDefined();
   });
 
+  describe("findAvailableCoupons", () => {
+    const customerId = "customer-1";
+    const now = new Date("2026-07-09T12:00:00.000Z");
+    const visibilityLimit = new Date("2026-07-02T12:00:00.000Z");
+
+    const limitReachedDates = new Map<string, Date>();
+
+    const buildCoupon = (
+      usageLimit: number | null,
+      usageCount: number,
+      options?: {
+        limitReachedAt?: Date;
+        endsAt?: Date | null;
+        usedByCustomer?: boolean;
+      },
+    ) => {
+      const coupon = CouponFactory.createOne({
+        usageLimit,
+        endsAt: options?.endsAt,
+      });
+
+      limitReachedDates.set(coupon.id, options?.limitReachedAt ?? now);
+
+      return {
+        ...coupon,
+        _count: { usages: usageCount },
+        usages: options?.usedByCustomer ? [{ id: "usage-1" }] : [],
+      };
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(now);
+      limitReachedDates.clear();
+
+      prismaMock.cart.findUnique.mockResolvedValue(null);
+
+      prismaMock.couponUsage.findFirst.mockImplementation(({ where }) => {
+        const createdAt = limitReachedDates.get(where.couponId);
+
+        return Promise.resolve(createdAt ? { createdAt } : null);
+      });
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("should query active and started coupons, keeping the ones expired within the visibility window, and flag the customer's own usage", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([]);
+
+      await service.findAvailableCoupons(customerId);
+
+      expect(prismaMock.coupon.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: true,
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gte: visibilityLimit } }],
+        },
+        include: {
+          _count: { select: { usages: true } },
+          usages: { where: { customerId }, select: { id: true }, take: 1 },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+    });
+
+    it("should read the coupon applied to the customer's cart", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([]);
+
+      await service.findAvailableCoupons(customerId);
+
+      expect(prismaMock.cart.findUnique).toHaveBeenCalledWith({
+        where: { customerId },
+        select: { couponId: true },
+      });
+    });
+
+    it("should mark the coupon applied to the cart as in cart", async () => {
+      const inCart = buildCoupon(null, 0);
+      const other = buildCoupon(null, 0);
+
+      prismaMock.coupon.findMany.mockResolvedValue([inCart, other]);
+      prismaMock.cart.findUnique.mockResolvedValue({ couponId: inCart.id });
+
+      const result = await service.findAvailableCoupons(customerId);
+
+      expect(result.find(({ id }) => id === inCart.id)!.isInCart).toBe(true);
+      expect(result.find(({ id }) => id === other.id)!.isInCart).toBe(false);
+    });
+
+    it("should not mark any coupon as in cart when the customer has no cart", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(null, 0)]);
+      prismaMock.cart.findUnique.mockResolvedValue(null);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isInCart).toBe(false);
+    });
+
+    it("should mark a coupon the customer already used as used", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(null, 1, { usedByCustomer: true }),
+      ]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isUsed).toBe(true);
+      expect(coupon.isSoldOut).toBe(false);
+    });
+
+    it("should not mark a coupon the customer has not used as used", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(null, 0)]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isUsed).toBe(false);
+    });
+
+    it("should read the sold out instant from the usage that reached the limit", async () => {
+      const coupon = buildCoupon(5, 8);
+
+      prismaMock.coupon.findMany.mockResolvedValue([coupon]);
+
+      await service.findAvailableCoupons(customerId);
+
+      expect(prismaMock.couponUsage.findFirst).toHaveBeenCalledWith({
+        where: { couponId: coupon.id },
+        select: { createdAt: true },
+        orderBy: { createdAt: "asc" },
+        skip: 4,
+      });
+    });
+
+    it("should not query the usages of a coupon that has not reached its limit", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(5, 4)]);
+
+      await service.findAvailableCoupons(customerId);
+
+      expect(prismaMock.couponUsage.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("should return an empty list when there are no coupons", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([]);
+
+      const result = await service.findAvailableCoupons(customerId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should not mark a coupon without usageLimit as sold out nor return remainingUses", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(null, 100)]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(false);
+      expect(coupon.remainingUses).toBeNull();
+    });
+
+    it("should not return remainingUses when more than 10 uses are left", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(20, 9)]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(false);
+      expect(coupon.remainingUses).toBeNull();
+    });
+
+    it("should return remainingUses when 10 or fewer uses are left", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(20, 10)]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(false);
+      expect(coupon.remainingUses).toBe(10);
+    });
+
+    it("should mark a coupon that reached its usage limit as sold out without remainingUses", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([buildCoupon(5, 5)]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(true);
+      expect(coupon.remainingUses).toBeNull();
+    });
+
+    it("should keep a coupon sold out by usage limit less than 7 days ago", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(5, 5, {
+          limitReachedAt: new Date("2026-07-03T12:00:00.000Z"),
+        }),
+      ]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(true);
+    });
+
+    it("should keep a coupon sold out by usage limit exactly 7 days ago", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(5, 5, { limitReachedAt: visibilityLimit }),
+      ]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(true);
+    });
+
+    it("should drop a coupon that reached its usage limit more than 7 days ago", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(5, 5, {
+          limitReachedAt: new Date("2026-07-01T12:00:00.000Z"),
+        }),
+      ]);
+
+      const result = await service.findAvailableCoupons(customerId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should mark an expired coupon as sold out without remainingUses", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(5, 1, { endsAt: new Date("2026-07-08T12:00:00.000Z") }),
+      ]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(true);
+      expect(coupon.remainingUses).toBeNull();
+    });
+
+    it("should not mark a coupon whose endsAt is still in the future as sold out", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(null, 0, { endsAt: new Date("2026-07-10T12:00:00.000Z") }),
+      ]);
+
+      const [coupon] = await service.findAvailableCoupons(customerId);
+
+      expect(coupon.isSoldOut).toBe(false);
+    });
+
+    it("should use the earliest sold out cause when the coupon expired and reached its usage limit", async () => {
+      prismaMock.coupon.findMany.mockResolvedValue([
+        buildCoupon(5, 5, {
+          endsAt: new Date("2026-07-01T12:00:00.000Z"),
+          limitReachedAt: new Date("2026-07-08T12:00:00.000Z"),
+        }),
+      ]);
+
+      const result = await service.findAvailableCoupons(customerId);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should sort available coupons first, with sold out and already used ones last", async () => {
+      const soldOut = buildCoupon(5, 5);
+      const used = buildCoupon(null, 1, { usedByCustomer: true });
+      const available = buildCoupon(null, 0);
+
+      prismaMock.coupon.findMany.mockResolvedValue([soldOut, used, available]);
+
+      const result = await service.findAvailableCoupons(customerId);
+
+      expect(result[0].id).toBe(available.id);
+      expect(result.slice(1).map((coupon) => coupon.id)).toEqual(
+        expect.arrayContaining([soldOut.id, used.id]),
+      );
+    });
+  });
+
   describe("isCouponUnavailable", () => {
     const now = new Date("2026-07-09T12:00:00.000Z");
 

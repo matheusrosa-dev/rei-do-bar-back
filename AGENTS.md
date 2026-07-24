@@ -96,7 +96,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)
-│   ├── coupons/                 # Coupon redemption rules: availability, discount calc, usage limits (no public controller)
+│   ├── coupons/                 # Coupon redemption rules (availability, discount calc, usage limits) + coupon listing for authenticated customers
 │   ├── customers/               # Internal customer service (no public controller)
 │   ├── me/                      # Authenticated customer self-management
 │   ├── notifications/           # Push token registration for authenticated customers
@@ -127,7 +127,7 @@ The architecture is **feature-oriented and layered**: each feature is a NestJS m
 
 - All filenames are **kebab-case**.
 - A feature module directory typically contains: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory. Two deviations are expected:
-  - **Internal modules** (`coupons/`, `customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP.
+  - **Internal modules** (`customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP. `coupons/` is a hybrid: it exports its service to other modules **and** owns a client-facing controller.
   - Modules add supporting files when the domain needs them: `strategies/` (auth), `helpers.ts` (several admin sub-modules), `validators/` (admin coupons), `*.listener.ts` (admin inventory/notifications), and a second controller (`me/address.controller.ts`).
 - Test files live in `__tests__/` subdirectories named `<subject>.spec.ts`.
 

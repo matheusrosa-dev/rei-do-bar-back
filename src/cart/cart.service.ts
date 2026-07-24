@@ -131,8 +131,9 @@ export class CartService {
     const customerOrAnonymous =
       await this.findAnonymousOrCustomerWithCartOrThrow(session);
 
-    const coupon = await this.prisma.coupon.findUnique({
-      where: { code: dto.couponCode },
+    const coupon = await this.prisma.coupon.findFirst({
+      where: { code: { equals: dto.couponCode, mode: "insensitive" } },
+      orderBy: { createdAt: "asc" },
     });
 
     if (!coupon) {

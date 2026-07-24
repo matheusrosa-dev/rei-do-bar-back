@@ -16,6 +16,9 @@ import { IsAfterDate } from "../validators";
 export class CreateCouponDto {
   @IsString()
   @IsNotEmpty()
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.trim().toUpperCase() : value,
+  )
   code!: string;
 
   @IsEnum(CouponDiscountType)
