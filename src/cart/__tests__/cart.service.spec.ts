@@ -96,7 +96,7 @@ describe("CartService", () => {
       settingsServiceMock.findAll.mockResolvedValue({ DELIVERY_FEE: "200" });
     });
 
-    it("should calculate total, subtotal, deliveryFee and productsCount correctly", async () => {
+    it("should calculate total, productsTotal, deliveryFee and productsCount correctly", async () => {
       const cartItems = [
         CartItemFactory.createOne({
           product: ProductFactory.createOne({ price: 10, stockQuantity: 20 }),
@@ -114,11 +114,11 @@ describe("CartService", () => {
       });
 
       let productsCount = 0;
-      const subtotal = cartItems.reduce((sum, item) => {
+      const productsTotal = cartItems.reduce((sum, item) => {
         productsCount += item.quantity;
         return sum + item.product.price * item.quantity;
       }, 0);
-      const total = subtotal + 200;
+      const total = productsTotal + 200;
 
       expect(result).toStrictEqual({
         products: cartItems.map((item) => ({
@@ -136,13 +136,124 @@ describe("CartService", () => {
         outsideBusinessHours: null,
         onBreak: null,
         deliveryFee: 200,
-        subtotal,
+        productsTotal,
         productsCount,
-        discount: 0,
+        productsDiscount: 0,
+        couponDiscount: 0,
         couponCode: null,
         isWelcomeCoupon: false,
         total,
       });
+    });
+
+    it("should calculate productsDiscount as the sum of (compareAtPrice - price) * quantity, and productsTotal using compareAtPrice for on-sale items", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 800,
+            compareAtPrice: 1000,
+            stockQuantity: 20,
+          }),
+          quantity: 2,
+        }),
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 500,
+            compareAtPrice: null,
+            stockQuantity: 20,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
+
+      // item 1 (on sale): (1000 - 800) * 2 = 400; item 2 has no compareAtPrice, contributes 0
+      expect(result.productsDiscount).toBe(400);
+      // item 1: 1000 * 2 = 2000 (compareAtPrice); item 2: 500 * 1 = 500 (price)
+      expect(result.productsTotal).toBe(2500);
+    });
+
+    it("should not treat compareAtPrice as an on-sale price when it is lower than or equal to price", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 1000,
+            compareAtPrice: 1000,
+            stockQuantity: 20,
+          }),
+          quantity: 1,
+        }),
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 1000,
+            compareAtPrice: 500,
+            stockQuantity: 20,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
+
+      expect(result.productsDiscount).toBe(0);
+      // both items fall back to price, not the invalid (lower/equal) compareAtPrice
+      expect(result.productsTotal).toBe(2000);
+    });
+
+    it("should compute total from the net products total (post productsDiscount), not the gross productsTotal", async () => {
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 800,
+            compareAtPrice: 1000,
+            stockQuantity: 20,
+          }),
+          quantity: 2,
+        }),
+      ];
+
+      const result = await (service as any).formatCart({
+        items: cartItems,
+        coupon: null,
+      });
+
+      // productsTotal 2000 (gross) - productsDiscount 400 + deliveryFee 200 = 1800
+      expect(result.productsTotal).toBe(2000);
+      expect(result.productsDiscount).toBe(400);
+      expect(result.total).toBe(1800);
+    });
+
+    it("should compute couponDiscount from the net products total, not the gross productsTotal", async () => {
+      const coupon = CouponFactory.createOne({ code: "PROMO10" });
+      couponsServiceMock.calculateDiscount.mockReturnValue(0);
+      const cartItems = [
+        CartItemFactory.createOne({
+          product: ProductFactory.createOne({
+            price: 800,
+            compareAtPrice: 1000,
+            stockQuantity: 20,
+          }),
+          quantity: 1,
+        }),
+      ];
+
+      await (service as any).formatCart({
+        items: cartItems,
+        coupon,
+      });
+
+      // net total is 800 (price), not the gross productsTotal of 1000 (compareAtPrice)
+      expect(couponsServiceMock.calculateDiscount).toHaveBeenCalledWith(
+        coupon,
+        800,
+      );
     });
 
     it("should include compareAtPrice in product items", async () => {
@@ -280,7 +391,7 @@ describe("CartService", () => {
         coupon: null,
       });
 
-      // subtotal 1000 + deliveryFee 200 = 1200 total; minOrderValue 5000
+      // productsTotal 1000 + deliveryFee 200 = 1200 total; minOrderValue 5000
       expect(result.remainingToMinOrderValue).toBe(3800);
     });
 
@@ -304,7 +415,7 @@ describe("CartService", () => {
         5000,
       );
       expect(result.couponCode).toBe("PROMO10");
-      expect(result.discount).toBe(500);
+      expect(result.couponDiscount).toBe(500);
       expect(result.total).toBe(5000 + 200 - 500);
     });
 
@@ -356,7 +467,7 @@ describe("CartService", () => {
         ).toHaveBeenCalledWith(customerId);
         expect(result.isWelcomeCoupon).toBe(true);
         expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
-        expect(result.discount).toBe(500);
+        expect(result.couponDiscount).toBe(500);
         expect(result.total).toBe(5000 + 200 - 500);
       });
 
@@ -381,7 +492,7 @@ describe("CartService", () => {
         );
 
         expect(result.isWelcomeCoupon).toBe(true);
-        expect(result.discount).toBe(0);
+        expect(result.couponDiscount).toBe(0);
         expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
       });
 
@@ -437,7 +548,34 @@ describe("CartService", () => {
         ).not.toHaveBeenCalled();
         expect(result.isWelcomeCoupon).toBe(false);
         expect(result.couponCode).toBeNull();
-        expect(result.discount).toBe(0);
+        expect(result.couponDiscount).toBe(0);
+      });
+
+      it("should compute welcomeDiscount from the net products total, not the gross productsTotal", async () => {
+        const cartItems = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({
+              price: 800,
+              compareAtPrice: 1000,
+              stockQuantity: 20,
+            }),
+            quantity: 1,
+          }),
+        ];
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
+
+        await (service as any).formatCart(
+          { items: cartItems, coupon: null },
+          { customerId },
+        );
+
+        // net total is 800 (price), not the gross productsTotal of 1000 (compareAtPrice)
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).toHaveBeenCalledWith(800, expect.anything());
       });
 
       it("should treat an anonymous session as eligible without querying the database", async () => {
@@ -465,7 +603,7 @@ describe("CartService", () => {
         ).toHaveBeenCalledWith(5000, expect.anything());
         expect(result.isWelcomeCoupon).toBe(true);
         expect(result.couponCode).toBe(WELCOME_COUPON_CODE);
-        expect(result.discount).toBe(500);
+        expect(result.couponDiscount).toBe(500);
       });
 
       it("should not consider the welcome coupon when the WELCOME_COUPON setting is not configured", async () => {
@@ -493,7 +631,7 @@ describe("CartService", () => {
         ).not.toHaveBeenCalled();
         expect(result.isWelcomeCoupon).toBe(false);
         expect(result.couponCode).toBeNull();
-        expect(result.discount).toBe(0);
+        expect(result.couponDiscount).toBe(0);
       });
 
       it("should not report the welcome coupon when an anonymous cart already has a real coupon", async () => {
@@ -522,7 +660,7 @@ describe("CartService", () => {
         ).not.toHaveBeenCalled();
         expect(result.isWelcomeCoupon).toBe(false);
         expect(result.couponCode).toBe("PROMO10");
-        expect(result.discount).toBe(500);
+        expect(result.couponDiscount).toBe(500);
       });
 
       it("should compute remainingToMinOrderValue against the total after the welcome discount", async () => {
@@ -550,7 +688,7 @@ describe("CartService", () => {
           { customerId },
         );
 
-        // subtotal 3000 + deliveryFee 200 - discount 1000 = 2200 total; minOrderValue 5000
+        // productsTotal 3000 + deliveryFee 200 - discount 1000 = 2200 total; minOrderValue 5000
         expect(result.remainingToMinOrderValue).toBe(2800);
       });
     });
@@ -935,7 +1073,7 @@ describe("CartService", () => {
       });
     });
 
-    it("should throw COUPON_MIN_ORDER_NOT_MET when the cart subtotal is below the coupon's minOrderValue", async () => {
+    it("should throw COUPON_MIN_ORDER_NOT_MET when the cart's products total is below the coupon's minOrderValue", async () => {
       const coupon = CouponFactory.createOne({
         code: couponCode,
         minOrderValue: 10000,

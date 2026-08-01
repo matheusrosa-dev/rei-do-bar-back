@@ -354,7 +354,7 @@ describe("CouponsService", () => {
   });
 
   describe("calculateDiscount", () => {
-    it("should return 0 when subtotal is below minOrderValue", () => {
+    it("should return 0 when productsTotal is below minOrderValue", () => {
       const coupon = CouponFactory.createOne({
         isActive: true,
         minOrderValue: 10000,
@@ -365,7 +365,7 @@ describe("CouponsService", () => {
       expect(service.calculateDiscount(coupon, 9999)).toBe(0);
     });
 
-    it("should return 0 when the coupon is unavailable even if subtotal meets the minimum", () => {
+    it("should return 0 when the coupon is unavailable even if productsTotal meets the minimum", () => {
       const coupon = CouponFactory.createOne({
         isActive: false,
         minOrderValue: 0,
@@ -376,7 +376,7 @@ describe("CouponsService", () => {
       expect(service.calculateDiscount(coupon, 10000)).toBe(0);
     });
 
-    it("should return the rounded percentage of the subtotal for PERCENTAGE coupons", () => {
+    it("should return the rounded percentage of productsTotal for PERCENTAGE coupons", () => {
       const coupon = CouponFactory.createOne({
         isActive: true,
         minOrderValue: 0,
@@ -387,7 +387,7 @@ describe("CouponsService", () => {
       expect(service.calculateDiscount(coupon, 999)).toBe(150);
     });
 
-    it("should cap the PERCENTAGE discount at the subtotal", () => {
+    it("should cap the PERCENTAGE discount at productsTotal", () => {
       const coupon = CouponFactory.createOne({
         isActive: true,
         minOrderValue: 0,
@@ -409,7 +409,7 @@ describe("CouponsService", () => {
       expect(service.calculateDiscount(coupon, 10000)).toBe(500);
     });
 
-    it("should cap the FIXED discount at the subtotal", () => {
+    it("should cap the FIXED discount at productsTotal", () => {
       const coupon = CouponFactory.createOne({
         isActive: true,
         minOrderValue: 0,
@@ -551,7 +551,7 @@ describe("CouponsService", () => {
       expect(result).toBe(0);
     });
 
-    it("should return the configured discount when it is below the subtotal", async () => {
+    it("should return the configured discount when it is below productsTotal", async () => {
       const settings = {
         WELCOME_COUPON: "500",
       } as Record<SettingKey, string>;
@@ -561,7 +561,7 @@ describe("CouponsService", () => {
       expect(result).toBe(500);
     });
 
-    it("should cap the discount at the subtotal", async () => {
+    it("should cap the discount at productsTotal", async () => {
       const settings = {
         WELCOME_COUPON: "5000",
       } as Record<SettingKey, string>;

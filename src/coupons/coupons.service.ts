@@ -77,12 +77,12 @@ export class CouponsService {
   }
 
   async calculateWelcomeDiscount(
-    subtotal: number,
+    productsTotal: number,
     settings: Record<SettingKey, string>,
   ): Promise<number> {
     const welcomeCouponDiscount = Number(settings?.WELCOME_COUPON || 0);
 
-    return Math.min(welcomeCouponDiscount, subtotal);
+    return Math.min(welcomeCouponDiscount, productsTotal);
   }
 
   isCouponUnavailable(coupon: Coupon): boolean {
@@ -103,17 +103,20 @@ export class CouponsService {
     return false;
   }
 
-  calculateDiscount(coupon: Coupon, subtotal: number): number {
-    if (subtotal < coupon.minOrderValue || this.isCouponUnavailable(coupon)) {
+  calculateDiscount(coupon: Coupon, productsTotal: number): number {
+    if (
+      productsTotal < coupon.minOrderValue ||
+      this.isCouponUnavailable(coupon)
+    ) {
       return 0;
     }
 
     if (coupon.discountType === "PERCENTAGE") {
-      const discount = Math.round((subtotal * coupon.discountValue) / 100);
-      return Math.min(discount, subtotal);
+      const discount = Math.round((productsTotal * coupon.discountValue) / 100);
+      return Math.min(discount, productsTotal);
     }
 
-    return Math.min(coupon.discountValue, subtotal);
+    return Math.min(coupon.discountValue, productsTotal);
   }
 
   async hasReachedUsageLimit(

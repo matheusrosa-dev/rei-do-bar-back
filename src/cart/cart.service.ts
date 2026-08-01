@@ -152,12 +152,12 @@ export class CartService {
       );
     }
 
-    const subtotal = customerOrAnonymous.cart.items.reduce(
+    const productsTotalLessDiscount = customerOrAnonymous.cart.items.reduce(
       (sum, item) => sum + item.product.price * item.quantity,
       0,
     );
 
-    if (subtotal < coupon.minOrderValue) {
+    if (productsTotalLessDiscount < coupon.minOrderValue) {
       throw new AppException(
         AppException.errorCodes.cart.COUPON_MIN_ORDER_NOT_MET,
         "O valor do carrinho não atinge o mínimo para este cupom",
@@ -501,11 +501,22 @@ export class CartService {
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
     let productsCount = 0;
+    let productsDiscount = 0;
 
-    const subtotal = cart.items.reduce((sum, item) => {
+    const productsTotal = cart.items.reduce((sum, item) => {
+      const { compareAtPrice, price } = item.product;
+      const isOnSale = !!compareAtPrice && compareAtPrice > price;
+
       productsCount += item.quantity;
-      return sum + item.product.price * item.quantity;
+
+      if (isOnSale) {
+        productsDiscount += (compareAtPrice - price) * item.quantity;
+      }
+
+      return sum + (isOnSale ? compareAtPrice : price) * item.quantity;
     }, 0);
+
+    const productsTotalLessDiscount = productsTotal - productsDiscount;
 
     let isWelcomeCoupon = false;
     let welcomeDiscount = 0;
@@ -520,16 +531,19 @@ export class CartService {
 
     if (isWelcomeCoupon) {
       welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
-        subtotal,
+        productsTotalLessDiscount,
         settings,
       );
     }
 
-    const discount = cart.coupon
-      ? this.couponsService.calculateDiscount(cart.coupon, subtotal)
+    const couponDiscount = cart.coupon
+      ? this.couponsService.calculateDiscount(
+          cart.coupon,
+          productsTotalLessDiscount,
+        )
       : welcomeDiscount;
 
-    const total = subtotal + deliveryFee - discount;
+    const total = productsTotalLessDiscount + deliveryFee - couponDiscount;
 
     return {
       products: cart.items.map((cartItem) => {
@@ -557,19 +571,20 @@ export class CartService {
         };
       }),
       minOrderValue,
-      remainingToMinOrderValue: subtotal
+      remainingToMinOrderValue: productsTotal
         ? Math.max(minOrderValue - total, 0)
         : 0,
       outsideBusinessHours: settings?.OUTSIDE_BUSINESS_HOURS ?? null,
       onBreak: settings?.ON_BREAK ?? null,
-      deliveryFee: subtotal ? deliveryFee : 0,
-      subtotal,
+      deliveryFee: productsTotal ? deliveryFee : 0,
+      productsTotal,
       productsCount,
-      discount,
+      productsDiscount,
+      couponDiscount,
       couponCode:
         cart?.coupon?.code ?? (isWelcomeCoupon ? WELCOME_COUPON_CODE : null),
       isWelcomeCoupon,
-      total: subtotal ? total : 0,
+      total: productsTotal ? total : 0,
     };
   }
 }

@@ -6,7 +6,7 @@ All cart operations for both anonymous and authenticated customers:
 - Fetching cart contents.
 - Adding, removing, incrementing, and decrementing products.
 - Assigning or removing a coupon from the cart (assigning is authenticated-customers only; removing has no route param, since a cart holds at most one coupon).
-- Cart formatting (subtotal, delivery fee, discount, total, product count).
+- Cart formatting (products total, delivery fee, discount, total, product count).
 
 ## What does NOT belong here
 
@@ -46,7 +46,9 @@ The response is not a straight projection of the cart row — it is assembled fr
 | Field | Meaning |
 |---|---|
 | `products[]` | Per item: the product's **unit price** plus its `quantity` (and `compareAtPrice`, `remainingStock`). Item totals are the client's job — this module never multiplies |
-| `subtotal` / `discount` / `deliveryFee` / `total` | Cart-level money, **all in cents** |
+| `productsTotal` | The **gross** cart total: for each item, `compareAtPrice` when the item is on sale (`compareAtPrice` set and greater than `price`), otherwise `price` — multiplied by `quantity` and summed. This is the "sticker price" total, meant for display (e.g. a strikethrough total), **not** the amount the customer actually owes |
+| `productsDiscount` | The sum, across items, of `(compareAtPrice - price) * quantity` for on-sale items only. `productsTotal - productsDiscount` always equals the real, price-based total regardless of `compareAtPrice` |
+| `couponDiscount` / `deliveryFee` / `total` | Cart-level money, **all in cents**. `couponDiscount` and `total` are computed from the **net** total (`productsTotal - productsDiscount`), never from the gross `productsTotal` — otherwise a coupon could be capped/computed against the pre-discount sticker price and `total` could go negative when a coupon stacks with a product-level sale |
 | `minOrderValue` / `remainingToMinOrderValue` | The settings-driven minimum and how much is still missing, measured against the **total** (i.e. after delivery fee and discount) |
 | `onBreak` / `outsideBusinessHours` | Two **separate** settings-driven store-status messages, each null when its setting is off |
 | `couponCode` / `isWelcomeCoupon` | The applied coupon (see below) |
@@ -63,9 +65,9 @@ A coupon is **persisted on the cart** via the `couponId` relation, so every cart
 
 The redemption rules themselves (availability, discount math, usage-limit checks) are **not owned here** — they're delegated to the shared `CouponsService` (`src/coupons/`), imported via `CouponsModule`. This module only orchestrates: it resolves the cart, looks up the coupon by code, calls into `CouponsService` for each rule, and persists/formats the result.
 
-Assignment validates, in order: the coupon exists; it is available (`CouponsService.isCouponUnavailable`); the cart subtotal meets the coupon's `minOrderValue`; the global `usageLimit` is not reached (`CouponsService.hasReachedUsageLimit`); and the customer has not already used it (`CouponsService.hasCustomerUsedCoupon`). Each failure maps to a `cart.COUPON_*` code.
+Assignment validates, in order: the coupon exists; it is available (`CouponsService.isCouponUnavailable`); the cart's net products total (price-based, same figure as `productsTotal - productsDiscount` at format time) meets the coupon's `minOrderValue`; the global `usageLimit` is not reached (`CouponsService.hasReachedUsageLimit`); and the customer has not already used it (`CouponsService.hasCustomerUsedCoupon`). Each failure maps to a `cart.COUPON_*` code.
 
-The discount is computed at **format time** via `CouponsService.calculateDiscount`, which only returns a non-zero value while the coupon is still available **and** the subtotal still meets `minOrderValue` (so an expiring/deactivated coupon or removing items after applying safely drops the discount without detaching the coupon). Both `FIXED` and `PERCENTAGE` discounts are capped at the subtotal. The discount reduces the subtotal only — never the delivery fee.
+The discount is computed at **format time** via `CouponsService.calculateDiscount`, called with that same net total — which only returns a non-zero value while the coupon is still available **and** the net total still meets `minOrderValue` (so an expiring/deactivated coupon or removing items after applying safely drops the discount without detaching the coupon). Both `FIXED` and `PERCENTAGE` discounts are capped at the net total, not the gross `productsTotal`. The discount reduces the net total only — never the delivery fee.
 
 > The global `usageLimit` and per-customer usage are checked only at **assignment**; recording coupon *usage* (`CouponUsage`) happens at order placement, not here.
 
@@ -75,7 +77,7 @@ Removing a coupon simply clears `couponId` (throwing `COUPON_NOT_ASSIGNED` if th
 
 Unlike a real coupon, the welcome coupon is applied **automatically** at format time — there is no assignment endpoint, no code to submit, and no `couponId` involved (it isn't a `Coupon` row; see `src/coupons/AGENTS.md`). It is considered only when the cart has **no coupon assigned** *and* the `WELCOME_COUPON` setting is present in the active settings map (`SettingsService.findAll()` drops inactive keys) — if it is missing or inactive, neither the eligibility query nor the discount calculation runs, and `isWelcomeCoupon`/`couponCode` stay `false`/`null` regardless of session. With the setting configured, an **anonymous session qualifies by definition** — with no `customerId` there is no order history to disqualify it, so it is treated as a first-time customer without querying the database; an authenticated session runs the eligibility query (`isCustomerEligibleForWelcomeCoupon`).
 
-Note carefully what the two exposed fields mean here: `isWelcomeCoupon` and `couponCode` are driven by **eligibility alone** (a first-time or anonymous customer), *not* by a non-zero discount. The discount itself is computed separately and can legitimately be `0` — an empty cart. So an eligible customer with an empty cart is reported as `isWelcomeCoupon: true`, `couponCode: "BEMVINDO"`, `discount: 0`.
+Note carefully what the two exposed fields mean here: `isWelcomeCoupon` and `couponCode` are driven by **eligibility alone** (a first-time or anonymous customer), *not* by a non-zero discount. `couponDiscount` itself is computed separately and can legitimately be `0` — an empty cart. So an eligible customer with an empty cart is reported as `isWelcomeCoupon: true`, `couponCode: "BEMVINDO"`, `couponDiscount: 0`.
 
 Orders mirror this: the welcome code is snapshotted on the order under the same eligibility condition, `discount` included even when it is `0`. Keep the two in sync — if the eligibility rule changes on one side, it must change on the other.
 

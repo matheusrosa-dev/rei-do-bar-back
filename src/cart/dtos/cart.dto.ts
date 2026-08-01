@@ -32,7 +32,7 @@ export class CartDto {
   onBreak!: string | null;
 
   @Expose()
-  subtotal!: number;
+  productsTotal!: number;
 
   @Expose()
   productsCount!: number;
@@ -41,7 +41,10 @@ export class CartDto {
   remainingToMinOrderValue!: number;
 
   @Expose()
-  discount!: number;
+  productsDiscount!: number;
+
+  @Expose()
+  couponDiscount!: number;
 
   @Expose()
   couponCode!: string | null;
