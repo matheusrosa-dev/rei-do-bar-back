@@ -3,6 +3,8 @@ futuramente: substituir os N updates individuais de estoque (createOrder/cancelO
 futuramente adicionar opção para alterar número do usuario
 diminuir o id
 o ExpoNotificationsService não trata tickets/receipts, então tokens DeviceNotRegistered nunca são removidos de push_tokens. Conforme a base envelhece, todo segmento vai carregar tokens mortos. Não é problema deste plano, mas é a próxima dívida do canal.
+adicionar logs para alterações em produtos e categorias
+nao deve ser possivel alterar status de um cupom que já foi finalizado
 
 Em produção:
 substituir placeholders nos arquivos lgpd
@@ -12,8 +14,6 @@ remover log de endpoints chamados
 gerar migration unica de init
 
 Importante:
-adicionar logs para alterações em produtos e categorias
+corrigir o menu na barra de navegação no android
 implementar sistema de XP
 fazer app de entregas
-corrigir o menu na barra de navegação no android
-nao deve ser possivel alterar status de um cupom que já foi finalizado
