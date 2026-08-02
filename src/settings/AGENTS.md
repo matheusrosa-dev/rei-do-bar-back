@@ -30,7 +30,7 @@ Values are always stored as strings, in one of two flavors:
 
 The response DTO is applied at the controller class level and, because serialization excludes anything not explicitly exposed, it doubles as the **client-visibility allowlist**.
 
-It exposes six of the seven `SettingKey` values. The **welcome coupon is deliberately not exposed** — it is server-side configuration consumed by `CouponsService`, and the client learns about it only indirectly, through the `discount` / `couponCode` / `isWelcomeCoupon` fields on the cart. Adding a new key to the enum does **not** make it public; it becomes public only when added to this DTO.
+It exposes six of the seven `SettingKey` values. The **welcome coupon is deliberately not exposed** — it is server-side configuration consumed by `CouponsService`, and the client learns about it only indirectly, through the `couponDiscount` / `couponCode` / `isWelcomeCoupon` fields on the cart. Adding a new key to the enum does **not** make it public; it becomes public only when added to this DTO.
 
 ---
 

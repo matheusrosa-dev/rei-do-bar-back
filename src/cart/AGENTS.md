@@ -53,6 +53,8 @@ The response is not a straight projection of the cart row — it is assembled fr
 | `onBreak` / `outsideBusinessHours` | Two **separate** settings-driven store-status messages, each null when its setting is off |
 | `couponCode` / `isWelcomeCoupon` | The applied coupon (see below) |
 
+The gross/net split itself is not derived here: `productsTotal`, `productsDiscount` and `productsCount` come from `computeProductsTotals` in `@shared/helpers/products-totals`, the same helper backing the orders module and the admin listing (see `src/shared/AGENTS.md`). This module only adapts its items to the helper's flat shape — a private method does that, since cart items nest the price under the product — and layers the cart-level rules on top. The final `total` is assembled here rather than through `computeOrderTotals`, because the cart's `deliveryFee` comes from settings and its `couponDiscount` is computed on the fly; the *base* it subtracts from is the same net figure either way.
+
 **Empty cart**: `deliveryFee` and `total` are forced to `0` — an empty cart never shows a delivery charge.
 
 **Monetary values are returned in cents, unconverted.** This module never divides by 100; formatting to currency is entirely the client's responsibility.
@@ -79,7 +81,7 @@ Unlike a real coupon, the welcome coupon is applied **automatically** at format 
 
 Note carefully what the two exposed fields mean here: `isWelcomeCoupon` and `couponCode` are driven by **eligibility alone** (a first-time or anonymous customer), *not* by a non-zero discount. `couponDiscount` itself is computed separately and can legitimately be `0` — an empty cart. So an eligible customer with an empty cart is reported as `isWelcomeCoupon: true`, `couponCode: "BEMVINDO"`, `couponDiscount: 0`.
 
-Orders mirror this: the welcome code is snapshotted on the order under the same eligibility condition, `discount` included even when it is `0`. Keep the two in sync — if the eligibility rule changes on one side, it must change on the other.
+Orders mirror this: the welcome code is snapshotted on the order under the same eligibility condition, `couponDiscount` included even when it is `0`. Keep the two in sync — if the eligibility rule changes on one side, it must change on the other.
 
 ---
 

@@ -21,10 +21,13 @@ export class OrdersDto {
   deliveryFee!: number;
 
   @Expose()
-  subtotal!: number;
+  productsTotal!: number;
 
   @Expose()
-  discount!: number;
+  productsDiscount!: number;
+
+  @Expose()
+  couponDiscount!: number;
 
   @Expose()
   couponCode!: string | null;
@@ -58,4 +61,7 @@ class OrderItemDto {
 
   @Expose()
   price!: number;
+
+  @Expose()
+  compareAtPrice!: number | null;
 }

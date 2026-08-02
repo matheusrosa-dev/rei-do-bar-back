@@ -122,7 +122,7 @@ describe("OrdersService", () => {
         deliveryFee: 200,
         couponId: null,
         couponCode: null,
-        discount: 0,
+        couponDiscount: 0,
         items: [
           { price: 10, quantity: 2, productId: product1.id },
           { price: 20, quantity: 3, productId: product2.id },
@@ -150,7 +150,7 @@ describe("OrdersService", () => {
           deliveryFee: 200,
           couponId: null,
           couponCode: null,
-          discount: 0,
+          couponDiscount: 0,
           paymentType: PaymentType.CASH,
           items: {
             createMany: {
@@ -158,6 +158,7 @@ describe("OrdersService", () => {
                 {
                   name: product1.name,
                   price: product1.price,
+                  compareAtPrice: product1.compareAtPrice,
                   quantity: 2,
                   imageUrl: product1.imageUrl,
                   productId: product1.id,
@@ -165,6 +166,7 @@ describe("OrdersService", () => {
                 {
                   name: product2.name,
                   price: product2.price,
+                  compareAtPrice: product2.compareAtPrice,
                   quantity: 3,
                   imageUrl: product2.imageUrl,
                   productId: product2.id,
@@ -199,7 +201,51 @@ describe("OrdersService", () => {
         OrderCreatedEvent.NAME,
         new OrderCreatedEvent({ order: createdOrder }),
       );
-      expect(result).toEqual([{ ...createdOrder, subtotal: 80, total: 280 }]);
+      expect(result).toEqual([
+        { ...createdOrder, productsTotal: 80, productsDiscount: 0, total: 280 },
+      ]);
+    });
+
+    it("should snapshot the product's compareAtPrice on the order item and keep the coupon base at the price total", async () => {
+      const product = ProductFactory.createOne({
+        price: 800,
+        compareAtPrice: 1000,
+        stockQuantity: 20,
+      });
+      const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+
+      prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+      prismaMock.order.count.mockResolvedValue(0);
+      prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.setting.findMany.mockResolvedValue([]);
+      prismaMock.order.create.mockResolvedValue({
+        id: "order-uuid",
+        items: [],
+      });
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      await service.createOrder(customerId, dto);
+
+      expect(prismaMock.order.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items: {
+              createMany: {
+                data: [
+                  {
+                    name: product.name,
+                    price: 800,
+                    compareAtPrice: 1000,
+                    quantity: 2,
+                    imageUrl: product.imageUrl,
+                    productId: product.id,
+                  },
+                ],
+              },
+            },
+          }),
+        }),
+      );
     });
 
     it("should throw INACTIVE_CUSTOMER when the customer is null (treated as inactive)", async () => {
@@ -402,7 +448,7 @@ describe("OrdersService", () => {
           deliveryFee: 200,
           couponId: coupon.id,
           couponCode: coupon.code,
-          discount: 300,
+          couponDiscount: 300,
           items: [{ price: 1000, quantity: 2, productId: product.id }],
         };
         prismaMock.order.create.mockResolvedValue(createdOrder);
@@ -419,7 +465,7 @@ describe("OrdersService", () => {
             data: expect.objectContaining({
               couponId: coupon.id,
               couponCode: coupon.code,
-              discount: 300,
+              couponDiscount: 300,
             }),
           }),
         );
@@ -431,8 +477,41 @@ describe("OrdersService", () => {
           data: { couponId: null, items: { deleteMany: {} } },
         });
         expect(result).toEqual([
-          { ...createdOrder, subtotal: 2000, total: 1900 },
+          {
+            ...createdOrder,
+            productsTotal: 2000,
+            productsDiscount: 0,
+            total: 1900,
+          },
         ]);
+      });
+
+      it("should compute the coupon discount from the products' price total, not from their compareAtPrice", async () => {
+        const product = ProductFactory.createOne({
+          price: 800,
+          compareAtPrice: 1000,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        await service.createOrder(customerId, dto);
+
+        expect(couponsServiceMock.calculateDiscount).toHaveBeenCalledWith(
+          coupon,
+          1600,
+        );
       });
 
       it("should throw COUPON_UNAVAILABLE before creating the order when the coupon is not currently redeemable", async () => {
@@ -461,7 +540,7 @@ describe("OrdersService", () => {
         expect(prismaMock.order.create).not.toHaveBeenCalled();
       });
 
-      it("should throw COUPON_MIN_ORDER_NOT_MET when the cart subtotal is below the coupon's minimum", async () => {
+      it("should throw COUPON_MIN_ORDER_NOT_MET when the cart's products total is below the coupon's minimum", async () => {
         const product = ProductFactory.createOne({
           price: 100,
           stockQuantity: 20,
@@ -555,7 +634,7 @@ describe("OrdersService", () => {
           { key: SettingKey.DELIVERY_FEE, value: "0", isActive: true },
           { key: SettingKey.MIN_ORDER_VALUE, value: "1900", isActive: true },
         ]);
-        // subtotal 2000 alone would meet the 1900 minimum, but the coupon discount drops the total to 1500
+        // products total 2000 alone would meet the 1900 minimum, but the coupon discount drops the total to 1500
         couponsServiceMock.calculateDiscount.mockReturnValue(500);
 
         await expect(
@@ -798,7 +877,7 @@ describe("OrdersService", () => {
           deliveryFee: 0,
           couponId: null,
           couponCode: WELCOME_COUPON_CODE,
-          discount: 300,
+          couponDiscount: 300,
           items: [{ price: 1000, quantity: 2, productId: product.id }],
         };
         prismaMock.order.create.mockResolvedValue(createdOrder);
@@ -811,14 +890,44 @@ describe("OrdersService", () => {
             data: expect.objectContaining({
               couponId: null,
               couponCode: WELCOME_COUPON_CODE,
-              discount: 300,
+              couponDiscount: 300,
             }),
           }),
         );
         expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
         expect(result).toEqual([
-          { ...createdOrder, subtotal: 2000, total: 1700 },
+          {
+            ...createdOrder,
+            productsTotal: 2000,
+            productsDiscount: 0,
+            total: 1700,
+          },
         ]);
+      });
+
+      it("should compute the welcome discount from the products' price total, not from their compareAtPrice", async () => {
+        const product = ProductFactory.createOne({
+          price: 800,
+          compareAtPrice: 1000,
+          stockQuantity: 20,
+        });
+        const items = [CartItemFactory.createOne({ product, quantity: 2 })];
+        prismaMock.customer.findFirst.mockResolvedValue(buildCustomer(items));
+        couponsServiceMock.isCustomerEligibleForWelcomeCoupon.mockResolvedValue(
+          true,
+        );
+        couponsServiceMock.calculateWelcomeDiscount.mockResolvedValue(0);
+        prismaMock.order.create.mockResolvedValue({
+          id: "order-uuid",
+          items: [],
+        });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        await service.createOrder(customerId, dto);
+
+        expect(
+          couponsServiceMock.calculateWelcomeDiscount,
+        ).toHaveBeenCalledWith(1600, expect.anything());
       });
 
       it("should snapshot the welcome couponCode even when the eligible customer's discount is zero", async () => {
@@ -845,7 +954,7 @@ describe("OrdersService", () => {
           expect.objectContaining({
             data: expect.objectContaining({
               couponCode: WELCOME_COUPON_CODE,
-              discount: 0,
+              couponDiscount: 0,
             }),
           }),
         );
@@ -877,7 +986,7 @@ describe("OrdersService", () => {
           expect.objectContaining({
             data: expect.objectContaining({
               couponCode: null,
-              discount: 0,
+              couponDiscount: 0,
             }),
           }),
         );
@@ -910,7 +1019,7 @@ describe("OrdersService", () => {
           expect.objectContaining({
             data: expect.objectContaining({
               couponCode: null,
-              discount: 0,
+              couponDiscount: 0,
             }),
           }),
         );
@@ -1005,7 +1114,7 @@ describe("OrdersService", () => {
   });
 
   describe("getOrders", () => {
-    it("should return the orders with computed subtotal and total", async () => {
+    it("should return the orders with computed productsTotal and total", async () => {
       const findAndFormatOrdersSpy = jest.spyOn(
         service as any,
         "findAndFormatOrders",
@@ -1014,7 +1123,7 @@ describe("OrdersService", () => {
         id: "order-uuid",
         orderNumber: 1000,
         deliveryFee: 200,
-        discount: 0,
+        couponDiscount: 0,
         items: [
           { price: 10, quantity: 2 },
           { price: 20, quantity: 1 },
@@ -1030,7 +1139,9 @@ describe("OrdersService", () => {
         include: { items: true },
         orderBy: { createdAt: "desc" },
       });
-      expect(result).toEqual([{ ...order, subtotal: 40, total: 240 }]);
+      expect(result).toEqual([
+        { ...order, productsTotal: 40, productsDiscount: 0, total: 240 },
+      ]);
     });
 
     it("should subtract the applied coupon discount from the total", async () => {
@@ -1038,7 +1149,7 @@ describe("OrdersService", () => {
         id: "order-uuid",
         orderNumber: 1000,
         deliveryFee: 200,
-        discount: 500,
+        couponDiscount: 500,
         couponCode: "PROMO10",
         items: [{ price: 300, quantity: 2 }],
       };
@@ -1046,7 +1157,80 @@ describe("OrdersService", () => {
 
       const result = await service.getOrders(customerId);
 
-      expect(result).toEqual([{ ...order, subtotal: 600, total: 300 }]);
+      expect(result).toEqual([
+        { ...order, productsTotal: 600, productsDiscount: 0, total: 300 },
+      ]);
+    });
+
+    it("should build productsTotal from compareAtPrice and sum productsDiscount for on-sale items", async () => {
+      const order = {
+        id: "order-uuid",
+        deliveryFee: 200,
+        couponDiscount: 0,
+        items: [
+          { price: 800, compareAtPrice: 1000, quantity: 2 },
+          { price: 500, compareAtPrice: null, quantity: 1 },
+        ],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await service.getOrders(customerId);
+
+      expect(result).toEqual([
+        { ...order, productsTotal: 2500, productsDiscount: 400, total: 2300 },
+      ]);
+    });
+
+    it("should not treat compareAtPrice as an on-sale price when it is lower than or equal to price", async () => {
+      const order = {
+        id: "order-uuid",
+        deliveryFee: 0,
+        couponDiscount: 0,
+        items: [
+          { price: 1000, compareAtPrice: 1000, quantity: 1 },
+          { price: 1000, compareAtPrice: 800, quantity: 1 },
+        ],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await service.getOrders(customerId);
+
+      expect(result).toEqual([
+        { ...order, productsTotal: 2000, productsDiscount: 0, total: 2000 },
+      ]);
+    });
+
+    it("should keep legacy items without a compareAtPrice snapshot at the price total", async () => {
+      const order = {
+        id: "order-uuid",
+        deliveryFee: 200,
+        couponDiscount: 100,
+        items: [{ price: 1000, compareAtPrice: null, quantity: 2 }],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await service.getOrders(customerId);
+
+      expect(result).toEqual([
+        { ...order, productsTotal: 2000, productsDiscount: 0, total: 2100 },
+      ]);
+    });
+
+    it("should subtract the coupon discount from the net products total, not from the gross productsTotal", async () => {
+      const order = {
+        id: "order-uuid",
+        deliveryFee: 200,
+        couponDiscount: 500,
+        couponCode: "PROMO10",
+        items: [{ price: 800, compareAtPrice: 1000, quantity: 2 }],
+      };
+      prismaMock.order.findMany.mockResolvedValue([order]);
+
+      const result = await service.getOrders(customerId);
+
+      expect(result).toEqual([
+        { ...order, productsTotal: 2000, productsDiscount: 400, total: 1300 },
+      ]);
     });
 
     it("should return an empty array when the customer has no orders", async () => {
@@ -1073,7 +1257,7 @@ describe("OrdersService", () => {
         status: OrderStatus.PENDING,
         statusReason: null,
         couponId: null,
-        discount: 0,
+        couponDiscount: 0,
         items: [
           { productId: "product-1", price: 10, quantity: 2 },
           { productId: "product-2", price: 20, quantity: 3 },
@@ -1130,7 +1314,7 @@ describe("OrdersService", () => {
         status: OrderStatus.PENDING,
         statusReason: null,
         couponId: "coupon-uuid",
-        discount: 500,
+        couponDiscount: 500,
         items: [{ productId: "product-1", price: 10, quantity: 2 }],
       };
       prismaMock.order.findFirst.mockResolvedValue(order);
@@ -1190,7 +1374,7 @@ describe("OrdersService", () => {
       ).not.toThrow();
     });
 
-    it("should not throw when the subtotal alone meets the minimum", () => {
+    it("should not throw when the products total alone meets the minimum", () => {
       expect(() =>
         (service as any).assertOrderMeetsMinValue(2000, 0, {
           MIN_ORDER_VALUE: "2000",
@@ -1207,7 +1391,7 @@ describe("OrdersService", () => {
       ).not.toThrow();
     });
 
-    it("should not throw when subtotal and delivery fee still cover the minimum after the discount", () => {
+    it("should not throw when the products total and delivery fee still cover the minimum after the discount", () => {
       expect(() =>
         (service as any).assertOrderMeetsMinValue(2500, 500, {
           MIN_ORDER_VALUE: "2200",
@@ -1216,7 +1400,7 @@ describe("OrdersService", () => {
       ).not.toThrow();
     });
 
-    it("should throw BELOW_MIN_ORDER_VALUE when subtotal plus delivery fee is below the minimum", () => {
+    it("should throw BELOW_MIN_ORDER_VALUE when the products total plus delivery fee is below the minimum", () => {
       expect(() =>
         (service as any).assertOrderMeetsMinValue(1000, 0, {
           MIN_ORDER_VALUE: "3000",

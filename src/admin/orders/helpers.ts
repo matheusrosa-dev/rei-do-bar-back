@@ -19,6 +19,6 @@ export type OrderWithItems = Order & {
 
 export type OrderSortValueSource = {
   deliveryFee: number;
-  discount: number;
-  items: Array<Pick<OrderItem, "price" | "quantity">>;
+  couponDiscount: number;
+  items: Array<Pick<OrderItem, "price" | "compareAtPrice" | "quantity">>;
 };

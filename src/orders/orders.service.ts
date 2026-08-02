@@ -24,6 +24,10 @@ import {
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { OrderCreatedEvent, OrderCancelledEvent } from "@shared/events/order";
 import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
+import {
+  computeOrderTotals,
+  computeProductsTotals,
+} from "@shared/helpers/products-totals";
 
 type CustomerWithCartItems = Customer & {
   cart:
@@ -97,13 +101,20 @@ export class OrdersService {
 
     const coupon = assuredCustomer.cart.coupon;
 
-    const subtotal = assuredCustomer.cart.items.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0,
+    const { productsTotalLessDiscount } = computeProductsTotals(
+      assuredCustomer.cart.items.map(({ product, quantity }) => ({
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        quantity,
+      })),
     );
 
     if (coupon) {
-      await this.assertCouponIsRedeemable(coupon, subtotal, customerId);
+      await this.assertCouponIsRedeemable(
+        coupon,
+        productsTotalLessDiscount,
+        customerId,
+      );
     }
 
     let isWelcomeCoupon = false;
@@ -117,17 +128,21 @@ export class OrdersService {
 
       if (isWelcomeCoupon) {
         welcomeDiscount = await this.couponsService.calculateWelcomeDiscount(
-          subtotal,
+          productsTotalLessDiscount,
           settings,
         );
       }
     }
 
-    const discount = coupon
-      ? this.couponsService.calculateDiscount(coupon, subtotal)
+    const couponDiscount = coupon
+      ? this.couponsService.calculateDiscount(coupon, productsTotalLessDiscount)
       : welcomeDiscount;
 
-    this.assertOrderMeetsMinValue(subtotal, discount, settings);
+    this.assertOrderMeetsMinValue(
+      productsTotalLessDiscount,
+      couponDiscount,
+      settings,
+    );
 
     const mainAddress = assuredCustomer.addresses.find(
       (address) => address.isMain,
@@ -196,13 +211,14 @@ export class OrdersService {
           couponId: coupon?.id ?? null,
           couponCode:
             coupon?.code ?? (isWelcomeCoupon ? WELCOME_COUPON_CODE : null),
-          discount,
+          couponDiscount,
           paymentType: dto.paymentType,
           items: {
             createMany: {
               data: assuredCustomer.cart.items.map((item) => ({
                 name: item.product.name,
                 price: item.product.price,
+                compareAtPrice: item.product.compareAtPrice,
                 quantity: item.quantity,
                 imageUrl: item.product.imageUrl,
                 productId: item.productId,
@@ -369,19 +385,10 @@ export class OrdersService {
       orderBy: { createdAt: "desc" },
     });
 
-    const formattedOrders = orders.map((order) => {
-      const subtotal = order.items.reduce((sum, item) => {
-        return sum + item.price * item.quantity;
-      }, 0);
-
-      const total = subtotal + order.deliveryFee - order.discount;
-
-      return {
-        ...order,
-        subtotal,
-        total,
-      };
-    });
+    const formattedOrders = orders.map((order) => ({
+      ...order,
+      ...computeOrderTotals(order),
+    }));
 
     return formattedOrders;
   }
@@ -416,7 +423,7 @@ export class OrdersService {
 
   private async assertCouponIsRedeemable(
     coupon: Coupon,
-    subtotal: number,
+    productsTotalLessDiscount: number,
     customerId: string,
   ) {
     if (this.couponsService.isCouponUnavailable(coupon)) {
@@ -427,7 +434,7 @@ export class OrdersService {
       );
     }
 
-    if (subtotal < coupon.minOrderValue) {
+    if (productsTotalLessDiscount < coupon.minOrderValue) {
       throw new AppException(
         AppException.errorCodes.order.COUPON_MIN_ORDER_NOT_MET,
         "O valor do carrinho não atinge o mínimo para este cupom",
@@ -463,8 +470,8 @@ export class OrdersService {
   }
 
   private assertOrderMeetsMinValue(
-    subtotal: number,
-    discount: number,
+    productsTotalLessDiscount: number,
+    couponDiscount: number,
     settings: Record<SettingKey, string>,
   ) {
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
@@ -474,7 +481,7 @@ export class OrdersService {
       return;
     }
 
-    const total = subtotal + deliveryFee - discount;
+    const total = productsTotalLessDiscount + deliveryFee - couponDiscount;
 
     if (total < minOrderValue) {
       const formattedMinValue = (minOrderValue / 100)

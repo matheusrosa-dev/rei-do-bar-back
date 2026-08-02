@@ -87,4 +87,4 @@ There is no minimum-order gate on the welcome coupon — the only cap is the sub
 
 Callers pass in the already-fetched settings map (`SettingsService.findAll()`) rather than this service re-fetching it.
 
-The coupon surfaces to consumers as the fixed code `WELCOME_COUPON_CODE` (`"BEMVINDO"`), so cart and order responses carry a `couponCode`/`discount` pair identical in shape to a real coupon redemption from the client's perspective. Note the two consumers expose it on slightly different terms — see the welcome-coupon sections of `src/cart/AGENTS.md` and `src/orders/AGENTS.md`.
+The coupon surfaces to consumers as the fixed code `WELCOME_COUPON_CODE` (`"BEMVINDO"`), so cart and order responses carry a `couponCode`/`couponDiscount` pair identical in shape to a real coupon redemption from the client's perspective. Note the two consumers expose it on slightly different terms — see the welcome-coupon sections of `src/cart/AGENTS.md` and `src/orders/AGENTS.md`.

@@ -18,6 +18,7 @@ import {
   OrderCancelledEvent,
   OrderStatusUpdatedEvent,
 } from "@shared/events/order";
+import { computeOrderTotals } from "@shared/helpers/products-totals";
 
 @Injectable()
 export class AdminOrdersService {
@@ -41,6 +42,7 @@ export class AdminOrdersService {
           },
         },
         include: {
+          customer: true,
           items: {
             include: {
               product: true,
@@ -64,6 +66,7 @@ export class AdminOrdersService {
           updatedAt: "desc",
         },
         include: {
+          customer: true,
           items: {
             include: {
               product: true,
@@ -183,10 +186,11 @@ export class AdminOrdersService {
       select: {
         id: true,
         deliveryFee: true,
-        discount: true,
+        couponDiscount: true,
         items: {
           select: {
             price: true,
+            compareAtPrice: true,
             quantity: true,
           },
         },
@@ -244,12 +248,7 @@ export class AdminOrdersService {
       return order.items.reduce((sum, item) => sum + item.quantity, 0);
     }
 
-    const subtotal = order.items.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0,
-    );
-
-    return subtotal - order.discount + order.deliveryFee;
+    return computeOrderTotals(order).total;
   }
 
   async updateOrderStatus(orderId: string, dto: UpdateOrderStatusBodyDto) {
@@ -346,19 +345,10 @@ export class AdminOrdersService {
   }
 
   private calculateOrdersTotals(orders: OrderWithItems[]) {
-    return orders.map((order) => {
-      const subtotal = order.items.reduce((sum, item) => {
-        return sum + item.price * item.quantity;
-      }, 0);
-
-      const total = subtotal - order.discount + order.deliveryFee;
-
-      return {
-        ...order,
-        subtotal,
-        total,
-      };
-    });
+    return orders.map((order) => ({
+      ...order,
+      ...computeOrderTotals(order),
+    }));
   }
 
   private canMoveOrder(from: OrderStatus, to: OrderStatus) {

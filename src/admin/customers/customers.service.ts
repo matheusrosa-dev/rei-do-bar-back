@@ -5,6 +5,7 @@ import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
 import { CustomerWithRelations } from "./helpers";
 import { isRecordNotFound } from "@shared/helpers/prisma-errors";
+import { computeOrderTotals } from "@shared/helpers/products-totals";
 
 @Injectable()
 export class AdminCustomersService {
@@ -127,7 +128,13 @@ export class AdminCustomersService {
       );
     }
 
-    return customer;
+    return {
+      ...customer,
+      orders: customer.orders.map((order) => ({
+        ...order,
+        ...computeOrderTotals(order),
+      })),
+    };
   }
 
   private async findAllSortedByDeliveredOrders(

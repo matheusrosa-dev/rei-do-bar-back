@@ -15,6 +15,7 @@ import {
   WELCOME_COUPON_CODE,
 } from "../coupons/coupons.service";
 import { isUniqueConstraintViolation } from "@shared/helpers/prisma-errors";
+import { computeProductsTotals } from "@shared/helpers/products-totals";
 
 @Injectable()
 export class CartService {
@@ -152,9 +153,8 @@ export class CartService {
       );
     }
 
-    const productsTotalLessDiscount = customerOrAnonymous.cart.items.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
-      0,
+    const { productsTotalLessDiscount } = this.computeCartProductsTotals(
+      customerOrAnonymous.cart.items,
     );
 
     if (productsTotalLessDiscount < coupon.minOrderValue) {
@@ -485,6 +485,18 @@ export class CartService {
     };
   }
 
+  private computeCartProductsTotals(
+    items: Array<CartItem & { product: Product }>,
+  ) {
+    return computeProductsTotals(
+      items.map(({ product, quantity }) => ({
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        quantity,
+      })),
+    );
+  }
+
   private async formatCart(
     cart: {
       coupon?: Coupon | null;
@@ -500,23 +512,12 @@ export class CartService {
     const minOrderValue = Number(settings?.MIN_ORDER_VALUE || 0);
     const deliveryFee = Number(settings?.DELIVERY_FEE || 0);
 
-    let productsCount = 0;
-    let productsDiscount = 0;
-
-    const productsTotal = cart.items.reduce((sum, item) => {
-      const { compareAtPrice, price } = item.product;
-      const isOnSale = !!compareAtPrice && compareAtPrice > price;
-
-      productsCount += item.quantity;
-
-      if (isOnSale) {
-        productsDiscount += (compareAtPrice - price) * item.quantity;
-      }
-
-      return sum + (isOnSale ? compareAtPrice : price) * item.quantity;
-    }, 0);
-
-    const productsTotalLessDiscount = productsTotal - productsDiscount;
+    const {
+      productsTotal,
+      productsDiscount,
+      productsCount,
+      productsTotalLessDiscount,
+    } = this.computeCartProductsTotals(cart.items);
 
     let isWelcomeCoupon = false;
     let welcomeDiscount = 0;

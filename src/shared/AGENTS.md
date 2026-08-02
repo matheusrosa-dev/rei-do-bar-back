@@ -2,7 +2,9 @@
 
 ## Purpose
 
-Cross-cutting infrastructure used by every feature module. Nothing here is domain-specific. Feature modules import from this directory through the `@shared/` path alias — never via relative paths.
+Cross-cutting infrastructure used by every feature module. Feature modules import from this directory through the `@shared/` path alias — never via relative paths.
+
+Nothing here is domain-specific, with one deliberate exception: the product/order money helpers (`helpers/products-totals.ts`). That calculation is a **shared invariant** rather than one module's rule — the cart, the customer order response, the admin order listing and the admin customer detail must all report the same total for the same items, and a copy per module is exactly how they drift apart. It lives here for that reason, and only for that reason; a rule owned by a single module still belongs to that module.
 
 ## Subdirectory Roles
 
@@ -33,7 +35,22 @@ The Prisma service extends the generated client and is provided by a global modu
 
 ## helpers/
 
-Standalone functions (no classes) covering four concerns: hashing and constant-time comparison, one-time-code generation, timezone-aware dates (luxon, `America/Sao_Paulo`), and **Prisma error predicates**. The last one is the canonical way to branch on a Prisma failure — never match on the raw error code inline:
+Standalone functions (no classes) covering five concerns: hashing and constant-time comparison, one-time-code generation, timezone-aware dates (luxon, `America/Sao_Paulo`), **product totals**, and **Prisma error predicates**.
+
+Two functions in `products-totals.ts` are the single source of truth for order/cart money — every surface that shows a total goes through them, so none can drift:
+
+| Function | Returns | Used by |
+|---|---|---|
+| `computeProductsTotals(items)` | `productsTotal`, `productsDiscount`, `productsCount`, `productsTotalLessDiscount` | The cart response, the cart's coupon min-order check, and the coupon base at order creation |
+| `computeOrderTotals(order)` | `productsTotal`, `productsDiscount`, `total` | Every order read: the customer order list, the admin listing/board, the admin `total` sort, and the admin customer detail |
+
+`computeProductsTotals` takes a flat `{ price, compareAtPrice, quantity }[]` and computes `productsTotal` as the **gross** figure (`compareAtPrice` when the item is on sale, otherwise `price`), `productsDiscount` as the summed on-sale differences, and `productsTotalLessDiscount` as the **net** total — the figure coupons, minimum-order checks, and every `total` must be built from. The on-sale test is `compareAtPrice` set **and** greater than `price`, so bad data can never yield a negative discount. Callers whose items nest the price under a product (cart items) map to the flat shape first; order items already match structurally.
+
+`computeOrderTotals` wraps it with the order-level money, returning `total = productsTotalLessDiscount + deliveryFee - couponDiscount`. Every read of a **persisted** order spreads it over the row (`{ ...order, ...computeOrderTotals(order) }`) rather than re-deriving the formula.
+
+Two **pre-persistence** call sites assemble that same subtraction inline and are meant to: `formatCart` and the order module's minimum-order check both work from a `deliveryFee` read out of settings and a `couponDiscount` computed on the fly, so there is no order row to pass and `computeOrderTotals` would only recompute the item totals they already hold. They still take their base from `productsTotalLessDiscount` — the *base* is what must never diverge, and that part is always the helper's.
+
+The Prisma predicates are the canonical way to branch on a Prisma failure — never match on the raw error code inline:
 
 | Predicate | Prisma code | Typical use |
 |---|---|---|
@@ -63,7 +80,8 @@ Thin adapters around external SDKs, each wrapped in its own injectable module/se
 | Rule | Detail |
 |---|---|
 | Import via alias | Always `@shared/...`, never relative paths into shared |
-| No domain logic | Keep feature-specific rules out of shared |
+| No domain logic | Keep feature-specific rules out of shared. The money helpers are the one carve-out (see Purpose) — an invariant several modules must agree on, not one module's rule |
 | Direct Prisma access | No repository layer; services inject the Prisma service |
 | Config only via `ConfigService` | Never read `process.env` in application code |
 | Prisma errors via predicates | Branch on `isRecordNotFound` / `isUniqueConstraintViolation` from `helpers/`, never on raw error codes |
+| Product money via the helpers | Derive product totals with `computeProductsTotals` and an order's `total` with `computeOrderTotals` — never re-derive either formula in a feature service |

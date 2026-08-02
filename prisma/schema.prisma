@@ -200,19 +200,19 @@ model InventoryMovementProduct {
 }
 
 model Order {
-  id           String      @id @default(uuid())
-  orderNumber  Int         @unique @default(autoincrement()) @map("order_number")
-  customerId   String      @map("customer_id")
-  address      String
-  status       OrderStatus
-  statusReason String?     @map("status_reason")
-  deliveryFee  Int         @map("delivery_fee")
-  couponId     String?     @map("coupon_id")
-  couponCode   String?     @map("coupon_code")
-  discount     Int         @default(0)
-  paymentType  PaymentType @map("payment_type")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(uuid())
+  orderNumber    Int         @unique @default(autoincrement()) @map("order_number")
+  customerId     String      @map("customer_id")
+  address        String
+  status         OrderStatus
+  statusReason   String?     @map("status_reason")
+  deliveryFee    Int         @map("delivery_fee")
+  couponId       String?     @map("coupon_id")
+  couponCode     String?     @map("coupon_code")
+  couponDiscount Int         @map("coupon_discount")
+  paymentType    PaymentType @map("payment_type")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   customer           Customer            @relation(fields: [customerId], references: [id])
   coupon             Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
@@ -225,15 +225,16 @@ model Order {
 }
 
 model OrderItem {
-  id        String   @id @default(uuid())
-  orderId   String   @map("order_id")
-  productId String   @map("product_id")
-  name      String
-  imageUrl  String   @map("image_url")
-  quantity  Int
-  price     Int
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  orderId        String   @map("order_id")
+  productId      String   @map("product_id")
+  name           String
+  imageUrl       String   @map("image_url")
+  quantity       Int
+  price          Int
+  compareAtPrice Int?     @map("compare_at_price")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
