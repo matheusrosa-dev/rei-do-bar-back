@@ -69,7 +69,11 @@ export class AdminCouponsService {
         skip,
         take: limit,
         orderBy,
-        include: { _count: { select: { usages: true } } },
+        include: {
+          _count: {
+            select: { usages: true, eligibleCustomers: true },
+          },
+        },
       }),
       this.prisma.coupon.count({ where }),
     ]);
@@ -78,6 +82,7 @@ export class AdminCouponsService {
       items: items.map(({ _count, ...coupon }) => ({
         ...coupon,
         usageCount: _count.usages,
+        assignedCustomerCount: _count.eligibleCustomers,
         hasStarted: coupon.startsAt <= now,
         isFinished:
           (coupon.endsAt !== null && coupon.endsAt <= now) ||
@@ -95,18 +100,35 @@ export class AdminCouponsService {
   async createCoupon(dto: CreateCouponDto) {
     this.assertDiscountValueIsValid(dto.discountType, dto.discountValue);
 
+    if (dto.customerIds?.length) {
+      await this.assertAllCustomersExist(dto.customerIds);
+    }
+
     try {
-      return await this.prisma.coupon.create({
-        data: {
-          code: dto.code,
-          discountType: dto.discountType,
-          discountValue: dto.discountValue,
-          minOrderValue: dto.minOrderValue,
-          startsAt: dto.startsAt,
-          endsAt: dto.endsAt ?? null,
-          usageLimit: dto.usageLimit ?? null,
-          isActive: false,
-        },
+      return await this.prisma.$transaction(async (tx) => {
+        const coupon = await tx.coupon.create({
+          data: {
+            code: dto.code,
+            discountType: dto.discountType,
+            discountValue: dto.discountValue,
+            minOrderValue: dto.minOrderValue,
+            startsAt: dto.startsAt,
+            endsAt: dto.endsAt ?? null,
+            usageLimit: dto.customerIds?.length ?? dto.usageLimit ?? null,
+            isActive: false,
+          },
+        });
+
+        if (dto.customerIds?.length) {
+          await tx.couponCustomer.createMany({
+            data: dto.customerIds.map((customerId) => ({
+              couponId: coupon.id,
+              customerId,
+            })),
+          });
+        }
+
+        return coupon;
       });
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
@@ -149,13 +171,35 @@ export class AdminCouponsService {
       await this.assertUsageLimitAboveUsage(couponId, dto.usageLimit);
     }
 
-    return this.updateCouponOrThrow(couponId, {
-      discountType: dto.discountType,
-      discountValue: dto.discountValue,
-      minOrderValue: dto.minOrderValue,
-      startsAt: dto.startsAt,
-      endsAt: dto.endsAt ?? null,
-      usageLimit: dto.usageLimit ?? null,
+    if (dto.customerIds?.length) {
+      await this.assertAllCustomersExist(dto.customerIds);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const coupon = await tx.coupon.update({
+        where: { id: couponId },
+        data: {
+          discountType: dto.discountType,
+          discountValue: dto.discountValue,
+          minOrderValue: dto.minOrderValue,
+          startsAt: dto.startsAt,
+          endsAt: dto.endsAt ?? null,
+          usageLimit: dto.customerIds?.length ?? dto.usageLimit ?? null,
+        },
+      });
+
+      await tx.couponCustomer.deleteMany({ where: { couponId } });
+
+      if (dto.customerIds?.length) {
+        await tx.couponCustomer.createMany({
+          data: dto.customerIds.map((customerId) => ({
+            couponId,
+            customerId,
+          })),
+        });
+      }
+
+      return coupon;
     });
   }
 
@@ -302,6 +346,21 @@ export class AdminCouponsService {
         AppException.errorCodes.adminCoupons.INVALID_USAGE_LIMIT,
         "O limite de uso deve ser maior que a quantidade já utilizada do cupom.",
         AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private async assertAllCustomersExist(customerIds: string[]) {
+    const uniqueIds = [...new Set(customerIds)];
+    const foundCount = await this.prisma.customer.count({
+      where: { id: { in: uniqueIds } },
+    });
+
+    if (foundCount !== uniqueIds.length) {
+      throw new AppException(
+        AppException.errorCodes.adminCoupons.CUSTOMER_NOT_FOUND,
+        "Um ou mais clientes informados não foram encontrados.",
+        AppException.HttpStatus.NOT_FOUND,
       );
     }
   }

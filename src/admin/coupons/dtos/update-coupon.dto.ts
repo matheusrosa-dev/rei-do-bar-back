@@ -1,5 +1,7 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayUnique,
+  IsArray,
   IsDate,
   IsEnum,
   IsInt,
@@ -51,4 +53,10 @@ export class UpdateCouponBodyDto {
   @IsInt()
   @Min(1)
   usageLimit?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  customerIds?: string[];
 }

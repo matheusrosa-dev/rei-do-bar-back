@@ -31,6 +31,7 @@ export class AppException extends HttpException {
       COUPON_ALREADY_USED: "CART_014",
       COUPON_REQUIRES_AUTH: "CART_015",
       COUPON_NOT_ASSIGNED: "CART_016",
+      COUPON_NOT_ELIGIBLE: "CART_017",
     },
     auth: {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",
@@ -69,6 +70,7 @@ export class AppException extends HttpException {
       COUPON_USAGE_LIMIT_REACHED: "ORDER_016",
       COUPON_ALREADY_USED: "ORDER_017",
       WELCOME_COUPON_UNAVAILABLE: "ORDER_018",
+      COUPON_NOT_ELIGIBLE: "ORDER_019",
     },
     products: {
       INVALID_SESSION: "PRODUCTS_001",
@@ -105,6 +107,7 @@ export class AppException extends HttpException {
       COUPON_START_NOT_EDITABLE: "ADMIN_COUPONS_004",
       INVALID_USAGE_LIMIT: "ADMIN_COUPONS_005",
       INVALID_DISCOUNT_VALUE: "ADMIN_COUPONS_006",
+      CUSTOMER_NOT_FOUND: "ADMIN_COUPONS_007",
     },
     adminSettings: {
       INVALID_SETTING_VALUE: "ADMIN_SETTINGS_001",

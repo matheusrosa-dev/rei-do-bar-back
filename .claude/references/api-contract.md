@@ -64,6 +64,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | cart | `COUPON_ALREADY_USED` | `CART_014` |
 | cart | `COUPON_REQUIRES_AUTH` | `CART_015` |
 | cart | `COUPON_NOT_ASSIGNED` | `CART_016` |
+| cart | `COUPON_NOT_ELIGIBLE` | `CART_017` |
 | auth | `ANONYMOUS_CUSTOMER_NOT_FOUND` | `AUTH_001` |
 | auth | `INVALID_VERIFICATION_CODE` | `AUTH_002` |
 | auth | `INVALID_REFRESH_TOKEN` | `AUTH_004` |
@@ -96,6 +97,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | order | `COUPON_USAGE_LIMIT_REACHED` | `ORDER_016` |
 | order | `COUPON_ALREADY_USED` | `ORDER_017` |
 | order | `WELCOME_COUPON_UNAVAILABLE` | `ORDER_018` |
+| order | `COUPON_NOT_ELIGIBLE` | `ORDER_019` |
 | products | `INVALID_SESSION` | `PRODUCTS_001` |
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
 | adminProducts | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` |
@@ -118,6 +120,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |
 | adminCoupons | `INVALID_USAGE_LIMIT` | `ADMIN_COUPONS_005` |
 | adminCoupons | `INVALID_DISCOUNT_VALUE` | `ADMIN_COUPONS_006` |
+| adminCoupons | `CUSTOMER_NOT_FOUND` | `ADMIN_COUPONS_007` |
 | adminSettings | `INVALID_SETTING_VALUE` | `ADMIN_SETTINGS_001` |
 
 ---

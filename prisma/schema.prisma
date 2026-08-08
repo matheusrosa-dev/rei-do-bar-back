@@ -22,12 +22,13 @@ model Customer {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  cart          Cart?
-  addresses     Address[]
-  orders        Order[]
-  refreshTokens RefreshToken[]
-  pushTokens    PushToken[]
-  couponUsages  CouponUsage[]
+  cart             Cart?
+  addresses        Address[]
+  orders           Order[]
+  refreshTokens    RefreshToken[]
+  pushTokens       PushToken[]
+  couponUsages     CouponUsage[]
+  eligibleCoupons  CouponCustomer[]
 
   @@map("customers")
 }
@@ -256,9 +257,10 @@ model Coupon {
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
-  usages CouponUsage[]
-  carts  Cart[]
-  orders Order[]
+  usages           CouponUsage[]
+  carts            Cart[]
+  orders           Order[]
+  eligibleCustomers CouponCustomer[]
 
   @@map("coupons")
 }
@@ -275,6 +277,19 @@ model CouponUsage {
   @@unique([couponId, customerId])
   @@index([customerId])
   @@map("coupon_usages")
+}
+
+model CouponCustomer {
+  couponId   String   @map("coupon_id")
+  customerId String   @map("customer_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, customerId])
+  @@index([customerId])
+  @@map("coupon_customers")
 }
 
 model Setting {

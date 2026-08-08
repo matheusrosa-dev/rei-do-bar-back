@@ -28,7 +28,17 @@ export class CouponsService {
         where: {
           isActive: true,
           startsAt: { lte: now },
-          OR: [{ endsAt: null }, { endsAt: { gte: visibilityLimit } }],
+          AND: [
+            {
+              OR: [{ endsAt: null }, { endsAt: { gte: visibilityLimit } }],
+            },
+            {
+              OR: [
+                { eligibleCustomers: { none: {} } },
+                { eligibleCustomers: { some: { customerId } } },
+              ],
+            },
+          ],
         },
         include: {
           _count: { select: { usages: true } },
@@ -145,6 +155,28 @@ export class CouponsService {
     });
 
     return !!usage;
+  }
+
+  async isCustomerEligibleForCoupon(
+    couponId: string,
+    customerId: string,
+  ): Promise<boolean> {
+    const explicitEntry = await this.prisma.couponCustomer.findUnique({
+      where: {
+        couponId_customerId: { couponId, customerId },
+      },
+      select: { couponId: true },
+    });
+
+    if (explicitEntry) {
+      return true;
+    }
+
+    const totalEligible = await this.prisma.couponCustomer.count({
+      where: { couponId },
+    });
+
+    return totalEligible === 0;
   }
 
   private async getSoldOutAt(

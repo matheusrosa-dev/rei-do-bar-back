@@ -191,6 +191,19 @@ export class CartService {
       );
     }
 
+    const isEligible = await this.couponsService.isCustomerEligibleForCoupon(
+      coupon.id,
+      session.customerId,
+    );
+
+    if (!isEligible) {
+      throw new AppException(
+        AppException.errorCodes.cart.COUPON_NOT_ELIGIBLE,
+        "Este cupom não está disponível para você.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const updatedCart = await this.prisma.cart.update({
       where: { id: customerOrAnonymous.cart.id },
       data: { couponId: coupon.id },

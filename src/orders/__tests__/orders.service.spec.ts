@@ -68,6 +68,7 @@ describe("OrdersService", () => {
     couponsServiceMock.isCouponUnavailable.mockReturnValue(false);
     couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(false);
     couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(false);
+    couponsServiceMock.isCustomerEligibleForCoupon.mockResolvedValue(true);
     couponsServiceMock.calculateDiscount.mockReturnValue(0);
   });
 
@@ -613,6 +614,32 @@ describe("OrdersService", () => {
         ).rejects.toMatchObject({
           code: AppException.errorCodes.order.COUPON_ALREADY_USED,
           message: "Você já utilizou este cupom",
+          httpStatus: AppException.HttpStatus.BAD_REQUEST,
+        });
+
+        expect(prismaMock.order.create).not.toHaveBeenCalled();
+      });
+
+      it("should throw COUPON_NOT_ELIGIBLE when the pre-check reports the coupon is not assigned to this customer", async () => {
+        const items = [
+          CartItemFactory.createOne({
+            product: ProductFactory.createOne({ stockQuantity: 20 }),
+            quantity: 1,
+          }),
+        ];
+        const coupon = CouponFactory.createOne({ minOrderValue: 0 });
+        prismaMock.customer.findFirst.mockResolvedValue(
+          buildCustomerWithCoupon(items, coupon),
+        );
+        prismaMock.order.count.mockResolvedValue(0);
+        prismaMock.setting.findMany.mockResolvedValue([]);
+        couponsServiceMock.isCustomerEligibleForCoupon.mockResolvedValue(false);
+
+        await expect(
+          service.createOrder(customerId, dto),
+        ).rejects.toMatchObject({
+          code: AppException.errorCodes.order.COUPON_NOT_ELIGIBLE,
+          message: "Este cupom não está disponível para você.",
           httpStatus: AppException.HttpStatus.BAD_REQUEST,
         });
 

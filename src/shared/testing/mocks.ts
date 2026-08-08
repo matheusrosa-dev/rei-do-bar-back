@@ -1,7 +1,9 @@
 export const prismaMock = {
   $transaction: jest
     .fn()
-    .mockImplementation((callback) => callback(prismaMock)),
+    .mockImplementation((arg) =>
+      typeof arg === "function" ? arg(prismaMock) : Promise.all(arg),
+    ),
   $queryRaw: jest.fn(),
   anonymousCustomer: {
     findUnique: jest.fn(),
@@ -39,6 +41,12 @@ export const prismaMock = {
     findUnique: jest.fn(),
     deleteMany: jest.fn(),
   },
+  couponCustomer: {
+    count: jest.fn(),
+    findUnique: jest.fn(),
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   order: {
     count: jest.fn(),
     create: jest.fn(),
@@ -72,6 +80,7 @@ export const prismaMock = {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    count: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -118,6 +127,7 @@ export const couponsServiceMock = {
   calculateDiscount: jest.fn(),
   hasReachedUsageLimit: jest.fn(),
   hasCustomerUsedCoupon: jest.fn(),
+  isCustomerEligibleForCoupon: jest.fn().mockResolvedValue(true),
   isCustomerEligibleForWelcomeCoupon: jest.fn(),
   calculateWelcomeDiscount: jest.fn().mockResolvedValue(0),
 };

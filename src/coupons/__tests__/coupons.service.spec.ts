@@ -82,7 +82,17 @@ describe("CouponsService", () => {
         where: {
           isActive: true,
           startsAt: { lte: now },
-          OR: [{ endsAt: null }, { endsAt: { gte: visibilityLimit } }],
+          AND: [
+            {
+              OR: [{ endsAt: null }, { endsAt: { gte: visibilityLimit } }],
+            },
+            {
+              OR: [
+                { eligibleCustomers: { none: {} } },
+                { eligibleCustomers: { some: { customerId } } },
+              ],
+            },
+          ],
         },
         include: {
           _count: { select: { usages: true } },
@@ -504,6 +514,67 @@ describe("CouponsService", () => {
             customerId: "customer-1",
           },
         },
+      });
+    });
+  });
+
+  describe("isCustomerEligibleForCoupon", () => {
+    it("should return true when the customer has an explicit eligibility entry", async () => {
+      prismaMock.couponCustomer.findUnique.mockResolvedValue({
+        couponId: "coupon-1",
+        customerId: "customer-1",
+      });
+
+      const result = await service.isCustomerEligibleForCoupon(
+        "coupon-1",
+        "customer-1",
+      );
+
+      expect(result).toBe(true);
+      expect(prismaMock.couponCustomer.count).not.toHaveBeenCalled();
+    });
+
+    it("should return true when the customer has no explicit entry but the coupon is unrestricted", async () => {
+      prismaMock.couponCustomer.findUnique.mockResolvedValue(null);
+      prismaMock.couponCustomer.count.mockResolvedValue(0);
+
+      const result = await service.isCustomerEligibleForCoupon(
+        "coupon-1",
+        "customer-1",
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it("should return false when the coupon is restricted to other customers", async () => {
+      prismaMock.couponCustomer.findUnique.mockResolvedValue(null);
+      prismaMock.couponCustomer.count.mockResolvedValue(3);
+
+      const result = await service.isCustomerEligibleForCoupon(
+        "coupon-1",
+        "customer-1",
+      );
+
+      expect(result).toBe(false);
+    });
+
+    it("should query the composite key first and the count only as a fallback", async () => {
+      prismaMock.couponCustomer.findUnique.mockResolvedValue(null);
+      prismaMock.couponCustomer.count.mockResolvedValue(0);
+
+      await service.isCustomerEligibleForCoupon("coupon-1", "customer-1");
+
+      expect(prismaMock.couponCustomer.findUnique).toHaveBeenCalledWith({
+        where: {
+          couponId_customerId: {
+            couponId: "coupon-1",
+            customerId: "customer-1",
+          },
+        },
+        select: { couponId: true },
+      });
+      expect(prismaMock.couponCustomer.count).toHaveBeenCalledWith({
+        where: { couponId: "coupon-1" },
       });
     });
   });

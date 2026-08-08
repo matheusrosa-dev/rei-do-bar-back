@@ -1003,6 +1003,7 @@ describe("CartService", () => {
       couponsServiceMock.isCouponUnavailable.mockReturnValue(false);
       couponsServiceMock.hasReachedUsageLimit.mockResolvedValue(false);
       couponsServiceMock.hasCustomerUsedCoupon.mockResolvedValue(false);
+      couponsServiceMock.isCustomerEligibleForCoupon.mockResolvedValue(true);
     });
 
     it("should throw COUPON_REQUIRES_AUTH when session has no customerId", async () => {
@@ -1146,6 +1147,28 @@ describe("CartService", () => {
         coupon.id,
         customerId,
       );
+    });
+
+    it("should throw COUPON_NOT_ELIGIBLE when the coupon is not assigned to this customer", async () => {
+      const coupon = CouponFactory.createOne({ code: couponCode });
+      const customer = CustomerFactory.createOne({
+        cart: CartFactory.createOne({ items: [] }),
+      });
+      prismaMock.customer.findFirst.mockResolvedValue(customer);
+      prismaMock.coupon.findFirst.mockResolvedValue(coupon);
+      couponsServiceMock.isCustomerEligibleForCoupon.mockResolvedValue(false);
+
+      await expect(
+        service.assignCouponToCart({ customerId }, { couponCode }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.COUPON_NOT_ELIGIBLE,
+        message: "Este cupom não está disponível para você.",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(
+        couponsServiceMock.isCustomerEligibleForCoupon,
+      ).toHaveBeenCalledWith(coupon.id, customerId);
     });
 
     it("should assign the coupon to the cart when every rule passes", async () => {

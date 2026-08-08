@@ -50,9 +50,24 @@ There is no persisted usage counter and no persisted sold-out timestamp: the cou
 
 ## Central Pattern
 
-The two **real-coupon** rules (`isCouponUnavailable`, `calculateDiscount`) are pure functions of a `Coupon` row, with no I/O: a coupon is unavailable if inactive, not yet started, or past its end date; a discount is zero unless the coupon is available and the subtotal meets its minimum order value, otherwise `FIXED` discounts a cents amount and `PERCENTAGE` discounts a whole-number percent of the subtotal — both capped at the subtotal so a discount can never exceed it. Usage-limit checks (`hasReachedUsageLimit`, `hasCustomerUsedCoupon`) do read from `CouponUsage` and are the pieces callers must re-run at redemption time, since they depend on state that changes over time. The welcome-coupon methods (below) do not fit this shape — one of them queries the database.
+The two **real-coupon** rules (`isCouponUnavailable`, `calculateDiscount`) are pure functions of a `Coupon` row, with no I/O: a coupon is unavailable if inactive, not yet started, or past its end date; a discount is zero unless the coupon is available and the subtotal meets its minimum order value, otherwise `FIXED` discounts a cents amount and `PERCENTAGE` discounts a whole-number percent of the subtotal — both capped at the subtotal so a discount can never exceed it. Usage-limit checks (`hasReachedUsageLimit`, `hasCustomerUsedCoupon`) and the per-coupon eligibility check (`isCustomerEligibleForCoupon`, below) do read from the database and are the pieces callers must re-run at redemption time, since they depend on state that changes over time. The welcome-coupon methods (below) do not fit this shape — one of them queries the database.
 
 Availability is evaluated against the exact current timestamp: `startsAt`/`endsAt` are compared directly to `new Date()`, with no truncation to day boundaries and no timezone adjustment.
+
+---
+
+## Per-Coupon Eligibility
+
+A coupon can be **restricted to a specific set of customers** through the `CouponCustomer` join table. The model is the single source of truth for *who is allowed to redeem a given coupon* — distinct from `CouponUsage` (which records redemptions, not eligibility).
+
+Semantics:
+
+- A coupon **with no** `CouponCustomer` rows is **open to every authenticated customer** — existing behavior is preserved.
+- A coupon **with at least one** `CouponCustomer` row is **restricted**: only the listed customers can see, assign, or redeem it. The check is the same one everywhere (`isCustomerEligibleForCoupon`); callers (cart assignment, order revalidation) re-run it on each call since eligibility changes over time.
+
+`isCustomerEligibleForCoupon(couponId, customerId)` returns `true` when either there is an explicit `CouponCustomer` row for the pair, **or** the coupon has no `CouponCustomer` rows at all. It returns `false` only when the coupon is restricted and the customer is not on the list. The list-membership probe is one indexed lookup on the composite key, and the "is the list empty?" probe is a count against the indexed `couponId` — never a full hydration of the relation.
+
+The client listing (`findAvailableCoupons`) filters on the same condition in the `where` clause (`eligibleCustomers.none` OR `eligibleCustomers.some(customerId)`), so restricted coupons simply do not appear to non-eligible customers. There is no per-coupon flag telling the client the coupon is restricted; the list filter is the gate.
 
 ---
 
@@ -63,6 +78,7 @@ Availability is evaluated against the exact current timestamp: `startsAt`/`endsA
 | One client route only | The controller exposes the customer-facing listing; redemption itself happens through `cart`/`orders`, and CRUD through `admin/coupons` |
 | Exported service | Consumed via NestJS module imports, not direct instantiation |
 | Pure where possible | Real-coupon availability/discount calculations take a `Coupon` and return a value — no side effects |
+| Per-coupon eligibility | A coupon with `CouponCustomer` rows is restricted to those customers; a coupon without rows is open. `isCustomerEligibleForCoupon` enforces it everywhere it matters |
 | Welcome discount is not self-gating | Callers must check eligibility before applying it; the calculation trusts them |
 | Monetary values | Stored/handled in cents; discount is capped at the subtotal for both discount types |
 

@@ -467,6 +467,19 @@ export class OrdersService {
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
+
+    const isEligible = await this.couponsService.isCustomerEligibleForCoupon(
+      coupon.id,
+      customerId,
+    );
+
+    if (!isEligible) {
+      throw new AppException(
+        AppException.errorCodes.order.COUPON_NOT_ELIGIBLE,
+        "Este cupom não está disponível para você.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   private assertOrderMeetsMinValue(

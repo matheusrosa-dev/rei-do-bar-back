@@ -1,11 +1,14 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayUnique,
+  IsArray,
   IsDate,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   MinDate,
 } from "class-validator";
@@ -56,4 +59,10 @@ export class CreateCouponDto {
   @IsInt()
   @Min(1)
   usageLimit?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  customerIds?: string[];
 }
