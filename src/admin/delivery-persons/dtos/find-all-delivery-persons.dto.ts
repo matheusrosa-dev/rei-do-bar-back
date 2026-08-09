@@ -9,7 +9,7 @@ import {
   Min,
 } from "class-validator";
 
-export class FindAllCustomersDto {
+export class FindAllDeliveryPersonsDto {
   @IsOptional()
   @Transform(({ value }) => value === "true")
   @IsBoolean()
@@ -38,8 +38,8 @@ export class FindAllCustomersDto {
   searchTerm?: string;
 
   @IsOptional()
-  @IsIn(["allOrdersCount", "deliveredOrdersCount"])
-  sortKey?: "allOrdersCount" | "deliveredOrdersCount";
+  @IsIn(["createdAt", "ordersCount"])
+  sortKey?: "createdAt" | "ordersCount";
 
   @IsOptional()
   @IsIn(["asc", "desc"])

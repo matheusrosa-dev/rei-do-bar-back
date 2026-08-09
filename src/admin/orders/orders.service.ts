@@ -9,6 +9,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { isForeignKeyConstraintViolation } from "@shared/helpers/prisma-errors";
 import {
   ORDER_STATUS_TRANSITIONS,
   OrderSortValueSource,
@@ -43,6 +44,7 @@ export class AdminOrdersService {
         },
         include: {
           customer: true,
+          deliveryPerson: true,
           items: {
             include: {
               product: true,
@@ -67,6 +69,7 @@ export class AdminOrdersService {
         },
         include: {
           customer: true,
+          deliveryPerson: true,
           items: {
             include: {
               product: true,
@@ -152,6 +155,7 @@ export class AdminOrdersService {
         orderBy,
         include: {
           customer: true,
+          deliveryPerson: true,
           items: {
             include: {
               product: true,
@@ -223,6 +227,7 @@ export class AdminOrdersService {
       where: { id: { in: paginatedIds } },
       include: {
         customer: true,
+        deliveryPerson: true,
         items: {
           include: {
             product: true,
@@ -288,37 +293,60 @@ export class AdminOrdersService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      const result = await tx.order.updateMany({
-        where: {
-          id: orderId,
-          status: order.status,
-        },
-        data: {
-          status: dto.status,
-          ...(dto.status === OrderStatus.CANCELLED && {
-            statusReason: dto.statusReason,
-          }),
-        },
-      });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (dto.status === OrderStatus.SHIPPED) {
+          await this.assertDeliveryPersonIsAssignable(
+            tx,
+            dto.deliveryPersonId!,
+          );
+        }
 
-      if (result.count === 0) {
+        const result = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            status: order.status,
+          },
+          data: {
+            status: dto.status,
+            ...(dto.status === OrderStatus.CANCELLED && {
+              statusReason: dto.statusReason,
+            }),
+            ...(dto.status === OrderStatus.SHIPPED && {
+              deliveryPersonId: dto.deliveryPersonId,
+            }),
+          },
+        });
+
+        if (result.count === 0) {
+          throw new AppException(
+            AppException.errorCodes.adminOrders.ORDER_INVALID_STATUS_TRANSITION,
+            "O status do pedido mudou. Recarregue e tente novamente.",
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        if (dto.status === OrderStatus.CANCELLED) {
+          for (const item of order.items) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stockQuantity: { increment: item.quantity } },
+            });
+          }
+        }
+      });
+    } catch (error) {
+      if (isForeignKeyConstraintViolation(error)) {
         throw new AppException(
-          AppException.errorCodes.adminOrders.ORDER_INVALID_STATUS_TRANSITION,
-          "O status do pedido mudou. Recarregue e tente novamente.",
-          HttpStatus.BAD_REQUEST,
+          AppException.errorCodes.adminDeliveryPersons
+            .DELIVERY_PERSON_NOT_FOUND,
+          "Entregador não encontrado.",
+          HttpStatus.NOT_FOUND,
         );
       }
 
-      if (dto.status === OrderStatus.CANCELLED) {
-        for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stockQuantity: { increment: item.quantity } },
-          });
-        }
-      }
-    });
+      throw error;
+    }
 
     this.eventEmitter.emit(
       OrderStatusUpdatedEvent.NAME,
@@ -344,7 +372,38 @@ export class AdminOrdersService {
     return this.listOrdersManagement();
   }
 
-  private calculateOrdersTotals(orders: OrderWithItems[]) {
+  private async assertDeliveryPersonIsAssignable(
+    tx: Prisma.TransactionClient,
+    deliveryPersonId: string,
+  ) {
+    // Bloqueia a linha do entregador para serializar contra a exclusão
+    // concorrente (admin/delivery-persons), que trava a mesma linha antes de
+    // apagá-la.
+    await tx.$queryRaw`SELECT id FROM delivery_persons WHERE id = ${deliveryPersonId} FOR UPDATE`;
+
+    const deliveryPerson = await tx.deliveryPerson.findUnique({
+      where: { id: deliveryPersonId },
+      select: { isActive: true },
+    });
+
+    if (!deliveryPerson) {
+      throw new AppException(
+        AppException.errorCodes.adminDeliveryPersons.DELIVERY_PERSON_NOT_FOUND,
+        "Entregador não encontrado.",
+        HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (!deliveryPerson.isActive) {
+      throw new AppException(
+        AppException.errorCodes.adminDeliveryPersons.DELIVERY_PERSON_INACTIVE,
+        "Entregador inativo.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  private calculateOrdersTotals<T extends OrderWithItems>(orders: T[]) {
     return orders.map((order) => ({
       ...order,
       ...computeOrderTotals(order),
@@ -355,7 +414,10 @@ export class AdminOrdersService {
     return ORDER_STATUS_TRANSITIONS[from].includes(to);
   }
 
-  private filterOrdersByStatus(orders: Order[], status: OrderStatus) {
+  private filterOrdersByStatus<T extends Pick<Order, "status">>(
+    orders: T[],
+    status: OrderStatus,
+  ) {
     return orders.filter((order) => order.status === status);
   }
 }

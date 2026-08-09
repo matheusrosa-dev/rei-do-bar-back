@@ -122,6 +122,10 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminCoupons | `INVALID_DISCOUNT_VALUE` | `ADMIN_COUPONS_006` |
 | adminCoupons | `CUSTOMER_NOT_FOUND` | `ADMIN_COUPONS_007` |
 | adminSettings | `INVALID_SETTING_VALUE` | `ADMIN_SETTINGS_001` |
+| adminDeliveryPersons | `DELIVERY_PERSON_NOT_FOUND` | `ADMIN_DELIVERY_PERSONS_001` |
+| adminDeliveryPersons | `DELIVERY_PERSON_ALREADY_EXISTS` | `ADMIN_DELIVERY_PERSONS_002` |
+| adminDeliveryPersons | `DELIVERY_PERSON_HAS_ORDERS` | `ADMIN_DELIVERY_PERSONS_003` |
+| adminDeliveryPersons | `DELIVERY_PERSON_INACTIVE` | `ADMIN_DELIVERY_PERSONS_004` |
 
 ---
 
@@ -136,6 +140,7 @@ Admin list endpoints accept the following query params:
 | `searchTerm` | string | optional, case-insensitive OR search |
 | `sortKey` | string | optional; the allowed keys are declared per resource on its DTO |
 | `sortDirection` | `asc` \| `desc` | optional; defaults to `desc` when a sort key is present |
+| `simple` | bool | optional; `true` returns a flat, unpaginated array (no `meta`) instead of the page object — available on products, customers, and delivery persons |
 
 Resources add their own filters on top of these (e.g. `categoryId` / `isActive` on products, `status` / `paymentType` on orders). With no `sortKey`, listings fall back to newest-first (`createdAt desc`).
 
@@ -148,7 +153,7 @@ The response is a normalized page:
 }
 ```
 
-**Exception**: the admin categories listing is not paginated — it returns a flat array with no `meta`.
+**Exceptions**: the admin categories listing is not paginated — it returns a flat array with no `meta`. The products, customers, and delivery persons listings support `simple=true` for the same flat, unpaginated shape.
 
 ---
 

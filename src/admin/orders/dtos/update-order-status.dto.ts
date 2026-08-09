@@ -5,16 +5,23 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateIf,
 } from "class-validator";
 
 export class UpdateOrderStatusParamsDto {
   @IsUUID()
-  orderId: string;
+  orderId!: string;
 }
 
 export class UpdateOrderStatusBodyDto {
   @IsEnum(OrderStatus)
-  status: OrderStatus;
+  status!: OrderStatus;
+
+  @ValidateIf(
+    (dto: UpdateOrderStatusBodyDto) => dto.status === OrderStatus.SHIPPED,
+  )
+  @IsUUID()
+  deliveryPersonId?: string;
 
   @IsOptional()
   @IsString()

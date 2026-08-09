@@ -56,6 +56,7 @@ The Prisma predicates are the canonical way to branch on a Prisma failure — ne
 |---|---|---|
 | `isRecordNotFound` | `P2025` | Translate a missing row into a domain not-found exception |
 | `isUniqueConstraintViolation` | `P2002` | Translate a duplicate into a domain conflict exception |
+| `isForeignKeyConstraintViolation` | `P2003` | Second line of defense behind a service-level pre-check: translate a restricting foreign key into the same domain conflict/not-found the pre-check would have raised, so a closed race never surfaces as a raw 500 |
 
 Add new cross-cutting utilities here rather than embedding them in feature services.
 
@@ -83,5 +84,5 @@ Thin adapters around external SDKs, each wrapped in its own injectable module/se
 | No domain logic | Keep feature-specific rules out of shared. The money helpers are the one carve-out (see Purpose) — an invariant several modules must agree on, not one module's rule |
 | Direct Prisma access | No repository layer; services inject the Prisma service |
 | Config only via `ConfigService` | Never read `process.env` in application code |
-| Prisma errors via predicates | Branch on `isRecordNotFound` / `isUniqueConstraintViolation` from `helpers/`, never on raw error codes |
+| Prisma errors via predicates | Branch on `isRecordNotFound` / `isUniqueConstraintViolation` / `isForeignKeyConstraintViolation` from `helpers/`, never on raw error codes |
 | Product money via the helpers | Derive product totals with `computeProductsTotals` and an order's `total` with `computeOrderTotals` — never re-derive either formula in a feature service |

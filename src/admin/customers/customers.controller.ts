@@ -15,6 +15,10 @@ export class AdminCustomersController {
 
   @Get()
   findAll(@Query() dto: FindAllCustomersDto) {
+    if (dto?.simple) {
+      return this.customersService.findAllSimple();
+    }
+
     return this.customersService.findAll(dto);
   }
 

@@ -4,7 +4,10 @@ import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { FindAllCustomersDto } from "./dtos";
 import { CustomerWithRelations } from "./helpers";
-import { isRecordNotFound } from "@shared/helpers/prisma-errors";
+import {
+  isForeignKeyConstraintViolation,
+  isRecordNotFound,
+} from "@shared/helpers/prisma-errors";
 import { computeOrderTotals } from "@shared/helpers/products-totals";
 
 @Injectable()
@@ -12,28 +15,48 @@ export class AdminCustomersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async removeCustomer(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { _count: { select: { orders: true } } },
-    });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Bloqueia a linha do cliente para serializar contra a criação
+        // concorrente de pedidos e garantir que a contagem seja consistente
+        // com a exclusão.
+        const [locked] = await tx.$queryRaw<
+          { id: string }[]
+        >`SELECT id FROM customers WHERE id = ${customerId} FOR UPDATE`;
 
-    if (!customer) {
-      throw new AppException(
-        AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
-        "Cliente não encontrado.",
-        AppException.HttpStatus.NOT_FOUND,
-      );
+        if (!locked) {
+          throw new AppException(
+            AppException.errorCodes.adminCustomers.CUSTOMER_NOT_FOUND,
+            "Cliente não encontrado.",
+            AppException.HttpStatus.NOT_FOUND,
+          );
+        }
+
+        const ordersCount = await tx.order.count({
+          where: { customerId },
+        });
+
+        if (ordersCount > 0) {
+          throw new AppException(
+            AppException.errorCodes.adminCustomers.CUSTOMER_HAS_ORDERS,
+            "Não é possível excluir um cliente que possui pedidos.",
+            AppException.HttpStatus.CONFLICT,
+          );
+        }
+
+        await tx.customer.delete({ where: { id: customerId } });
+      });
+    } catch (error) {
+      if (isForeignKeyConstraintViolation(error)) {
+        throw new AppException(
+          AppException.errorCodes.adminCustomers.CUSTOMER_HAS_ORDERS,
+          "Não é possível excluir um cliente que possui pedidos.",
+          AppException.HttpStatus.CONFLICT,
+        );
+      }
+
+      throw error;
     }
-
-    if (customer._count.orders > 0) {
-      throw new AppException(
-        AppException.errorCodes.adminCustomers.CUSTOMER_HAS_ORDERS,
-        "Não é possível excluir um cliente que possui pedidos.",
-        AppException.HttpStatus.CONFLICT,
-      );
-    }
-
-    await this.prisma.customer.delete({ where: { id: customerId } });
   }
 
   async activateCustomer(customerId: string) {
@@ -100,6 +123,19 @@ export class AdminCustomersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async findAllSimple() {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    return customers;
   }
 
   async findCustomerById(customerId: string) {

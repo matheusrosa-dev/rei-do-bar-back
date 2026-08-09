@@ -51,6 +51,7 @@ export const prismaMock = {
     count: jest.fn(),
     create: jest.fn(),
     findFirst: jest.fn(),
+    findUnique: jest.fn(),
     findMany: jest.fn(),
     groupBy: jest.fn(),
     update: jest.fn(),
@@ -63,6 +64,14 @@ export const prismaMock = {
   },
   category: {
     findMany: jest.fn(),
+  },
+  deliveryPerson: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
   },
   otpCode: {
     delete: jest.fn(),

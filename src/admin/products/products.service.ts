@@ -82,7 +82,7 @@ export class AdminProductsService {
         deletedAt: null,
       },
       orderBy: {
-        createdAt: "desc",
+        name: "asc",
       },
     });
 

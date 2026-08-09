@@ -135,7 +135,7 @@ After finishing **all** edits in a task:
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates the NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers feature modules + global providers
-│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, coupons, settings, notifications (HTTP Basic Auth)
+│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, coupons, settings, notifications, delivery persons (HTTP Basic Auth)
 │   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
 │   ├── cart/                    # Cart management (anonymous + authenticated)
 │   ├── categories/              # Product categories (read-only for clients)

@@ -112,6 +112,12 @@ export class AppException extends HttpException {
     adminSettings: {
       INVALID_SETTING_VALUE: "ADMIN_SETTINGS_001",
     },
+    adminDeliveryPersons: {
+      DELIVERY_PERSON_NOT_FOUND: "ADMIN_DELIVERY_PERSONS_001",
+      DELIVERY_PERSON_ALREADY_EXISTS: "ADMIN_DELIVERY_PERSONS_002",
+      DELIVERY_PERSON_HAS_ORDERS: "ADMIN_DELIVERY_PERSONS_003",
+      DELIVERY_PERSON_INACTIVE: "ADMIN_DELIVERY_PERSONS_004",
+    },
   };
 
   static readonly HttpStatus = HttpStatus;

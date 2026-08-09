@@ -17,3 +17,5 @@ Importante:
 corrigir o menu na barra de navegação no android
 implementar sistema de XP
 fazer app de entregas
+adicionar tela de quantos e quais pedidos já foram entregues por um entregador
+criar dashboard

@@ -22,13 +22,13 @@ model Customer {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  cart             Cart?
-  addresses        Address[]
-  orders           Order[]
-  refreshTokens    RefreshToken[]
-  pushTokens       PushToken[]
-  couponUsages     CouponUsage[]
-  eligibleCoupons  CouponCustomer[]
+  cart            Cart?
+  addresses       Address[]
+  orders          Order[]
+  refreshTokens   RefreshToken[]
+  pushTokens      PushToken[]
+  couponUsages    CouponUsage[]
+  eligibleCoupons CouponCustomer[]
 
   @@map("customers")
 }
@@ -201,27 +201,30 @@ model InventoryMovementProduct {
 }
 
 model Order {
-  id             String      @id @default(uuid())
-  orderNumber    Int         @unique @default(autoincrement()) @map("order_number")
-  customerId     String      @map("customer_id")
-  address        String
-  status         OrderStatus
-  statusReason   String?     @map("status_reason")
-  deliveryFee    Int         @map("delivery_fee")
-  couponId       String?     @map("coupon_id")
-  couponCode     String?     @map("coupon_code")
-  couponDiscount Int         @map("coupon_discount")
-  paymentType    PaymentType @map("payment_type")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id               String      @id @default(uuid())
+  orderNumber      Int         @unique @default(autoincrement()) @map("order_number")
+  customerId       String      @map("customer_id")
+  address          String
+  status           OrderStatus
+  statusReason     String?     @map("status_reason")
+  deliveryFee      Int         @map("delivery_fee")
+  couponId         String?     @map("coupon_id")
+  couponCode       String?     @map("coupon_code")
+  couponDiscount   Int         @map("coupon_discount")
+  paymentType      PaymentType @map("payment_type")
+  deliveryPersonId String?     @map("delivery_person_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
   customer           Customer            @relation(fields: [customerId], references: [id])
   coupon             Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  deliveryPerson     DeliveryPerson?     @relation(fields: [deliveryPersonId], references: [id], onDelete: Restrict)
   items              OrderItem[]
   inventoryMovements InventoryMovement[]
 
   @@index([customerId])
   @@index([couponId])
+  @@index([deliveryPersonId])
   @@map("orders")
 }
 
@@ -244,6 +247,24 @@ model OrderItem {
   @@map("order_items")
 }
 
+model DeliveryPerson {
+  id                  String   @id @default(uuid())
+  name                String
+  phone               String   @unique
+  cpf                 String   @unique
+  addressStreet       String   @map("address_street")
+  addressNumber       String   @map("address_number")
+  addressNeighborhood String   @map("address_neighborhood")
+  addressZipCode      String   @map("address_zip_code")
+  isActive            Boolean  @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("delivery_persons")
+}
+
 model Coupon {
   id            String             @id @default(uuid())
   code          String             @unique
@@ -257,9 +278,9 @@ model Coupon {
   createdAt     DateTime           @default(now()) @map("created_at")
   updatedAt     DateTime           @updatedAt @map("updated_at")
 
-  usages           CouponUsage[]
-  carts            Cart[]
-  orders           Order[]
+  usages            CouponUsage[]
+  carts             Cart[]
+  orders            Order[]
   eligibleCustomers CouponCustomer[]
 
   @@map("coupons")
