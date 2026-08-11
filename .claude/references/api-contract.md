@@ -112,6 +112,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminOrders | `ORDER_NOT_FOUND` | `ADMIN_ORDERS_001` |
 | adminOrders | `ORDER_ALREADY_FINALIZED` | `ADMIN_ORDERS_002` |
 | adminOrders | `ORDER_INVALID_STATUS_TRANSITION` | `ADMIN_ORDERS_003` |
+| adminOrders | `ORDER_NOT_SHIPPED` | `ADMIN_ORDERS_004` |
 | adminInventory | `INSUFFICIENT_STOCK` | `ADMIN_INVENTORY_001` |
 | adminInventory | `PRODUCT_NOT_FOUND` | `ADMIN_INVENTORY_002` |
 | adminInventory | `DUPLICATE_PRODUCT` | `ADMIN_INVENTORY_003` |

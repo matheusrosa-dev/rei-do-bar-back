@@ -4,6 +4,8 @@ import { AdminOrdersService } from "./orders.service";
 import {
   UpdateOrderStatusParamsDto,
   UpdateOrderStatusBodyDto,
+  UpdateOrderDeliveryPersonParamsDto,
+  UpdateOrderDeliveryPersonBodyDto,
   FindAllOrdersDto,
 } from "./dtos";
 
@@ -28,5 +30,13 @@ export class AdminOrdersController {
     @Body() body: UpdateOrderStatusBodyDto,
   ) {
     return this.ordersService.updateOrderStatus(orderId, body);
+  }
+
+  @Patch(":orderId/delivery-person")
+  updateOrderDeliveryPerson(
+    @Param() { orderId }: UpdateOrderDeliveryPersonParamsDto,
+    @Body() body: UpdateOrderDeliveryPersonBodyDto,
+  ) {
+    return this.ordersService.updateOrderDeliveryPerson(orderId, body);
   }
 }

@@ -6,7 +6,7 @@ Admin delivery-person management: paginated listing (with an opt-in flat, unpagi
 
 ## What does NOT belong here
 
-- Assigning a delivery person to an order → the admin orders sub-module, inside the status transition to `SHIPPED`; that operation is a property of the order, not of the delivery person.
+- Assigning a delivery person to an order → the admin orders sub-module, inside the status transition to `SHIPPED` and the reassignment endpoint; that operation is a property of the order, not of the delivery person.
 
 ---
 
@@ -17,7 +17,7 @@ Admin delivery-person management: paginated listing (with an opt-in flat, unpagi
 - **Creation defaults**: new delivery persons start **active** — there is no client-facing listing, and the operator needs to be able to use them immediately.
 - **Update**: covers `name`, `phone`, `cpf`, and the four address fields. Phone and CPF are both unique; a collision on either is rejected with the same `DELIVERY_PERSON_ALREADY_EXISTS` conflict.
 - **Activate/deactivate**: a shared private helper toggles the active flag and translates the Prisma "record not found" error into the resource's `AppException`. There is no cascade on deactivation (deactivating a delivery person does not unassign them from past orders).
-- **Deletion**: delivery persons are **hard-deleted**, inside a transaction that locks the row (`SELECT ... FOR UPDATE`) before counting linked orders and deleting — the same lock the order status transition takes before assigning a delivery person (see `src/admin/orders/AGENTS.md`), so the two operations serialize instead of racing. If the linked-orders count is bypassed anyway, the FK on `orders.delivery_person_id` (`ON DELETE RESTRICT`) is the second line of defense, and its P2003 violation is translated to the same `DELIVERY_PERSON_HAS_ORDERS` conflict rather than surfacing as a 500.
+- **Deletion**: delivery persons are **hard-deleted**, inside a transaction that locks the row (`SELECT ... FOR UPDATE`) before counting linked orders and deleting — the same lock the order module takes before assigning or reassigning a delivery person (see `src/admin/orders/AGENTS.md`), so the two operations serialize instead of racing. If the linked-orders count is bypassed anyway, the FK on `orders.delivery_person_id` (`ON DELETE RESTRICT`) is the second line of defense, and its P2003 violation is translated to the same `DELIVERY_PERSON_HAS_ORDERS` conflict rather than surfacing as a 500.
 - **Prisma error translation**: creation and the update helper translate the unique-constraint error into the same conflict `AppException`. The P2002 violation does not distinguish which field collided, so the message covers both phone and CPF. Deletion additionally translates the foreign-key-constraint error (P2003) via `isForeignKeyConstraintViolation`.
 
 ---
@@ -35,7 +35,7 @@ Admin delivery-person management: paginated listing (with an opt-in flat, unpagi
 
 | Rule | Detail |
 |---|---|
-| Hard delete, row-locked | Deletion locks the delivery person row before counting linked orders, serializing against a concurrent `SHIPPED` assignment |
+| Hard delete, row-locked | Deletion locks the delivery person row before counting linked orders, serializing against a concurrent assignment or reassignment |
 | Active on create | New delivery persons are immediately usable — no client-side listing means the inactive default is not needed |
 | Unique-constraint translation | Both phone and CPF collisions map to the same `DELIVERY_PERSON_ALREADY_EXISTS` error |
 | No cascade on deactivate | Past orders keep their reference; the deactivated person is no longer assignable to new orders |

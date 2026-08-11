@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Prisma } from "@shared/database/prisma/generated/client";
+import { OrderStatus, Prisma } from "@shared/database/prisma/generated/client";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import {
@@ -42,7 +42,15 @@ export class AdminDeliveryPersonsService {
         take: limit,
         orderBy,
         include: {
-          _count: { select: { orders: true } },
+          _count: {
+            select: {
+              orders: {
+                where: {
+                  status: OrderStatus.DELIVERED,
+                },
+              },
+            },
+          },
         },
       }),
       this.prisma.deliveryPerson.count({ where }),

@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { Order, Prisma } from "@shared/database/prisma/generated/client";
 import {
   InventoryMovementOrigin,
@@ -6,7 +6,11 @@ import {
 } from "@shared/database/prisma/generated/enums";
 import { OrderOrderByWithRelationInput } from "@shared/database/prisma/generated/models";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { FindAllOrdersDto, UpdateOrderStatusBodyDto } from "./dtos";
+import {
+  FindAllOrdersDto,
+  UpdateOrderDeliveryPersonBodyDto,
+  UpdateOrderStatusBodyDto,
+} from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { isForeignKeyConstraintViolation } from "@shared/helpers/prisma-errors";
@@ -270,7 +274,7 @@ export class AdminOrdersService {
       throw new AppException(
         AppException.errorCodes.adminOrders.ORDER_NOT_FOUND,
         "Pedido não encontrado.",
-        HttpStatus.NOT_FOUND,
+        AppException.HttpStatus.NOT_FOUND,
       );
     }
 
@@ -281,7 +285,7 @@ export class AdminOrdersService {
       throw new AppException(
         AppException.errorCodes.adminOrders.ORDER_ALREADY_FINALIZED,
         "Pedido já finalizado.",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -289,7 +293,7 @@ export class AdminOrdersService {
       throw new AppException(
         AppException.errorCodes.adminOrders.ORDER_INVALID_STATUS_TRANSITION,
         "Transição de status inválida.",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -322,7 +326,7 @@ export class AdminOrdersService {
           throw new AppException(
             AppException.errorCodes.adminOrders.ORDER_INVALID_STATUS_TRANSITION,
             "O status do pedido mudou. Recarregue e tente novamente.",
-            HttpStatus.BAD_REQUEST,
+            AppException.HttpStatus.BAD_REQUEST,
           );
         }
 
@@ -341,7 +345,7 @@ export class AdminOrdersService {
           AppException.errorCodes.adminDeliveryPersons
             .DELIVERY_PERSON_NOT_FOUND,
           "Entregador não encontrado.",
-          HttpStatus.NOT_FOUND,
+          AppException.HttpStatus.NOT_FOUND,
         );
       }
 
@@ -372,6 +376,92 @@ export class AdminOrdersService {
     return this.listOrdersManagement();
   }
 
+  async updateOrderDeliveryPerson(
+    orderId: string,
+    dto: UpdateOrderDeliveryPersonBodyDto,
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      },
+    });
+
+    if (!order) {
+      throw new AppException(
+        AppException.errorCodes.adminOrders.ORDER_NOT_FOUND,
+        "Pedido não encontrado.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (
+      order.status !== OrderStatus.SHIPPED &&
+      order.status !== OrderStatus.CANCELLED &&
+      order.status !== OrderStatus.DELIVERED
+    ) {
+      throw new AppException(
+        AppException.errorCodes.adminOrders.ORDER_NOT_SHIPPED,
+        "Pedido ainda não saiu para entrega.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await this.assertDeliveryPersonIsAssignable(tx, dto.deliveryPersonId);
+
+        const result = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            status: order.status,
+          },
+          data: {
+            deliveryPersonId: dto.deliveryPersonId,
+          },
+        });
+
+        if (result.count === 0) {
+          throw new AppException(
+            AppException.errorCodes.adminOrders.ORDER_INVALID_STATUS_TRANSITION,
+            "O status do pedido mudou. Recarregue e tente novamente.",
+            AppException.HttpStatus.BAD_REQUEST,
+          );
+        }
+      });
+    } catch (error) {
+      if (isForeignKeyConstraintViolation(error)) {
+        throw new AppException(
+          AppException.errorCodes.adminDeliveryPersons
+            .DELIVERY_PERSON_NOT_FOUND,
+          "Entregador não encontrado.",
+          AppException.HttpStatus.NOT_FOUND,
+        );
+      }
+
+      throw error;
+    }
+
+    const updatedOrder = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      },
+      include: {
+        customer: true,
+        deliveryPerson: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ...updatedOrder!,
+      ...computeOrderTotals(updatedOrder!),
+    };
+  }
+
   private async assertDeliveryPersonIsAssignable(
     tx: Prisma.TransactionClient,
     deliveryPersonId: string,
@@ -390,7 +480,7 @@ export class AdminOrdersService {
       throw new AppException(
         AppException.errorCodes.adminDeliveryPersons.DELIVERY_PERSON_NOT_FOUND,
         "Entregador não encontrado.",
-        HttpStatus.NOT_FOUND,
+        AppException.HttpStatus.NOT_FOUND,
       );
     }
 
@@ -398,7 +488,7 @@ export class AdminOrdersService {
       throw new AppException(
         AppException.errorCodes.adminDeliveryPersons.DELIVERY_PERSON_INACTIVE,
         "Entregador inativo.",
-        HttpStatus.BAD_REQUEST,
+        AppException.HttpStatus.BAD_REQUEST,
       );
     }
   }
