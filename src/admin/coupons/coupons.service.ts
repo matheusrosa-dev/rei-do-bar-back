@@ -71,7 +71,10 @@ export class AdminCouponsService {
         orderBy,
         include: {
           _count: {
-            select: { usages: true, eligibleCustomers: true },
+            select: { usages: true },
+          },
+          eligibleCustomers: {
+            include: { customer: true },
           },
         },
       }),
@@ -79,10 +82,10 @@ export class AdminCouponsService {
     ]);
 
     return {
-      items: items.map(({ _count, ...coupon }) => ({
+      items: items.map(({ _count, eligibleCustomers, ...coupon }) => ({
         ...coupon,
         usageCount: _count.usages,
-        assignedCustomerCount: _count.eligibleCustomers,
+        assignedCustomers: eligibleCustomers.map(({ customer }) => customer),
         hasStarted: coupon.startsAt <= now,
         isFinished:
           (coupon.endsAt !== null && coupon.endsAt <= now) ||

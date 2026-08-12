@@ -262,17 +262,35 @@ describe("AdminCouponsService", () => {
   });
 
   describe("findAll", () => {
-    it("should report assignedCustomerCount as 0 for an open coupon", async () => {
+    it("should report an empty assignedCustomers list for an open coupon", async () => {
       prismaMock.$queryRaw.mockResolvedValue([]);
       const coupon = CouponFactory.createOne();
       prismaMock.coupon.findMany.mockResolvedValue([
-        { ...coupon, _count: { usages: 0, eligibleCustomers: 0 } },
+        { ...coupon, _count: { usages: 0 }, eligibleCustomers: [] },
       ]);
       prismaMock.coupon.count.mockResolvedValue(1);
 
       const result = await service.findAll({});
 
-      expect(result.items[0].assignedCustomerCount).toBe(0);
+      expect(result.items[0].assignedCustomers).toEqual([]);
+    });
+
+    it("should return the assigned customers for a restricted coupon", async () => {
+      prismaMock.$queryRaw.mockResolvedValue([]);
+      const coupon = CouponFactory.createOne();
+      const customer = { id: "customer-a", name: "Ana", phone: "11999999999" };
+      prismaMock.coupon.findMany.mockResolvedValue([
+        {
+          ...coupon,
+          _count: { usages: 0 },
+          eligibleCustomers: [{ customer }],
+        },
+      ]);
+      prismaMock.coupon.count.mockResolvedValue(1);
+
+      const result = await service.findAll({});
+
+      expect(result.items[0].assignedCustomers).toEqual([customer]);
     });
   });
 });

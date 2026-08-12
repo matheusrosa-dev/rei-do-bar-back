@@ -69,6 +69,9 @@ export class AdminDeliveryPersonsService {
 
   async findAllSimple() {
     const deliveryPersons = await this.prisma.deliveryPerson.findMany({
+      where: {
+        isActive: true,
+      },
       orderBy: {
         name: "asc",
       },

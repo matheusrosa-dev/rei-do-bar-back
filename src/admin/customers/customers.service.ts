@@ -129,6 +129,7 @@ export class AdminCustomersService {
     const customers = await this.prisma.customer.findMany({
       where: {
         deletedAt: null,
+        isActive: true,
       },
       orderBy: {
         name: "asc",
