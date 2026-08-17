@@ -252,6 +252,7 @@ model DeliveryPerson {
   name                String
   phone               String   @unique
   cpf                 String   @unique
+  hashedPassword      String?  @map("hashed_password")
   addressStreet       String   @map("address_street")
   addressNumber       String   @map("address_number")
   addressNeighborhood String   @map("address_neighborhood")
@@ -260,9 +261,25 @@ model DeliveryPerson {
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  orders Order[]
+  orders  Order[]
+  session DeliveryPersonSession?
 
   @@map("delivery_persons")
+}
+
+model DeliveryPersonSession {
+  id                    String   @id @default(uuid())
+  deliveryPersonId      String   @unique @map("delivery_person_id")
+  hashedAccessToken     String   @unique @map("hashed_access_token")
+  hashedRefreshToken    String   @unique @map("hashed_refresh_token")
+  accessTokenExpiresAt  DateTime @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime @map("refresh_token_expires_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  deliveryPerson DeliveryPerson @relation(fields: [deliveryPersonId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_person_sessions")
 }
 
 model Coupon {

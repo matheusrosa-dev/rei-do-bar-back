@@ -73,6 +73,12 @@ export const prismaMock = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  deliveryPersonSession: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+    updateMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
   otpCode: {
     delete: jest.fn(),
     deleteMany: jest.fn(),

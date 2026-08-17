@@ -8,6 +8,7 @@ type Props = {
   name?: string;
   phone?: string;
   cpf?: string;
+  hashedPassword?: string | null;
   addressStreet?: string;
   addressNumber?: string;
   addressNeighborhood?: string;
@@ -20,6 +21,7 @@ const makeDeliveryPerson = (props?: Props): DeliveryPerson => ({
   name: props?.name ?? chance.name(),
   phone: props?.phone ?? chance.string({ length: 11, pool: "0123456789" }),
   cpf: props?.cpf ?? chance.string({ length: 11, pool: "0123456789" }),
+  hashedPassword: props?.hashedPassword ?? null,
   addressStreet: props?.addressStreet ?? chance.street(),
   addressNumber:
     props?.addressNumber ?? chance.integer({ min: 1, max: 9999 }).toString(),
