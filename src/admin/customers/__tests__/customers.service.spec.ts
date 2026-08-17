@@ -84,7 +84,7 @@ describe("AdminCustomersService", () => {
 
       expect(result).toEqual([]);
       expect(prismaMock.customer.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
+        where: { deletedAt: null, isActive: true },
         orderBy: { name: "asc" },
       });
       expect(prismaMock.customer.count).not.toHaveBeenCalled();
