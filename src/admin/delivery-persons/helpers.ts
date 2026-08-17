@@ -4,6 +4,10 @@ export type DeliveryPersonWithCount = DeliveryPerson & {
   _count: { orders: number };
 };
 
+export type DeliveryPersonListItem = DeliveryPersonWithCount & {
+  session: { refreshTokenExpiresAt: Date } | null;
+};
+
 export function mapDeliveryPerson({
   addressStreet,
   addressNumber,
@@ -27,4 +31,14 @@ export function mapDeliveryPersonWithCount({
   ...deliveryPerson
 }: DeliveryPersonWithCount) {
   return { ...mapDeliveryPerson(deliveryPerson), ordersCount: _count.orders };
+}
+
+export function mapDeliveryPersonListItem(
+  { session, ...deliveryPerson }: DeliveryPersonListItem,
+  now: Date,
+) {
+  return {
+    ...mapDeliveryPersonWithCount(deliveryPerson),
+    hasSession: Boolean(session && session.refreshTokenExpiresAt > now),
+  };
 }

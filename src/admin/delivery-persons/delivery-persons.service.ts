@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { OrderStatus, Prisma } from "@shared/database/prisma/generated/client";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
+import { hashPassword } from "@shared/helpers/password";
 import {
   isForeignKeyConstraintViolation,
   isRecordNotFound,
@@ -9,8 +10,13 @@ import {
 } from "@shared/helpers/prisma-errors";
 import { CreateDeliveryPersonDto } from "./dtos/create-delivery-person.dto";
 import { FindAllDeliveryPersonsDto } from "./dtos/find-all-delivery-persons.dto";
+import { UpdateDeliveryPersonPasswordBodyDto } from "./dtos/update-delivery-person-password.dto";
 import { UpdateDeliveryPersonBodyDto } from "./dtos/update-delivery-person.dto";
-import { mapDeliveryPerson, mapDeliveryPersonWithCount } from "./helpers";
+import {
+  mapDeliveryPerson,
+  mapDeliveryPersonListItem,
+  mapDeliveryPersonWithCount,
+} from "./helpers";
 
 @Injectable()
 export class AdminDeliveryPersonsService {
@@ -34,6 +40,7 @@ export class AdminDeliveryPersonsService {
     };
 
     const orderBy = this.buildOrderBy(dto.sortKey, direction);
+    const now = new Date();
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.deliveryPerson.findMany({
@@ -51,13 +58,14 @@ export class AdminDeliveryPersonsService {
               },
             },
           },
+          session: { select: { refreshTokenExpiresAt: true } },
         },
       }),
       this.prisma.deliveryPerson.count({ where }),
     ]);
 
     return {
-      items: items.map((item) => mapDeliveryPersonWithCount(item)),
+      items: items.map((item) => mapDeliveryPersonListItem(item, now)),
       meta: {
         total,
         page,
@@ -171,6 +179,17 @@ export class AdminDeliveryPersonsService {
     }
   }
 
+  async updateDeliveryPersonPassword(
+    deliveryPersonId: string,
+    dto: UpdateDeliveryPersonPasswordBodyDto,
+  ) {
+    const hashedPassword = await hashPassword(dto.password);
+
+    return this.updateDeliveryPersonAndRevokeAccessOrThrow(deliveryPersonId, {
+      hashedPassword,
+    });
+  }
+
   async activateDeliveryPerson(deliveryPersonId: string) {
     return this.updateDeliveryPersonOrThrow(deliveryPersonId, {
       isActive: true,
@@ -178,9 +197,28 @@ export class AdminDeliveryPersonsService {
   }
 
   async deactivateDeliveryPerson(deliveryPersonId: string) {
-    return this.updateDeliveryPersonOrThrow(deliveryPersonId, {
+    return this.updateDeliveryPersonAndRevokeAccessOrThrow(deliveryPersonId, {
       isActive: false,
     });
+  }
+
+  async revokeDeliveryPersonAccess(deliveryPersonId: string) {
+    const deliveryPerson = await this.prisma.deliveryPerson.findUnique({
+      where: { id: deliveryPersonId },
+      select: { id: true },
+    });
+
+    if (!deliveryPerson) {
+      throw this.deliveryPersonNotFound();
+    }
+
+    await this.prisma.deliveryPersonSession.deleteMany({
+      where: { deliveryPersonId },
+    });
+  }
+
+  async revokeAllDeliveryPersonsAccess() {
+    await this.prisma.deliveryPersonSession.deleteMany();
   }
 
   async removeDeliveryPerson(deliveryPersonId: string) {
@@ -259,15 +297,43 @@ export class AdminDeliveryPersonsService {
       return mapDeliveryPerson(deliveryPerson);
     } catch (error) {
       if (isRecordNotFound(error)) {
-        throw new AppException(
-          AppException.errorCodes.adminDeliveryPersons
-            .DELIVERY_PERSON_NOT_FOUND,
-          "Entregador não encontrado.",
-          AppException.HttpStatus.NOT_FOUND,
-        );
+        throw this.deliveryPersonNotFound();
       }
 
       throw error;
     }
+  }
+
+  private async updateDeliveryPersonAndRevokeAccessOrThrow(
+    deliveryPersonId: string,
+    data: Prisma.DeliveryPersonUpdateInput,
+  ) {
+    try {
+      const [deliveryPerson] = await this.prisma.$transaction([
+        this.prisma.deliveryPerson.update({
+          where: { id: deliveryPersonId },
+          data,
+        }),
+        this.prisma.deliveryPersonSession.deleteMany({
+          where: { deliveryPersonId },
+        }),
+      ]);
+
+      return mapDeliveryPerson(deliveryPerson);
+    } catch (error) {
+      if (isRecordNotFound(error)) {
+        throw this.deliveryPersonNotFound();
+      }
+
+      throw error;
+    }
+  }
+
+  private deliveryPersonNotFound() {
+    return new AppException(
+      AppException.errorCodes.adminDeliveryPersons.DELIVERY_PERSON_NOT_FOUND,
+      "Entregador não encontrado.",
+      AppException.HttpStatus.NOT_FOUND,
+    );
   }
 }

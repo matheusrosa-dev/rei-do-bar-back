@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -16,9 +18,12 @@ import {
   DeleteDeliveryPersonDto,
   FindAllDeliveryPersonsDto,
   FindDeliveryPersonByIdDto,
+  RevokeDeliveryPersonAccessDto,
   ToggleStatusDeliveryPersonDto,
   UpdateDeliveryPersonBodyDto,
   UpdateDeliveryPersonParamsDto,
+  UpdateDeliveryPersonPasswordBodyDto,
+  UpdateDeliveryPersonPasswordParamsDto,
 } from "./dtos";
 
 @Controller("admin/delivery-persons")
@@ -57,6 +62,33 @@ export class AdminDeliveryPersonsController {
     return this.deliveryPersonsService.updateDeliveryPerson(
       deliveryPersonId,
       dto,
+    );
+  }
+
+  @Put(":deliveryPersonId/password")
+  updateDeliveryPersonPassword(
+    @Param() { deliveryPersonId }: UpdateDeliveryPersonPasswordParamsDto,
+    @Body() dto: UpdateDeliveryPersonPasswordBodyDto,
+  ) {
+    return this.deliveryPersonsService.updateDeliveryPersonPassword(
+      deliveryPersonId,
+      dto,
+    );
+  }
+
+  @Post("revoke-access")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revokeAllDeliveryPersonsAccess() {
+    await this.deliveryPersonsService.revokeAllDeliveryPersonsAccess();
+  }
+
+  @Post(":deliveryPersonId/revoke-access")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async revokeDeliveryPersonAccess(
+    @Param() { deliveryPersonId }: RevokeDeliveryPersonAccessDto,
+  ) {
+    await this.deliveryPersonsService.revokeDeliveryPersonAccess(
+      deliveryPersonId,
     );
   }
 
