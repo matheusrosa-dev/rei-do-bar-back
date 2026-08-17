@@ -9,6 +9,7 @@ const config: Config = {
   testEnvironment: "node",
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.(js|mjs)$": "$1",
+    "^@shared/(.*)$": "<rootDir>/shared/$1",
   },
   transform: {
     "^.+\\.(t|j)s$": [
