@@ -6,6 +6,8 @@ REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
+Feature modules are grouped by **consumer audience** under `src/apps/`: `store/` (the customer app), `admin/` (the backoffice), and `delivery-persons/` (the delivery app). The grouping is organizational, not a new layer — an app directory adds no abstraction of its own, and `admin/` and `delivery-persons/` additionally own a **container module** that registers their sub-modules, while `store/` modules are registered directly in `AppModule`. A new feature belongs to exactly one app directory; when two audiences need the same rules, the owning module exports its service and the other imports it (as `store/coupons/` does) instead of the logic being duplicated or hoisted out of `apps/`.
+
 ---
 
 ## Rule Zero — Read the AGENTS.md files
@@ -137,18 +139,31 @@ After finishing **all** edits in a task:
 ├── src/
 │   ├── main.ts                  # Bootstrap: creates the NestJS app, applies global config
 │   ├── app.module.ts            # Root module: registers feature modules + global providers
-│   ├── admin/                   # Admin backoffice: products, categories, customers, orders, inventory, coupons, settings, notifications, delivery persons (HTTP Basic Auth)
-│   ├── auth/                    # Authentication: OTP flow, JWT issuance, token refresh
-│   ├── cart/                    # Cart management (anonymous + authenticated)
-│   ├── categories/              # Product categories (read-only for clients)
-│   ├── coupons/                 # Coupon redemption rules (availability, discount calc, usage limits) + coupon listing for authenticated customers
-│   ├── customers/               # Internal customer service (no public controller)
-│   ├── delivery-persons/        # Delivery-person-facing surface: login/refresh + orders out for delivery (opaque bearer tokens)
-│   ├── me/                      # Authenticated customer self-management
-│   ├── notifications/           # Push token registration for authenticated customers
-│   ├── orders/                  # Order creation, listing, and cancellation (authenticated customers)
-│   ├── products/                # Product catalog (best-sellers listing)
-│   ├── settings/               # Client-facing read of active runtime settings (delivery fee, alerts, etc.)
+│   ├── apps/                    # Feature modules, grouped by consumer audience (one directory per app)
+│   │   ├── admin/               # Admin backoffice (HTTP Basic Auth) — container module + sub-modules
+│   │   │   ├── categories/       # Category CRUD, ordering, status
+│   │   │   ├── coupons/          # Coupon CRUD, listing, status
+│   │   │   ├── customers/        # Customer listing, status, hard deletion
+│   │   │   ├── delivery-persons/ # Delivery-person CRUD, password assignment, access revocation
+│   │   │   ├── inventory/        # Stock movements + order lifecycle listener
+│   │   │   ├── notifications/    # Push dispatch + order lifecycle listener
+│   │   │   ├── orders/           # Order listing, status transitions, delivery-person assignment
+│   │   │   ├── products/         # Product CRUD, ordering, status
+│   │   │   └── settings/         # Runtime settings read/update/toggle
+│   │   ├── delivery-persons/    # Delivery app surface (opaque bearer tokens) — container module + sub-modules
+│   │   │   ├── auth/            # CPF + password login, token refresh
+│   │   │   └── orders/          # Orders out for delivery
+│   │   └── store/               # Customer-facing app — no container module; each module is registered in AppModule
+│   │       ├── auth/            # Authentication: OTP flow, JWT issuance, token refresh
+│   │       ├── cart/            # Cart management (anonymous + authenticated)
+│   │       ├── categories/      # Product categories (read-only for clients)
+│   │       ├── coupons/         # Coupon redemption rules (availability, discount calc, usage limits) + coupon listing for authenticated customers
+│   │       ├── customers/       # Internal customer service (no public controller)
+│   │       ├── me/              # Authenticated customer self-management
+│   │       ├── notifications/   # Push token registration for authenticated customers
+│   │       ├── orders/          # Order creation, listing, and cancellation (authenticated customers)
+│   │       ├── products/        # Product catalog (best-sellers listing)
+│   │       └── settings/        # Client-facing read of active runtime settings (delivery fee, alerts, etc.)
 │   └── shared/                  # Cross-cutting concerns
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
@@ -172,9 +187,11 @@ After finishing **all** edits in a task:
 ### File & Directory Naming
 
 - All filenames are **kebab-case**.
-- A feature module directory typically contains: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory. Two deviations are expected:
-  - **Internal modules** (`customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP. `coupons/` is a hybrid: it exports its service to other modules **and** owns a client-facing controller.
-  - Modules add supporting files when the domain needs them: `strategies/` (auth), `helpers.ts` (several admin sub-modules), `validators/` (admin coupons), `*.listener.ts` (admin inventory/notifications), and a second controller (`me/address.controller.ts`).
+- Every feature module lives under `src/apps/<app>/<feature>/`, one directory per feature, never at the `src/` root. Nesting stops there: features are not further grouped into sub-domains inside an app.
+- A feature module directory typically contains: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory. Three deviations are expected:
+  - **Internal modules** (`store/customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP. `store/coupons/` is a hybrid: it exports its service to other modules **and** owns a client-facing controller.
+  - **Container modules** (`admin/`, `delivery-persons/`) sit at an app root and hold only a module file plus their sub-module directories — no service, controller, or `dtos/` of their own.
+  - Modules add supporting files when the domain needs them: `strategies/` (store auth), `helpers.ts` (several admin sub-modules), `validators/` (admin coupons), `*.listener.ts` (admin inventory/notifications), and a second controller (`store/me/address.controller.ts`).
 - Test files live in `__tests__/` subdirectories named `<subject>.spec.ts`.
 
 ### Exports

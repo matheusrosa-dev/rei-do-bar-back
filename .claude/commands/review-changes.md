@@ -1,6 +1,6 @@
 ---
 description: 'Independent code review of changed files in the Rei do Bar backend. Use when: reviewing changed files, checking for bugs, TypeScript errors, NestJS pattern misuse, DTO validation/serialization issues, guard/interceptor misuse, Prisma/transaction problems, missing or wrong error codes, security issues, or validating a finished implementation.'
-argument-hint: 'List the files changed and what was implemented (e.g. "added order cancellation in src/orders/orders.service.ts and src/orders/dtos/cancel-order.dto.ts")'
+argument-hint: 'List the files changed and what was implemented (e.g. "added order cancellation in src/apps/store/orders/orders.service.ts and src/apps/store/orders/dtos/cancel-order.dto.ts")'
 ---
 
 # Review Changes

@@ -64,7 +64,7 @@ The Passport **refresh-token guard** is applied on the two **customer** routes t
 
   Checking `isActive` on every request is deliberate belt-and-braces: the admin already deletes the session on deactivation and revocation, and this catches any session that outlives either.
 
-  It carries **no failed-attempt lockout**, unlike the admin guard. A 32-byte random token is not guessable and the lookup is a single indexed read, so there is nothing to slow down — the brute-force surface is the *login* endpoint, and the lockout lives there (see `src/delivery-persons/auth/AGENTS.md`).
+  It carries **no failed-attempt lockout**, unlike the admin guard. A 32-byte random token is not guessable and the lookup is a single indexed read, so there is nothing to slow down — the brute-force surface is the *login* endpoint, and the lockout lives there (see `src/apps/delivery-persons/auth/AGENTS.md`).
 
 - **Delivery-person refresh-token guard**: the same shape as the access-token guard, one route wide — it gates `POST delivery-persons/auth/refresh`. It matches on `hashedRefreshToken` instead of `hashedAccessToken`, checks `refreshTokenExpiresAt`, re-checks `isActive`, and throws `DELIVERY_PERSONS_AUTH_002` (401). That code has **two producers**, by design: this guard for an unknown, expired, or deactivated session, and the service for a rotation that loses the count-guarded race. Both must keep the same code and message — the client cannot tell the causes apart and must not have to. Because it covers one route rather than a controller, it is `@UseGuards`'d directly on the handler; the `@Public()` marker stays at class level for the device-id guard.
 
