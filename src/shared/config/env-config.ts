@@ -30,6 +30,13 @@ export const authConfig = registerAs<IAuthConfig>("auth", () => ({
     .AUTH_JWT_EXPIRATION_TIME as SignOptions["expiresIn"],
   jwtRefreshExpirationTime: process.env
     .AUTH_JWT_REFRESH_EXPIRATION_TIME as SignOptions["expiresIn"],
+
+  deliveryPersonTokenExpirationMinutes: Number(
+    process.env.AUTH_DELIVERY_PERSON_TOKEN_EXPIRATION_MINUTES,
+  ),
+  deliveryPersonRefreshExpirationMinutes: Number(
+    process.env.AUTH_DELIVERY_PERSON_REFRESH_EXPIRATION_MINUTES,
+  ),
 }));
 
 export const adminConfig = registerAs<IAdminConfig>("admin", () => ({
@@ -64,6 +71,10 @@ export const rateLimitConfig = registerAs<IRateLimitConfig>(
       ttl: Number(process.env.RATE_LIMIT_ADMIN_TTL) * 1000,
       limit: Number(process.env.RATE_LIMIT_ADMIN_LIMIT),
     },
+    deliveryPerson: {
+      ttl: Number(process.env.RATE_LIMIT_DELIVERY_PERSON_TTL) * 1000,
+      limit: Number(process.env.RATE_LIMIT_DELIVERY_PERSON_LIMIT),
+    },
   }),
 );
 
@@ -78,6 +89,8 @@ export const validationSchema = Joi.object({
   AUTH_JWT_REFRESH_SECRET: Joi.string().min(32).required(),
   AUTH_JWT_EXPIRATION_TIME: Joi.string().required(),
   AUTH_JWT_REFRESH_EXPIRATION_TIME: Joi.string().required(),
+  AUTH_DELIVERY_PERSON_TOKEN_EXPIRATION_MINUTES: Joi.number().required(),
+  AUTH_DELIVERY_PERSON_REFRESH_EXPIRATION_MINUTES: Joi.number().required(),
 
   ADMIN_USERNAME: Joi.string().required(),
   ADMIN_PASSWORD: Joi.string().required(),
@@ -94,4 +107,6 @@ export const validationSchema = Joi.object({
   RATE_LIMIT_OTP_LOGIN_LIMIT: Joi.number().required(),
   RATE_LIMIT_ADMIN_TTL: Joi.number().required(),
   RATE_LIMIT_ADMIN_LIMIT: Joi.number().required(),
+  RATE_LIMIT_DELIVERY_PERSON_TTL: Joi.number().required(),
+  RATE_LIMIT_DELIVERY_PERSON_LIMIT: Joi.number().required(),
 });

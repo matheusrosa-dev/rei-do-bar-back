@@ -15,6 +15,8 @@ export interface IAuthConfig {
   jwtRefreshSecret: string;
   jwtExpirationTime: SignOptions["expiresIn"];
   jwtRefreshExpirationTime: SignOptions["expiresIn"];
+  deliveryPersonTokenExpirationMinutes: number;
+  deliveryPersonRefreshExpirationMinutes: number;
 }
 
 export interface IAdminConfig {
@@ -37,4 +39,5 @@ export interface IRateLimitConfig {
   otpSendLong: IThrottlerWindow;
   otpLogin: IThrottlerWindow;
   admin: IThrottlerWindow;
+  deliveryPerson: IThrottlerWindow;
 }
