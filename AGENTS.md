@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth.
+REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time.
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
@@ -78,8 +78,10 @@ After finishing **all** edits in a task:
 | `@nestjs/passport` | Integrates Passport.js strategies as NestJS injectable providers |
 | `passport-jwt` | JWT extraction and validation strategy (`ExtractJwt.fromAuthHeaderAsBearerToken`) |
 | `jsonwebtoken` | Used directly (not via passport) to sign access and refresh JWTs |
+| `bcrypt` | Password hashing/verification — wrapped by the password helper under `shared/helpers/`; backs the per-delivery-person login credential (only the hash is stored) |
 | `@types/passport-jwt` | Types for the JWT strategy |
-| `@nestjs/throttler` | Rate limiting / brute-force protection — named throttlers configured in `AppModule`, applied per route via custom guards (OTP send/login keyed by device-id, `sync-device-id` keyed by IP); admin Basic Auth uses the throttler storage directly for a per-IP failed-attempt lockout; in-memory storage |
+| `@types/bcrypt` | Types for the password hashing library |
+| `@nestjs/throttler` | Rate limiting / brute-force protection — named throttlers configured in `AppModule`, applied per route via custom guards (OTP send/login keyed by device-id, `sync-device-id` keyed by IP); the admin Basic Auth guard and the delivery-person login service use the throttler storage directly for a per-IP failed-attempt lockout, one bucket per audience; in-memory storage |
 
 ### Validation & Transformation
 
@@ -107,8 +109,8 @@ After finishing **all** edits in a task:
 
 | Dependency | Usage in this project |
 |---|---|
-| `jest` + `@types/jest` | Test runner; root configured at `src/` |
-| `@swc/jest` + `@swc/core` | Fast TypeScript transpilation for tests — configured in `.swcrc`, which also resolves the `@shared` path alias |
+| `jest` + `@types/jest` | Test runner — `rootDir: src`, `clearMocks: true`, and the `@shared` `moduleNameMapper` (see Path Aliases) |
+| `@swc/jest` + `@swc/core` | Fast TypeScript transpilation for tests — configured in `.swcrc`, which rewrites `@shared/` imports at transpile time |
 | `@nestjs/testing` | `Test.createTestingModule()` for unit tests with the DI container |
 | `chance` | Fake data generation in factory classes |
 | `supertest` | HTTP integration testing (e2e) |
@@ -141,6 +143,7 @@ After finishing **all** edits in a task:
 │   ├── categories/              # Product categories (read-only for clients)
 │   ├── coupons/                 # Coupon redemption rules (availability, discount calc, usage limits) + coupon listing for authenticated customers
 │   ├── customers/               # Internal customer service (no public controller)
+│   ├── delivery-persons/        # Delivery-person-facing surface: login/refresh + orders out for delivery (opaque bearer tokens)
 │   ├── me/                      # Authenticated customer self-management
 │   ├── notifications/           # Push token registration for authenticated customers
 │   ├── orders/                  # Order creation, listing, and cancellation (authenticated customers)
@@ -149,12 +152,12 @@ After finishing **all** edits in a task:
 │   └── shared/                  # Cross-cutting concerns
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
-│       ├── decorators/          # Route/param decorators (public, current-session, admin-auth, throttle)
+│       ├── decorators/          # Route/param decorators (public, current-session, current-delivery-person, current-delivery-person-session, admin-auth, delivery-person-auth, throttle)
 │       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # Device-id, access-token, refresh-token, basic-auth, throttler guards
-│       ├── helpers/             # Hashing, OTP generation, timezone dates, Prisma error predicates
+│       ├── guards/              # Device-id, access-token, refresh-token, admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards
+│       ├── helpers/             # Digest hashing, password hashing (bcrypt), OTP generation, opaque tokens, timezone dates, Prisma error predicates
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)
 │       ├── testing/             # Test factories and mocks (test-only)
@@ -188,11 +191,13 @@ After finishing **all** edits in a task:
 
 ### Path Aliases
 
-A single alias is defined in both `tsconfig.json` (for the compiler) and `.swcrc` (which is what resolves it under `@swc/jest` at test time):
+A single alias is declared in three places, one per resolver — `tsconfig.json` (the compiler), `.swcrc` (`jsc.paths`, which rewrites `@shared/` **import statements** at transpile time under `@swc/jest`), and `jest.config.ts` (`moduleNameMapper`, which is Jest's own module resolver):
 
 ```
 @shared/* → ./src/shared/*
 ```
+
+The Jest mapper is not redundant with `.swcrc`: SWC only rewrites imports, so an alias passed as a *string* — most importantly `jest.mock("@shared/…")` — is resolved by Jest itself and fails without it. Keep all three in sync; adding the alias to one and not the others silently breaks a subset of tests rather than erroring outright.
 
 All imports of shared utilities use `@shared/` — never relative `../../../shared/`.
 
@@ -210,6 +215,8 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `AUTH_JWT_REFRESH_SECRET` | Refresh token signing secret |
 | `AUTH_JWT_EXPIRATION_TIME` | Access token TTL (e.g. `900s`) |
 | `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `30d`) |
+| `AUTH_DELIVERY_PERSON_TOKEN_EXPIRATION_MINUTES` | Delivery-person access token TTL in minutes (5) |
+| `AUTH_DELIVERY_PERSON_REFRESH_EXPIRATION_MINUTES` | Delivery-person refresh token TTL in minutes (240), sliding on every refresh |
 | `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
 | `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
 | `EXPO_ACCESS_TOKEN` | Expo access token for push notification delivery (required — startup fails without it) |
@@ -218,6 +225,7 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `RATE_LIMIT_OTP_SEND_LONG_TTL` / `_LIMIT` | Long-window rate limit for OTP send (per device-id); TTL in seconds |
 | `RATE_LIMIT_OTP_LOGIN_TTL` / `_LIMIT` | Rate limit for OTP login attempts (per device-id); TTL in seconds |
 | `RATE_LIMIT_ADMIN_TTL` / `_LIMIT` | Admin Basic Auth failed-attempt lockout (per IP); TTL in seconds |
+| `RATE_LIMIT_DELIVERY_PERSON_TTL` / `_LIMIT` | Delivery-person login failed-attempt lockout (per IP, counted apart from the admin one); TTL in seconds |
 
 ### Language
 

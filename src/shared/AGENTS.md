@@ -12,11 +12,11 @@ Nothing here is domain-specific, with one deliberate exception: the product/orde
 |---|---|
 | `config/` | Env loading, namespaced config, the validation schema, and typed config interfaces |
 | `database/` | The Prisma service and the generated client |
-| `decorators/` | Route/param decorators (public marker, current-session extractor, admin-auth composite, throttle composites) |
+| `decorators/` | Route/param decorators (public marker, current-session, current-delivery-person and current-delivery-person-session extractors, one auth composite per non-customer audience — admin and delivery person —, throttle composites) |
 | `events/` | Cross-module event payload classes carried by the event emitter (e.g. order lifecycle events) |
 | `exceptions/` | The single application exception type and its error-code registry |
 | `filters/` | The global exception filter |
-| `guards/` | Device-id, access-token, refresh-token, basic-auth, and throttler (rate-limiting) guards |
+| `guards/` | Device-id, access-token, refresh-token, one standalone guard per non-customer audience (admin Basic Auth, delivery-person opaque access and refresh tokens), and throttler (rate-limiting) guards |
 | `helpers/` | Standalone utility functions with no class wrappers |
 | `interceptors/` | Response wrapping, serialization, artificial delay, and HTTP request logging |
 | `libs/` | Thin wrappers over third-party SDKs, exposed as injectable modules/services (e.g. the Expo push-notification transport) |
@@ -35,7 +35,13 @@ The Prisma service extends the generated client and is provided by a global modu
 
 ## helpers/
 
-Standalone functions (no classes) covering five concerns: hashing and constant-time comparison, one-time-code generation, timezone-aware dates (luxon, `America/Sao_Paulo`), **product totals**, and **Prisma error predicates**.
+Standalone functions (no classes) covering seven concerns: digest hashing and constant-time comparison, **password hashing**, one-time-code generation, **opaque-token generation**, timezone-aware dates (luxon, `America/Sao_Paulo`), **product totals**, and **Prisma error predicates**.
+
+The two hashing concerns are **not interchangeable** and live in separate files. The plain digest is for high-entropy values the server itself generated (one-time codes, refresh tokens, delivery-person session tokens) — fast is the point, and a stolen digest is useless without the original. User-chosen passwords go through the password helper, which wraps a deliberately slow KDF (bcrypt) with a fixed cost factor and its own verification function; never store a password with the digest helper, and never put a KDF in the token path. Bcrypt's comparison is already constant-time, so the timing-safe string comparison is for static credentials only.
+
+The helper is **hash and verify only** — it deliberately does not carry a throwaway hash for callers to burn time against when no real hash exists. Authentication callers therefore short-circuit on a missing hash and answer faster than they do on a wrong password, which is an accepted user-enumeration oracle rather than an oversight (see `src/delivery-persons/auth/AGENTS.md`). If a caller ever needs that closed, add the constant back here rather than inventing a per-module one.
+
+The **opaque-token** helper mints a bearer token the server can hand out and later revoke: 32 crypto-random bytes, base64url-encoded, returned alongside its digest so the caller persists **only the hash**. It mirrors the one-time-code helper's shape (plaintext + hash in one return) for the same reason — returning them together is what makes "store the hash, hand out the plaintext" the path of least resistance. Reach for it whenever a credential must be revocable server-side; reach for a JWT only when it must be validated *without* a lookup, which is the opposite trade.
 
 Two functions in `products-totals.ts` are the single source of truth for order/cart money — every surface that shows a total goes through them, so none can drift:
 
@@ -64,7 +70,11 @@ Add new cross-cutting utilities here rather than embedding them in feature servi
 
 Defines the unified current-session interface (plus cross-cutting enums such as the push-notification action) and augments the framework request type to carry it.
 
-The session is **additive, not exclusive**: the current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId`/`phone` on top of it when a valid token is present — an authenticated session carries both. The raw `token` is attached only on the refresh and logout routes, which are the only handlers that need it.
+The customer session is **additive, not exclusive**: the current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId`/`phone` on top of it when a valid token is present — an authenticated session carries both. The raw `token` is attached only on the refresh and logout routes, which are the only handlers that need it.
+
+The **delivery-person augmentations are separate from the customer one**, not variants of it. The two audiences never coexist on a request — a delivery-app call carries no `x-device-id` and no customer JWT — so folding them into one optional-everything interface would only make "which fields are actually set here?" unanswerable at the call site.
+
+The same split holds *within* the delivery audience: **each delivery-person guard resolves its own narrow shape onto its own request property**, with a matching extractor — the authenticated identity on one, the refresh session (the row id plus the presented hash the rotation's count guard needs) on another. Neither carries a field the other's readers would have to null-check. Every one of these extractors is correspondingly dumb: the guard already resolved the value, so the decorator just reads the property back and never decodes or throws.
 
 ## events/
 

@@ -30,6 +30,8 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Monetary values | Stored as integer cents — never floats |
 | Soft delete | Availability is an `isActive` flag. Logical deletion uses a nullable deletion timestamp that all reads filter out — applied wherever a row must survive deletion (e.g. to preserve linked history); on records holding personal data, deletion also scrubs that data (anonymization) |
 | Sequences | Human-friendly sequential numbers (where present) are backed by a Postgres sequence alongside the UUID id |
+| Secrets | Only ever the **hash** of a credential, never the plaintext, in a column named for the hash it holds. A credential that an operator assigns after the fact is **nullable**, so the row can exist before it has one — and a null hash means "cannot authenticate", not "no password required" |
+| Sessions | A revocable session is its own table holding the token hashes plus an explicit expiry column per token — expiry is data, not something inferred from `createdAt`. Limiting a principal to **one live session** is expressed as a `@unique` on the owner FK, so a new login is an `upsert` that replaces the old row rather than application code deleting the previous one; the FK cascades on delete so removing the owner cannot strand a usable token |
 | Snapshots | Order rows denormalize purchase-time data (item details, applied coupon code and discount) into their own columns so later changes never rewrite history; a snapshot may coexist with a nullable live reference to the source row (nulled on deletion) when the reference is needed operationally |
 
 ---
