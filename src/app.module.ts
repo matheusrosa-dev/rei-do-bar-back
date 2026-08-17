@@ -23,6 +23,7 @@ import { AdminModule } from "./admin/admin.module";
 import { SettingsModule } from "./settings/settings.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { CouponsModule } from "./coupons/coupons.module";
+import { DeliveryPersonsModule } from "./delivery-persons/delivery-persons.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { CouponsModule } from "./coupons/coupons.module";
     CustomersModule,
     MeModule,
     OrdersModule,
+    DeliveryPersonsModule,
     AdminModule,
   ],
   providers: [
