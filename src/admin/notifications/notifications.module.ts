@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AdminNotificationsService } from "./notifications.service";
-import { BasicAuthGuard } from "@shared/guards/basic-auth.guard";
+import { AdminBasicAuthGuard } from "@shared/guards/admin-basic-auth.guard";
 import { AdminNotificationsController } from "./notifications.controller";
 import { ExpoNotificationsModule } from "@shared/libs/expo-notifications/expo-notifications.module";
 import { AdminNotificationsListener } from "./notifications.listener";
@@ -10,7 +10,7 @@ import { AdminNotificationsListener } from "./notifications.listener";
   providers: [
     AdminNotificationsService,
     AdminNotificationsListener,
-    BasicAuthGuard,
+    AdminBasicAuthGuard,
   ],
   imports: [ExpoNotificationsModule],
 })

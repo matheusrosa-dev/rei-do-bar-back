@@ -2,7 +2,7 @@ import { ExecutionContext } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ThrottlerStorage } from "@nestjs/throttler";
 import { AppException } from "@shared/exceptions/app.exception";
-import { BasicAuthGuard } from "../basic-auth.guard";
+import { AdminBasicAuthGuard } from "../admin-basic-auth.guard";
 
 const ADMIN = { username: "admin", password: "s3cr3t" };
 const RATE_LIMIT = { admin: { ttl: 60_000, limit: 5 } };
@@ -20,8 +20,8 @@ const makeContext = (authorization?: string): ExecutionContext =>
 const basicHeader = (username: string, password: string) =>
   `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
 
-describe("BasicAuthGuard", () => {
-  let guard: BasicAuthGuard;
+describe("AdminBasicAuthGuard", () => {
+  let guard: AdminBasicAuthGuard;
   let increment: jest.Mock;
 
   beforeEach(() => {
@@ -34,7 +34,7 @@ describe("BasicAuthGuard", () => {
     increment = jest.fn().mockResolvedValue({ isBlocked: false });
     const storage = { increment } as unknown as ThrottlerStorage;
 
-    guard = new BasicAuthGuard(configService, storage);
+    guard = new AdminBasicAuthGuard(configService, storage);
   });
 
   it("should be defined", () => {
@@ -53,6 +53,20 @@ describe("BasicAuthGuard", () => {
 
     await expect(guard.canActivate(context)).resolves.toBe(false);
     expect(increment).toHaveBeenCalledTimes(1);
+  });
+
+  it("should count the attempt in the admin bucket, keyed by ip", async () => {
+    const context = makeContext(basicHeader(ADMIN.username, "wrong"));
+
+    await guard.canActivate(context);
+
+    expect(increment).toHaveBeenCalledWith(
+      "admin-login:1.2.3.4",
+      RATE_LIMIT.admin.ttl,
+      RATE_LIMIT.admin.limit,
+      RATE_LIMIT.admin.ttl,
+      "admin",
+    );
   });
 
   it("should deny access with a wrong username", async () => {

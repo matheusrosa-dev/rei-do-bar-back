@@ -15,7 +15,7 @@ import { AppException } from "@shared/exceptions/app.exception";
 import { safeCompare } from "@shared/helpers/string";
 
 @Injectable()
-export class BasicAuthGuard implements CanActivate {
+export class AdminBasicAuthGuard implements CanActivate {
   constructor(
     private readonly configService: ConfigService,
     @Inject(ThrottlerStorage) private readonly storage: ThrottlerStorage,

@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { BasicAuthGuard } from "@shared/guards/basic-auth.guard";
+import { AdminBasicAuthGuard } from "@shared/guards/admin-basic-auth.guard";
 import { AdminCustomersController } from "./customers.controller";
 import { AdminCustomersService } from "./customers.service";
 
 @Module({
   controllers: [AdminCustomersController],
-  providers: [AdminCustomersService, BasicAuthGuard],
+  providers: [AdminCustomersService, AdminBasicAuthGuard],
 })
 export class AdminCustomersModule {}
