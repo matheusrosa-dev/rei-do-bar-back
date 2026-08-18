@@ -3,6 +3,9 @@ import { Expose, Type } from "class-transformer";
 
 export class DeliveryPersonsOrdersDto {
   @Expose()
+  id!: string;
+
+  @Expose()
   orderNumber!: number;
 
   @Expose()

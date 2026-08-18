@@ -33,7 +33,7 @@ export class AdminOrdersService {
   ) {}
 
   async listOrdersManagement() {
-    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
 
     const [ongoingOrders, completedOrders] = await this.prisma.$transaction([
       this.prisma.order.findMany({
@@ -65,7 +65,7 @@ export class AdminOrdersService {
             in: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
           },
           updatedAt: {
-            gte: fourHoursAgo,
+            gte: tenHoursAgo,
           },
         },
         orderBy: {

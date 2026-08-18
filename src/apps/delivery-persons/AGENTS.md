@@ -7,7 +7,7 @@ The delivery-person-facing surface of the API — what an entregador consumes fr
 ## What does NOT belong here
 
 - Delivery-person CRUD (create, update, activate, delete), **password assignment**, and **access revocation** → `src/apps/admin/delivery-persons/`.
-- Order status transitions and delivery-person assignment → `src/apps/admin/orders/`.
+- Delivery-person assignment and every order status transition **except the delivery confirmation** → `src/apps/admin/orders/`. Confirming a delivery (`SHIPPED → DELIVERED`) is the one write the entregador owns, and it lives in `orders/`.
 - Customer order placement, listing, and cancellation → `src/apps/store/orders/`.
 - Customer authentication (OTP + JWT) → `src/apps/store/auth/`. The two flows share nothing but the shared helpers; do not merge them.
 
@@ -17,7 +17,7 @@ The delivery-person-facing surface of the API — what an entregador consumes fr
 
 - **One sub-module per domain**, each with its own module/controller/service and `dtos/`, registered in `delivery-persons.module.ts`. The container module declares no providers.
 - **Class names are prefixed with `DeliveryPersons`** (`DeliveryPersonsAuthController`, `DeliveryPersonsOrdersService`) so they never collide with the customer-facing or admin classes of the same domain, exactly as the admin sub-modules use the `Admin` prefix.
-- **Route prefix**: every controller here lives under `delivery-persons/`, one segment per sub-module (`delivery-persons/auth/`, `delivery-persons/orders/`) — there is **no id param in the path**, because the token already names the delivery person.
+- **Route prefix**: every controller here lives under `delivery-persons/`, one segment per sub-module (`delivery-persons/auth/`, `delivery-persons/orders/`) — the path **never carries a delivery-person id**, because the token already names the entregador. An id of another resource is fine when the route needs one (`delivery-persons/orders/:orderId/deliver`), and the query is still scoped by the id from the token.
 
 ---
 

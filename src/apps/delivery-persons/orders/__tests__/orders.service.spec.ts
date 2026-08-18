@@ -1,13 +1,20 @@
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { OrderStatusUpdatedEvent } from "@shared/events/order";
+import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
 import { DeliveryPersonsOrdersService } from "../orders.service";
 
 const DELIVERY_PERSON_ID = "delivery-person-id";
+const ORDER_ID = "order-id";
+
+const eventEmitterMock = { emit: jest.fn() };
 
 const makeOrder = (overrides?: Partial<Record<string, unknown>>) => ({
-  id: "order-id",
+  id: ORDER_ID,
+  customerId: "customer-id",
   orderNumber: 1042,
   address: "Rua A, 10 - Centro",
   status: OrderStatus.SHIPPED,
@@ -25,6 +32,7 @@ describe("DeliveryPersonsOrdersService", () => {
       providers: [
         DeliveryPersonsOrdersService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
       ],
     }).compile();
 
@@ -114,6 +122,110 @@ describe("DeliveryPersonsOrdersService", () => {
 
       expect(result).toHaveLength(2);
       expect(result.every((order) => "total" in order)).toBe(true);
+    });
+  });
+
+  describe("markOrderAsDelivered", () => {
+    it("should throw when no order with that id is assigned to the delivery person", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.deliveryPersonsOrders.ORDER_NOT_FOUND,
+        httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
+      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+    });
+
+    it("should scope the lookup by the delivery person, so another courier's order is a not-found", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.deliveryPersonsOrders.ORDER_NOT_FOUND,
+      });
+
+      // Sem o deliveryPersonId no where, o entregador conseguiria entregar o
+      // pedido de outro — este assert é a única barreira contra isso.
+      expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
+        where: { id: ORDER_ID, deliveryPersonId: DELIVERY_PERSON_ID },
+      });
+    });
+
+    it.each([
+      OrderStatus.PENDING,
+      OrderStatus.PREPARING,
+      OrderStatus.DELIVERED,
+      OrderStatus.CANCELLED,
+    ])("should refuse to deliver an order that is %s", async (status) => {
+      prismaMock.order.findFirst.mockResolvedValue(makeOrder({ status }));
+
+      await expect(
+        service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.deliveryPersonsOrders.ORDER_NOT_SHIPPED,
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
+      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+    });
+
+    it("should move a shipped order to delivered with the status guarded in the where", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(makeOrder());
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID);
+
+      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: ORDER_ID,
+          deliveryPersonId: DELIVERY_PERSON_ID,
+          status: OrderStatus.SHIPPED,
+        },
+        data: { status: OrderStatus.DELIVERED },
+      });
+    });
+
+    it("should throw when the status changed between the read and the write", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(makeOrder());
+      // O admin cancelou o pedido no meio do caminho: o update condicional não
+      // encontra a linha e a corrida vira erro em vez de um sucesso silencioso.
+      prismaMock.order.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.deliveryPersonsOrders.ORDER_NOT_SHIPPED,
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+    });
+
+    it("should emit the status-updated event so the customer gets the delivery push", async () => {
+      prismaMock.order.findFirst.mockResolvedValue(makeOrder());
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID);
+
+      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+        OrderStatusUpdatedEvent.NAME,
+        expect.objectContaining({
+          data: {
+            order: expect.objectContaining({
+              id: ORDER_ID,
+              customerId: "customer-id",
+              orderNumber: 1042,
+              status: OrderStatus.DELIVERED,
+            }),
+          },
+        }),
+      );
     });
   });
 });

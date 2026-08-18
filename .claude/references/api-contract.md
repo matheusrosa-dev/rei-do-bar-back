@@ -126,6 +126,8 @@ Codes are namespaced by domain on the application exception's static registry. A
 | deliveryPersonsAuth | `INVALID_CREDENTIALS` | `DELIVERY_PERSONS_AUTH_001` |
 | deliveryPersonsAuth | `INVALID_REFRESH_TOKEN` | `DELIVERY_PERSONS_AUTH_002` |
 | deliveryPersonsAuth | `INVALID_ACCESS_TOKEN` | `DELIVERY_PERSONS_AUTH_003` |
+| deliveryPersonsOrders | `ORDER_NOT_FOUND` | `DELIVERY_PERSONS_ORDERS_001` |
+| deliveryPersonsOrders | `ORDER_NOT_SHIPPED` | `DELIVERY_PERSONS_ORDERS_002` |
 | adminDeliveryPersons | `DELIVERY_PERSON_NOT_FOUND` | `ADMIN_DELIVERY_PERSONS_001` |
 | adminDeliveryPersons | `DELIVERY_PERSON_ALREADY_EXISTS` | `ADMIN_DELIVERY_PERSONS_002` |
 | adminDeliveryPersons | `DELIVERY_PERSON_HAS_ORDERS` | `ADMIN_DELIVERY_PERSONS_003` |
