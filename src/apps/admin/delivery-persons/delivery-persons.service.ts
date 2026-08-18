@@ -203,22 +203,18 @@ export class AdminDeliveryPersonsService {
   }
 
   async revokeDeliveryPersonAccess(deliveryPersonId: string) {
-    const deliveryPerson = await this.prisma.deliveryPerson.findUnique({
-      where: { id: deliveryPersonId },
-      select: { id: true },
-    });
-
-    if (!deliveryPerson) {
-      throw this.deliveryPersonNotFound();
-    }
-
-    await this.prisma.deliveryPersonSession.deleteMany({
-      where: { deliveryPersonId },
+    await this.updateDeliveryPersonAndRevokeAccessOrThrow(deliveryPersonId, {
+      hashedPassword: null,
     });
   }
 
   async revokeAllDeliveryPersonsAccess() {
-    await this.prisma.deliveryPersonSession.deleteMany();
+    await this.prisma.$transaction([
+      this.prisma.deliveryPerson.updateMany({
+        data: { hashedPassword: null },
+      }),
+      this.prisma.deliveryPersonSession.deleteMany(),
+    ]);
   }
 
   async removeDeliveryPerson(deliveryPersonId: string) {

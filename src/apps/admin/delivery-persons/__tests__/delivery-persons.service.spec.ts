@@ -171,8 +171,13 @@ describe("AdminDeliveryPersonsService", () => {
   });
 
   describe("revokeDeliveryPersonAccess", () => {
-    it("should throw DELIVERY_PERSON_NOT_FOUND without deleting anything", async () => {
-      prismaMock.deliveryPerson.findUnique.mockResolvedValue(null);
+    it("should throw DELIVERY_PERSON_NOT_FOUND when the delivery person does not exist", async () => {
+      prismaMock.deliveryPerson.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("not found", {
+          code: "P2025",
+          clientVersion: "test",
+        }),
+      );
 
       await expect(
         service.revokeDeliveryPersonAccess("missing-id"),
@@ -181,31 +186,34 @@ describe("AdminDeliveryPersonsService", () => {
           .DELIVERY_PERSON_NOT_FOUND,
         httpStatus: AppException.HttpStatus.NOT_FOUND,
       });
-
-      expect(
-        prismaMock.deliveryPersonSession.deleteMany,
-      ).not.toHaveBeenCalled();
     });
 
-    it("should delete the session of an existing delivery person", async () => {
-      prismaMock.deliveryPerson.findUnique.mockResolvedValue({
-        id: "some-id",
-      });
+    it("should clear the password and delete the session in the same transaction", async () => {
+      const deliveryPerson = DeliveryPersonFactory.createOne();
+      prismaMock.deliveryPerson.update.mockResolvedValue(deliveryPerson);
       prismaMock.deliveryPersonSession.deleteMany.mockResolvedValue({
         count: 1,
       });
 
-      await service.revokeDeliveryPersonAccess("some-id");
+      await service.revokeDeliveryPersonAccess(deliveryPerson.id);
 
-      expect(prismaMock.deliveryPersonSession.deleteMany).toHaveBeenCalledWith({
-        where: { deliveryPersonId: "some-id" },
+      expect(prismaMock.deliveryPerson.update).toHaveBeenCalledWith({
+        where: { id: deliveryPerson.id },
+        data: { hashedPassword: null },
       });
+      expect(prismaMock.deliveryPersonSession.deleteMany).toHaveBeenCalledWith({
+        where: { deliveryPersonId: deliveryPerson.id },
+      });
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      // Ambas as operações precisam ser membros do mesmo array: uma senha
+      // apagada sem o delete da sessão deixaria o token antigo válido.
+      expect(prismaMock.$transaction.mock.calls[0][0]).toHaveLength(2);
     });
 
     it("should be idempotent when the delivery person is not logged in", async () => {
-      prismaMock.deliveryPerson.findUnique.mockResolvedValue({
-        id: "some-id",
-      });
+      prismaMock.deliveryPerson.update.mockResolvedValue(
+        DeliveryPersonFactory.createOne(),
+      );
       prismaMock.deliveryPersonSession.deleteMany.mockResolvedValue({
         count: 0,
       });
@@ -217,19 +225,26 @@ describe("AdminDeliveryPersonsService", () => {
   });
 
   describe("revokeAllDeliveryPersonsAccess", () => {
-    it("should delete every session row, unfiltered", async () => {
+    it("should clear every password and delete every session row, unfiltered", async () => {
+      prismaMock.deliveryPerson.updateMany.mockResolvedValue({ count: 3 });
       prismaMock.deliveryPersonSession.deleteMany.mockResolvedValue({
         count: 3,
       });
 
       await service.revokeAllDeliveryPersonsAccess();
 
+      expect(prismaMock.deliveryPerson.updateMany).toHaveBeenCalledWith({
+        data: { hashedPassword: null },
+      });
       expect(
         prismaMock.deliveryPersonSession.deleteMany,
       ).toHaveBeenCalledWith();
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(prismaMock.$transaction.mock.calls[0][0]).toHaveLength(2);
     });
 
     it("should treat an empty table as a normal no-op, never a 404", async () => {
+      prismaMock.deliveryPerson.updateMany.mockResolvedValue({ count: 0 });
       prismaMock.deliveryPersonSession.deleteMany.mockResolvedValue({
         count: 0,
       });
@@ -237,7 +252,7 @@ describe("AdminDeliveryPersonsService", () => {
       await expect(
         service.revokeAllDeliveryPersonsAccess(),
       ).resolves.toBeUndefined();
-      expect(prismaMock.deliveryPerson.findUnique).not.toHaveBeenCalled();
+      expect(prismaMock.$transaction.mock.calls[0][0]).toHaveLength(2);
     });
   });
 
