@@ -36,7 +36,7 @@ Eligibility is checked once before the transaction and **re-checked under the cu
 
 ## Cancel Order Flow
 
-Fetch the order scoped by customer id (ownership check), then in a transaction conditionally transition it to cancelled. The condition is **`status = PENDING`** — that is the only status a customer may cancel; once the kitchen has accepted the order, cancellation is the admin's call. A zero-row result means the order has already moved on, and the request is rejected rather than silently doing nothing.
+Fetch the order scoped by customer id (ownership check), then in a transaction conditionally transition it to cancelled. The condition is **`status = PENDING`** — that is the only status a customer may cancel; once the kitchen has accepted the order, cancellation is the admin's call. A zero-row result means the order has already moved on, and the request is rejected rather than silently doing nothing. The same guarded update stamps **`cancelledAt`**, the record of when the cancellation happened — `updatedAt` cannot serve as one, since any later write to the row overwrites it. The admin's cancel door stamps the same column (see `src/apps/admin/orders/AGENTS.md`).
 
 The same transaction restores stock for each item (a plain increment — unlike the decrement at creation, there is nothing to guard against) and reverts any coupon usage: the customer's usage row is deleted through the coupon reference snapshotted on the order, making the coupon redeemable again (skipped if the coupon was deleted, since its usages cascade away with it).
 

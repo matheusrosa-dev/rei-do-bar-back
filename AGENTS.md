@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue and confirms each delivery — the one order transition the entregador can perform, alongside the backoffice.
+REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue, confirms each delivery — the one order transition the entregador can perform, alongside the backoffice — and sees how many deliveries they have closed in the recent window.
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
@@ -152,7 +152,7 @@ After finishing **all** edits in a task:
 │   │   │   └── settings/         # Runtime settings read/update/toggle
 │   │   ├── delivery-persons/    # Delivery app surface (opaque bearer tokens) — container module + sub-modules
 │   │   │   ├── auth/            # CPF + password login, token refresh
-│   │   │   └── orders/          # Orders out for delivery + delivery confirmation
+│   │   │   └── orders/          # Orders out for delivery, delivery confirmation, shift delivery count
 │   │   └── store/               # Customer-facing app — no container module; each module is registered in AppModule
 │   │       ├── auth/            # Authentication: OTP flow, JWT issuance, token refresh
 │   │       ├── cart/            # Cart management (anonymous + authenticated)

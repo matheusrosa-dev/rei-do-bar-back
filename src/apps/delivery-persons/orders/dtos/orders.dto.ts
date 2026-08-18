@@ -20,6 +20,9 @@ export class DeliveryPersonsOrdersDto {
   @Expose()
   @Type(() => DeliveryPersonsOrderItemDto)
   items!: DeliveryPersonsOrderItemDto[];
+
+  @Expose()
+  deliveredCount!: number;
 }
 
 class DeliveryPersonsOrderItemDto {

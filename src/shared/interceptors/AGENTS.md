@@ -23,6 +23,10 @@ The canonical way to control response shape. The decorator is applied at control
 
 **Ordering**: the serializer runs closer to the handler than the response wrapper, so the final shape is the serialized DTO inside the `data` envelope.
 
+**A controller whose handlers answer different shapes uses one union DTO** — a single class with every field optional, covering all of them. Absent fields serialize to `undefined` and vanish from the JSON, so each response still carries only its own keys. Do **not** try to override the class decorator with a handler-level one: on the response path a class interceptor runs *after* a handler interceptor, so the class DTO strips whatever the handler DTO produced and the response silently becomes `{}` — a data-loss bug with no error to notice it by. A handler that returns nothing (a 204) needs no accommodation: `undefined` passes through both the serializer and the wrapper untouched.
+
+**Never return a bare primitive from a handler.** The wrapper's passthrough test uses the `in` operator, which throws a `TypeError` on a number, string, or boolean — so a handler returning `5` produces a 500, while `0` slips out unwrapped. Anything scalar goes back as a named field on an object.
+
 ## Logging
 
 Logs one line per request (`METHOD path status ms`) through a dedicated `HTTP` logger context. Failures are logged on the error path and **rethrown untouched** — the interceptor observes, it never swallows or reshapes; turning an error into a response body is the exception filter's job.
@@ -38,5 +42,7 @@ Configured from env at module level; when the configured delay is non-positive i
 | Rule | Detail |
 |---|---|
 | Control response shape via the DTO | Use the serialize decorator at class level; do not hand-build response objects |
+| One DTO per controller, union it if needed | Multiple response shapes share one DTO with optional fields; a handler-level serializer is stripped by the class one, never an override |
+| Handlers return objects, never primitives | The wrapper's `in` test throws on a scalar body; wrap scalars in a named field |
 | Expose intentionally | Only fields explicitly marked as exposed are returned; declare nested types explicitly |
 | Don't double-wrap | Rely on the wrapper's passthrough rather than returning a `data` envelope manually |

@@ -15,6 +15,7 @@ import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { isForeignKeyConstraintViolation } from "@shared/helpers/prisma-errors";
 import {
+  FINALIZED_WINDOW_HOURS,
   ORDER_STATUS_TRANSITIONS,
   OrderSortValueSource,
   OrderWithItems,
@@ -33,60 +34,66 @@ export class AdminOrdersService {
   ) {}
 
   async listOrdersManagement() {
-    const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+    const windowStart = new Date(
+      Date.now() - FINALIZED_WINDOW_HOURS * 60 * 60 * 1000,
+    );
 
-    const [ongoingOrders, completedOrders] = await this.prisma.$transaction([
-      this.prisma.order.findMany({
-        where: {
-          status: {
-            in: [
-              OrderStatus.PENDING,
-              OrderStatus.PREPARING,
-              OrderStatus.SHIPPED,
-            ],
-          },
-        },
+    const include = {
+      customer: true,
+      deliveryPerson: true,
+      items: {
         include: {
-          customer: true,
-          deliveryPerson: true,
-          items: {
-            include: {
-              product: true,
+          product: true,
+        },
+      },
+    };
+
+    const [ongoingOrders, deliveredOrders, cancelledOrders] =
+      await this.prisma.$transaction([
+        this.prisma.order.findMany({
+          where: {
+            status: {
+              in: [
+                OrderStatus.PENDING,
+                OrderStatus.PREPARING,
+                OrderStatus.SHIPPED,
+              ],
             },
           },
-        },
-        orderBy: {
-          createdAt: "asc",
-        },
-      }),
-      this.prisma.order.findMany({
-        where: {
-          status: {
-            in: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+          include,
+          orderBy: {
+            createdAt: "asc",
           },
-          updatedAt: {
-            gte: tenHoursAgo,
-          },
-        },
-        orderBy: {
-          updatedAt: "desc",
-        },
-        include: {
-          customer: true,
-          deliveryPerson: true,
-          items: {
-            include: {
-              product: true,
+        }),
+        this.prisma.order.findMany({
+          where: {
+            status: OrderStatus.DELIVERED,
+            deliveredAt: {
+              gte: windowStart,
             },
           },
-        },
-        take: 30,
-      }),
-    ]);
+          orderBy: {
+            deliveredAt: "desc",
+          },
+          include,
+          take: 30,
+        }),
+        this.prisma.order.findMany({
+          where: {
+            status: OrderStatus.CANCELLED,
+            cancelledAt: {
+              gte: windowStart,
+            },
+          },
+          orderBy: {
+            cancelledAt: "desc",
+          },
+          include,
+          take: 30,
+        }),
+      ]);
 
     const formattedOngoingOrders = this.calculateOrdersTotals(ongoingOrders);
-    const formattedCompletedOrders =
-      this.calculateOrdersTotals(completedOrders);
 
     const ordersByStatus = {
       [OrderStatus.PENDING]: this.filterOrdersByStatus(
@@ -101,14 +108,8 @@ export class AdminOrdersService {
         formattedOngoingOrders,
         OrderStatus.SHIPPED,
       ),
-      [OrderStatus.DELIVERED]: this.filterOrdersByStatus(
-        formattedCompletedOrders,
-        OrderStatus.DELIVERED,
-      ),
-      [OrderStatus.CANCELLED]: this.filterOrdersByStatus(
-        formattedCompletedOrders,
-        OrderStatus.CANCELLED,
-      ),
+      [OrderStatus.DELIVERED]: this.calculateOrdersTotals(deliveredOrders),
+      [OrderStatus.CANCELLED]: this.calculateOrdersTotals(cancelledOrders),
     };
 
     return ordersByStatus;
@@ -315,9 +316,13 @@ export class AdminOrdersService {
             status: dto.status,
             ...(dto.status === OrderStatus.CANCELLED && {
               statusReason: dto.statusReason,
+              cancelledAt: new Date(),
             }),
             ...(dto.status === OrderStatus.SHIPPED && {
               deliveryPersonId: dto.deliveryPersonId,
+            }),
+            ...(dto.status === OrderStatus.DELIVERED && {
+              deliveredAt: new Date(),
             }),
           },
         });

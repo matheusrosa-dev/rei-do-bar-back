@@ -27,6 +27,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Column naming | Database columns mapped to `snake_case` |
 | Table naming | Tables mapped to `snake_case`, pluralized |
 | Timestamps | `createdAt` / `updatedAt` on entities, mapped to snake_case columns — join tables (e.g. `CouponUsage`, `CouponCustomer`) only carry `createdAt` |
+| Event timestamps | The moment a domain event happened gets its **own nullable column**, written once at the transition — never inferred from `updatedAt`, which every later write to the row overwrites. Null means the event has not happened |
 | Monetary values | Stored as integer cents — never floats |
 | Soft delete | Availability is an `isActive` flag. Logical deletion uses a nullable deletion timestamp that all reads filter out — applied wherever a row must survive deletion (e.g. to preserve linked history); on records holding personal data, deletion also scrubs that data (anonymization) |
 | Sequences | Human-friendly sequential numbers (where present) are backed by a Postgres sequence alongside the UUID id |
@@ -41,6 +42,14 @@ After any schema change, regenerate the client and update the Prisma mock used i
 Use the project scripts (`migrate:dev` to create/apply in development, `migrate:deploy` for production, `prisma:generate` to refresh the client). Each migration is a timestamped folder containing its SQL.
 
 **Destructive migration commands (reset/drop) require explicit user confirmation** — never run them autonomously.
+
+A migration may carry a **data backfill** alongside its DDL when a new column has to mean something for rows that already exist. Backfilling from an approximate source is only acceptable where the approximation cannot be mistaken for the real thing.
+
+If any query reads the new column through a time window, the backfill must **stop at that window's boundary**, leaving the rows inside it null. A null says "unknown", which every reader already handles; a plausible-looking wrong value silently becomes a wrong answer.
+
+A column no query reads yet may be backfilled in full — the values are historical record, not an answer to anything. Note that a window over the same rows often already exists on `updatedAt`; the comment must name it and say what happens the day that filter moves onto the new column, so whoever makes that move knows to null the rows inside the window first.
+
+Either way, say in a comment which source was used and why it stops where it does — or why it does not stop.
 
 ---
 

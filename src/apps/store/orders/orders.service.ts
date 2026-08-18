@@ -336,7 +336,7 @@ export class OrdersService {
       // Marca o pedido como cancelado
       const result = await tx.order.updateMany({
         where: { id: order.id, status: OrderStatus.PENDING },
-        data: { status: OrderStatus.CANCELLED },
+        data: { status: OrderStatus.CANCELLED, cancelledAt: new Date() },
       });
 
       if (result.count === 0) {

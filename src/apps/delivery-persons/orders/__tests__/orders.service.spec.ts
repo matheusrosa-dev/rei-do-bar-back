@@ -176,19 +176,28 @@ describe("DeliveryPersonsOrdersService", () => {
     });
 
     it("should move a shipped order to delivered with the status guarded in the where", async () => {
-      prismaMock.order.findFirst.mockResolvedValue(makeOrder());
-      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+      const now = new Date("2026-08-18T14:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(now);
 
-      await service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID);
+      try {
+        prismaMock.order.findFirst.mockResolvedValue(makeOrder());
+        prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
 
-      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
-        where: {
-          id: ORDER_ID,
-          deliveryPersonId: DELIVERY_PERSON_ID,
-          status: OrderStatus.SHIPPED,
-        },
-        data: { status: OrderStatus.DELIVERED },
-      });
+        await service.markOrderAsDelivered(DELIVERY_PERSON_ID, ORDER_ID);
+
+        expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: ORDER_ID,
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.SHIPPED,
+          },
+          // Sem o deliveredAt aqui a coluna nasce nula e a contagem por janela
+          // nunca enxerga a entrega feita pelo app.
+          data: { status: OrderStatus.DELIVERED, deliveredAt: now },
+        });
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("should throw when the status changed between the read and the write", async () => {
@@ -226,6 +235,49 @@ describe("DeliveryPersonsOrdersService", () => {
           },
         }),
       );
+    });
+  });
+
+  describe("countRecentDeliveries", () => {
+    it("should count only this delivery person's orders delivered inside the window", async () => {
+      const now = new Date("2026-08-18T14:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(now);
+
+      try {
+        prismaMock.order.count.mockResolvedValue(7);
+
+        await service.countRecentDeliveries(DELIVERY_PERSON_ID);
+
+        expect(prismaMock.order.count).toHaveBeenCalledWith({
+          where: {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            // 10 horas antes de now — a janela é fechada no deliveredAt, e não
+            // no updatedAt, que qualquer escrita posterior do admin sobrescreve.
+            deliveredAt: { gte: new Date("2026-08-18T04:00:00.000Z") },
+          },
+        });
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("should return the count wrapped in an object", async () => {
+      prismaMock.order.count.mockResolvedValue(7);
+
+      await expect(
+        service.countRecentDeliveries(DELIVERY_PERSON_ID),
+      ).resolves.toEqual({ deliveredCount: 7 });
+    });
+
+    it("should return zero as an object instead of a bare number", async () => {
+      // Um número solto quebra o WrapperDataInterceptor: `"data" in body` lança
+      // TypeError sobre primitivo, e o zero sairia sem o envelope.
+      prismaMock.order.count.mockResolvedValue(0);
+
+      await expect(
+        service.countRecentDeliveries(DELIVERY_PERSON_ID),
+      ).resolves.toEqual({ deliveredCount: 0 });
     });
   });
 });

@@ -1273,64 +1273,71 @@ describe("OrdersService", () => {
     const dto = { orderId: "order-uuid" };
 
     it("should cancel the order, restore stockQuantity, set the status to CANCELLED and return the orders", async () => {
-      const findAndFormatOrdersSpy = jest.spyOn(
-        service as any,
-        "findAndFormatOrders",
-      );
-      const order = {
-        id: "order-uuid",
-        customerId,
-        orderNumber: 1000,
-        status: OrderStatus.PENDING,
-        statusReason: null,
-        couponId: null,
-        couponDiscount: 0,
-        items: [
-          { productId: "product-1", price: 10, quantity: 2 },
-          { productId: "product-2", price: 20, quantity: 3 },
-        ],
-      };
-      prismaMock.order.findFirst.mockResolvedValue(order);
-      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.order.findMany.mockResolvedValue([]);
+      const now = new Date("2026-08-18T14:00:00.000Z");
+      jest.useFakeTimers().setSystemTime(now);
 
-      const result = await service.cancelOrder(customerId, dto);
-
-      expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
-        where: { id: "order-uuid", customerId },
-        include: { items: { include: { product: true } } },
-      });
-      expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
-        where: {
+      try {
+        const findAndFormatOrdersSpy = jest.spyOn(
+          service as any,
+          "findAndFormatOrders",
+        );
+        const order = {
           id: "order-uuid",
+          customerId,
+          orderNumber: 1000,
           status: OrderStatus.PENDING,
-        },
-        data: { status: OrderStatus.CANCELLED },
-      });
-      expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
-      expect(prismaMock.product.update).toHaveBeenCalledWith({
-        where: { id: "product-1" },
-        data: { stockQuantity: { increment: 2 } },
-      });
-      expect(prismaMock.product.update).toHaveBeenCalledWith({
-        where: { id: "product-2" },
-        data: { stockQuantity: { increment: 3 } },
-      });
-      expect(prismaMock.couponUsage.deleteMany).not.toHaveBeenCalled();
-      expect(prismaMock.order.findMany).toHaveBeenCalledWith({
-        where: { customerId },
-        include: { items: true },
-        orderBy: { createdAt: "desc" },
-      });
-      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
-      expect(eventEmitterMock.emit).toHaveBeenCalledWith(
-        OrderCancelledEvent.NAME,
-        new OrderCancelledEvent({
-          order,
-          origin: InventoryMovementOrigin.ORDER_CANCELLATION,
-        }),
-      );
-      expect(result).toEqual([]);
+          statusReason: null,
+          couponId: null,
+          couponDiscount: 0,
+          items: [
+            { productId: "product-1", price: 10, quantity: 2 },
+            { productId: "product-2", price: 20, quantity: 3 },
+          ],
+        };
+        prismaMock.order.findFirst.mockResolvedValue(order);
+        prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+        prismaMock.order.findMany.mockResolvedValue([]);
+
+        const result = await service.cancelOrder(customerId, dto);
+
+        expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
+          where: { id: "order-uuid", customerId },
+          include: { items: { include: { product: true } } },
+        });
+        expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
+          where: {
+            id: "order-uuid",
+            status: OrderStatus.PENDING,
+          },
+          data: { status: OrderStatus.CANCELLED, cancelledAt: now },
+        });
+        expect(prismaMock.product.update).toHaveBeenCalledTimes(2);
+        expect(prismaMock.product.update).toHaveBeenCalledWith({
+          where: { id: "product-1" },
+          data: { stockQuantity: { increment: 2 } },
+        });
+        expect(prismaMock.product.update).toHaveBeenCalledWith({
+          where: { id: "product-2" },
+          data: { stockQuantity: { increment: 3 } },
+        });
+        expect(prismaMock.couponUsage.deleteMany).not.toHaveBeenCalled();
+        expect(prismaMock.order.findMany).toHaveBeenCalledWith({
+          where: { customerId },
+          include: { items: true },
+          orderBy: { createdAt: "desc" },
+        });
+        expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+        expect(eventEmitterMock.emit).toHaveBeenCalledWith(
+          OrderCancelledEvent.NAME,
+          new OrderCancelledEvent({
+            order,
+            origin: InventoryMovementOrigin.ORDER_CANCELLATION,
+          }),
+        );
+        expect(result).toEqual([]);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it("should revert the coupon usage when the cancelled order has an applied coupon", async () => {

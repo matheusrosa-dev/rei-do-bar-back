@@ -6,6 +6,8 @@ import { OrderStatusUpdatedEvent } from "@shared/events/order";
 import { AppException } from "@shared/exceptions/app.exception";
 import { computeOrderTotals } from "@shared/helpers/products-totals";
 
+const DELIVERED_WINDOW_HOURS = 10;
+
 @Injectable()
 export class DeliveryPersonsOrdersService {
   constructor(
@@ -29,6 +31,22 @@ export class DeliveryPersonsOrdersService {
       ...order,
       ...computeOrderTotals(order),
     }));
+  }
+
+  async countRecentDeliveries(deliveryPersonId: string) {
+    const windowStart = new Date(
+      Date.now() - DELIVERED_WINDOW_HOURS * 60 * 60 * 1000,
+    );
+
+    const deliveredCount = await this.prisma.order.count({
+      where: {
+        deliveryPersonId,
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: windowStart },
+      },
+    });
+
+    return { deliveredCount };
   }
 
   async markOrderAsDelivered(deliveryPersonId: string, orderId: string) {
@@ -63,6 +81,7 @@ export class DeliveryPersonsOrdersService {
       },
       data: {
         status: OrderStatus.DELIVERED,
+        deliveredAt: new Date(),
       },
     });
 

@@ -26,6 +26,13 @@ export class DeliveryPersonsOrdersController {
     return this.ordersService.findShippedOrders(deliveryPerson.id);
   }
 
+  @Get("delivered-count")
+  countRecentDeliveries(
+    @CurrentDeliveryPerson() deliveryPerson: ICurrentDeliveryPerson,
+  ) {
+    return this.ordersService.countRecentDeliveries(deliveryPerson.id);
+  }
+
   @Patch(":orderId/deliver")
   @HttpCode(HttpStatus.NO_CONTENT)
   async markOrderAsDelivered(
