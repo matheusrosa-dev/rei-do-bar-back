@@ -85,6 +85,7 @@ export class AdminDeliveryPersonsService {
 
     const deliveryPerson = await this.prisma.deliveryPerson.findFirst({
       where: {
+        isActive: true,
         OR: [
           { hashedPassword: { not: null } },
           { session: { refreshTokenExpiresAt: { gt: now } } },
@@ -201,12 +202,14 @@ export class AdminDeliveryPersonsService {
   async activateDeliveryPerson(deliveryPersonId: string) {
     return this.updateDeliveryPersonOrThrow(deliveryPersonId, {
       isActive: true,
+      hashedPassword: null,
     });
   }
 
   async deactivateDeliveryPerson(deliveryPersonId: string) {
     return this.updateDeliveryPersonAndRevokeAccessOrThrow(deliveryPersonId, {
       isActive: false,
+      hashedPassword: null,
     });
   }
 

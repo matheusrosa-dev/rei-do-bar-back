@@ -40,8 +40,9 @@ export function mapDeliveryPersonListItem(
   return {
     ...mapDeliveryPersonWithCount(deliveryPerson),
     hasAccess: Boolean(
-      (session && session.refreshTokenExpiresAt > now) ||
-        deliveryPerson.hashedPassword,
+      deliveryPerson.isActive &&
+        ((session && session.refreshTokenExpiresAt > now) ||
+          deliveryPerson.hashedPassword),
     ),
   };
 }
