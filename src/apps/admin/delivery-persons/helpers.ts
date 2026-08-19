@@ -39,6 +39,9 @@ export function mapDeliveryPersonListItem(
 ) {
   return {
     ...mapDeliveryPersonWithCount(deliveryPerson),
-    hasSession: Boolean(session && session.refreshTokenExpiresAt > now),
+    hasAccess: Boolean(
+      (session && session.refreshTokenExpiresAt > now) ||
+        deliveryPerson.hashedPassword,
+    ),
   };
 }

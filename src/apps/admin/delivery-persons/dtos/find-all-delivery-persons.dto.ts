@@ -1,7 +1,6 @@
 import { Transform, Type } from "class-transformer";
 import {
   IsBoolean,
-  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -36,12 +35,4 @@ export class FindAllDeliveryPersonsDto {
   @IsOptional()
   @IsString()
   searchTerm?: string;
-
-  @IsOptional()
-  @IsIn(["createdAt", "ordersCount"])
-  sortKey?: "createdAt" | "ordersCount";
-
-  @IsOptional()
-  @IsIn(["asc", "desc"])
-  sortDirection?: "asc" | "desc";
 }

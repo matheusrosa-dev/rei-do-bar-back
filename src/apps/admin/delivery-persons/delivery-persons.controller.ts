@@ -42,6 +42,11 @@ export class AdminDeliveryPersonsController {
     return this.deliveryPersonsService.findAll(dto);
   }
 
+  @Get("has-access")
+  hasDeliveryPersonsWithAccess() {
+    return this.deliveryPersonsService.hasDeliveryPersonsWithAccess();
+  }
+
   @Get(":deliveryPersonId")
   findDeliveryPersonById(
     @Param() { deliveryPersonId }: FindDeliveryPersonByIdDto,

@@ -67,6 +67,7 @@ export const prismaMock = {
   },
   deliveryPerson: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     create: jest.fn(),

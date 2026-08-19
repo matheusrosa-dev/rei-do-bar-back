@@ -18,6 +18,10 @@ import {
   mapDeliveryPersonWithCount,
 } from "./helpers";
 
+const DELIVERED_ORDERS_COUNT = {
+  orders: { where: { status: OrderStatus.DELIVERED } },
+} satisfies Prisma.DeliveryPersonCountOutputTypeSelect;
+
 @Injectable()
 export class AdminDeliveryPersonsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -26,7 +30,6 @@ export class AdminDeliveryPersonsService {
     const page = dto.page ?? 1;
     const limit = dto.limit ?? 20;
     const skip = (page - 1) * limit;
-    const direction = dto.sortDirection ?? "desc";
 
     const where: Prisma.DeliveryPersonWhereInput = {
       ...(dto.isActive !== undefined && { isActive: dto.isActive }),
@@ -39,7 +42,6 @@ export class AdminDeliveryPersonsService {
       }),
     };
 
-    const orderBy = this.buildOrderBy(dto.sortKey, direction);
     const now = new Date();
 
     const [items, total] = await this.prisma.$transaction([
@@ -47,17 +49,9 @@ export class AdminDeliveryPersonsService {
         where,
         skip,
         take: limit,
-        orderBy,
+        orderBy: { createdAt: "desc" },
         include: {
-          _count: {
-            select: {
-              orders: {
-                where: {
-                  status: OrderStatus.DELIVERED,
-                },
-              },
-            },
-          },
+          _count: { select: DELIVERED_ORDERS_COUNT },
           session: { select: { refreshTokenExpiresAt: true } },
         },
       }),
@@ -88,11 +82,27 @@ export class AdminDeliveryPersonsService {
     return deliveryPersons.map((item) => mapDeliveryPerson(item));
   }
 
+  async hasDeliveryPersonsWithAccess() {
+    const now = new Date();
+
+    const deliveryPerson = await this.prisma.deliveryPerson.findFirst({
+      where: {
+        OR: [
+          { hashedPassword: { not: null } },
+          { session: { refreshTokenExpiresAt: { gt: now } } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    return { hasAccess: Boolean(deliveryPerson) };
+  }
+
   async findDeliveryPersonById(deliveryPersonId: string) {
     const deliveryPerson = await this.prisma.deliveryPerson.findUnique({
       where: { id: deliveryPersonId },
       include: {
-        _count: { select: { orders: true } },
+        _count: { select: DELIVERED_ORDERS_COUNT },
       },
     });
 
@@ -263,21 +273,6 @@ export class AdminDeliveryPersonsService {
 
       throw error;
     }
-  }
-
-  private buildOrderBy(
-    sortKey: "createdAt" | "ordersCount" | undefined,
-    direction: "asc" | "desc",
-  ): Prisma.DeliveryPersonOrderByWithRelationInput {
-    if (sortKey === "ordersCount") {
-      return { orders: { _count: direction } };
-    }
-
-    if (sortKey) {
-      return { [sortKey]: direction };
-    }
-
-    return { createdAt: "desc" };
   }
 
   private async updateDeliveryPersonOrThrow(
