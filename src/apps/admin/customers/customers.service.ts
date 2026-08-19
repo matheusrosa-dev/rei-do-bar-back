@@ -146,7 +146,7 @@ export class AdminCustomersService {
         addresses: true,
         orders: {
           include: {
-            items: true,
+            items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
           },
           orderBy: [{ createdAt: "desc" }, { orderNumber: "desc" }],
         },

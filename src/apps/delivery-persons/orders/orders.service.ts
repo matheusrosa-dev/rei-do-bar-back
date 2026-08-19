@@ -22,7 +22,7 @@ export class DeliveryPersonsOrdersService {
         status: OrderStatus.SHIPPED,
       },
       include: {
-        items: true,
+        items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
       orderBy: { createdAt: "asc" },
     });

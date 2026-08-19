@@ -50,7 +50,7 @@ Order creation and cancellation emit lifecycle events through the event emitter 
 
 ## Response DTO
 
-Each order carries DB fields plus computed totals and a nested item collection. The money shape **mirrors the cart's** (see `src/apps/store/cart/AGENTS.md`), with one structural difference: everything is derived from the **item snapshots**, never from the live product row — a later price or sale change must not reprice a past order.
+Each order carries DB fields plus computed totals and a nested item collection, read oldest-first and tied on the id. The tiebreaker is load-bearing rather than cosmetic: the items of one order are written by a single `createMany`, so they share a `createdAt` to the millisecond and, with nothing else to separate them, the customer would see the lines of the same order in a different sequence on each read. The money shape **mirrors the cart's** (see `src/apps/store/cart/AGENTS.md`), with one structural difference: everything is derived from the **item snapshots**, never from the live product row — a later price or sale change must not reprice a past order.
 
 | Field | Meaning |
 |---|---|
@@ -75,6 +75,7 @@ Unlike the cart response, the order response carries **no `isWelcomeCoupon` flag
 |---|---|
 | Validate before writing | All cheap validations run before the transaction |
 | Serialize concurrency | Per-customer order creation is serialized with a row-level lock on the customer; globally-limited coupon redemption with a row-level lock on the coupon |
+| Items come ordered | Every read of an order's items sorts oldest-first and breaks the tie on the id — they share one `createdAt` from the batch insert, so without it the line order is arbitrary |
 | Snapshots | Item details (including `compareAtPrice`), the address, and the applied coupon (code + discount) are snapshotted at purchase time and never back-filled |
 | Money from the net total | The coupon base, the minimum-order check, and `total` all run on `productsTotal - productsDiscount` — the gross `productsTotal` is display-only |
 | Customers cancel only while pending | Any later status is the admin's to transition |

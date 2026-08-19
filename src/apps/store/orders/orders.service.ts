@@ -227,7 +227,7 @@ export class OrdersService {
           },
         },
         include: {
-          items: true,
+          items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         },
       });
 
@@ -320,6 +320,7 @@ export class OrdersService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
     });
@@ -380,7 +381,7 @@ export class OrdersService {
     const orders = await this.prisma.order.findMany({
       where: { customerId },
       include: {
-        items: true,
+        items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
       orderBy: { createdAt: "desc" },
     });

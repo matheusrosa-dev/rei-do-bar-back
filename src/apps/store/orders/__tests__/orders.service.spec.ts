@@ -177,7 +177,7 @@ describe("OrdersService", () => {
           },
         },
         include: {
-          items: true,
+          items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
         },
       });
       expect(prismaMock.product.updateMany).toHaveBeenCalledTimes(2);
@@ -1163,7 +1163,7 @@ describe("OrdersService", () => {
       expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(prismaMock.order.findMany).toHaveBeenCalledWith({
         where: { customerId },
-        include: { items: true },
+        include: { items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
         orderBy: { createdAt: "desc" },
       });
       expect(result).toEqual([
@@ -1302,7 +1302,12 @@ describe("OrdersService", () => {
 
         expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
           where: { id: "order-uuid", customerId },
-          include: { items: { include: { product: true } } },
+          include: {
+            items: {
+              include: { product: true },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            },
+          },
         });
         expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
           where: {
@@ -1323,7 +1328,9 @@ describe("OrdersService", () => {
         expect(prismaMock.couponUsage.deleteMany).not.toHaveBeenCalled();
         expect(prismaMock.order.findMany).toHaveBeenCalledWith({
           where: { customerId },
-          include: { items: true },
+          include: {
+            items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+          },
           orderBy: { createdAt: "desc" },
         });
         expect(findAndFormatOrdersSpy).toHaveBeenCalled();

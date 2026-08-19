@@ -45,8 +45,9 @@ export class AdminOrdersService {
         include: {
           product: true,
         },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       },
-    };
+    } satisfies Prisma.OrderInclude;
 
     const [ongoingOrders, deliveredOrders, cancelledOrders] =
       await this.prisma.$transaction([
@@ -160,6 +161,7 @@ export class AdminOrdersService {
             include: {
               product: true,
             },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
         },
       }),
@@ -238,6 +240,7 @@ export class AdminOrdersService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
     });
@@ -458,6 +461,7 @@ export class AdminOrdersService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
       },
     });

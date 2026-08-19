@@ -59,7 +59,9 @@ describe("DeliveryPersonsOrdersService", () => {
           },
           // Sem os itens, computeOrderTotals quebra em produção — o mock os
           // devolve de qualquer jeito, então só este assert protege o include.
-          include: { items: true },
+          include: {
+            items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+          },
         }),
       );
     });
