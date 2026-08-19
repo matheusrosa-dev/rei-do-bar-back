@@ -39,9 +39,7 @@ export class AdminInventoryService {
         where,
         skip,
         take: limit,
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         include: {
           order: true,
           products: {

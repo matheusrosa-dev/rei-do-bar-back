@@ -61,9 +61,7 @@ export class AdminOrdersService {
             },
           },
           include,
-          orderBy: {
-            createdAt: "asc",
-          },
+          orderBy: [{ createdAt: "asc" }, { orderNumber: "asc" }],
         }),
         this.prisma.order.findMany({
           where: {
@@ -72,9 +70,7 @@ export class AdminOrdersService {
               gte: windowStart,
             },
           },
-          orderBy: {
-            deliveredAt: "desc",
-          },
+          orderBy: [{ deliveredAt: "desc" }, { orderNumber: "desc" }],
           include,
           take: 30,
         }),
@@ -85,9 +81,7 @@ export class AdminOrdersService {
               gte: windowStart,
             },
           },
-          orderBy: {
-            cancelledAt: "desc",
-          },
+          orderBy: [{ cancelledAt: "desc" }, { orderNumber: "desc" }],
           include,
           take: 30,
         }),
@@ -148,9 +142,10 @@ export class AdminOrdersService {
       );
     }
 
-    const orderBy: OrderOrderByWithRelationInput = dto.sortKey
-      ? { [dto.sortKey]: direction }
-      : { createdAt: "desc" };
+    const orderBy: OrderOrderByWithRelationInput[] = [
+      dto.sortKey ? { [dto.sortKey]: direction } : { createdAt: "desc" },
+      { orderNumber: "desc" },
+    ];
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
@@ -190,8 +185,14 @@ export class AdminOrdersService {
     skip: number,
     direction: "asc" | "desc",
   ) {
+    // O `orderBy` não é redundante com a ordenação em memória: sem ele o
+    // Postgres não garante ordem alguma, e como o `sort` é estável os empates
+    // — enormes no caso de `itemsQuantity`, já que a maioria dos pedidos
+    // compartilha a mesma — seriam fatiados de forma diferente a cada página,
+    // duplicando ou omitindo pedidos ao longo da paginação.
     const allOrders = await this.prisma.order.findMany({
       where,
+      orderBy: { orderNumber: "desc" },
       select: {
         id: true,
         deliveryFee: true,

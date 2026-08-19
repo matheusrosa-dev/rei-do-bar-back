@@ -148,7 +148,9 @@ Admin list endpoints accept the following query params:
 | `sortDirection` | `asc` \| `desc` | optional; defaults to `desc` when a sort key is present |
 | `simple` | bool | optional; `true` returns a flat, unpaginated array (no `meta`) instead of the page object — available on products, customers, and delivery persons |
 
-Resources add their own filters on top of these (e.g. `categoryId` / `isActive` on products, `status` / `paymentType` on orders). With no `sortKey`, listings fall back to newest-first (`createdAt desc`).
+Resources add their own filters on top of these (e.g. `categoryId` / `isActive` on products, `status` / `paymentType` on orders). With no `sortKey`, listings fall back to newest-first (`createdAt desc`) — except coupons, which default to their start date ascending. `sortKey` / `sortDirection` are per-resource, not universal: some paginated listings (delivery persons, inventory movements) declare neither and are always newest-first. Because the global pipe whitelists rather than rejects, sending a sort param to one of those is silently ignored, not a 422.
+
+Ordering is **deterministic on every admin listing**, paginated or flat: each one ends on a unique column, so walking the pages of an unchanged result set returns each row exactly once — no duplicates across pages, no rows skipped — and a flat listing comes back in the same order on every request.
 
 The response is a normalized page:
 
@@ -159,7 +161,7 @@ The response is a normalized page:
 }
 ```
 
-**Exceptions**: the admin categories listing is not paginated — it returns a flat array with no `meta`. The products, customers, and delivery persons listings support `simple=true` for the same flat, unpaginated shape.
+**Exceptions**: the admin categories and settings listings are not paginated — they return a flat array with no `meta`. The products, customers, and delivery persons listings support `simple=true` for the same flat, unpaginated shape.
 
 ---
 

@@ -13,6 +13,7 @@ Admin management of runtime settings: reading every setting and updating a setti
 ## Core Patterns
 
 - **Fixed key set**: settings are not created or deleted here — the set of keys is defined by the `SettingKey` enum. Operations are limited to reading all, updating a value, and activating/deactivating.
+- **Listing**: reading all settings returns a **flat array** — no pagination, no filters, no sort input — ordered by `key`. That ordering is the one in this app that needs no unique tiebreaker and carries none: `key` is itself `@unique`, so there are no ties to resolve. Adding a second sort criterion here would be the change that breaks the guarantee, not the one that upholds it.
 - **Keyed by enum**: endpoints address a setting by its `SettingKey`, not by a generated id.
 - **Activate/deactivate**: toggling the active flag controls whether the client-facing read surfaces the setting. Both toggles return **no body** — unlike the update, which returns the updated row.
 - **String values, validated by type**: every setting holds a plain string in `value`. The DTO can only check `@IsString()` — what a valid value looks like depends on the row's `SettingType`, which the request doesn't carry — so `updateSetting` reads the persisted `type` and validates against it before writing. Today only `SettingType.CURRENCY` (`DELIVERY_FEE`, `MIN_ORDER_VALUE`, `WELCOME_COUPON`) is constrained: it must match a plain non-negative integer (no sign, separator, or symbol), or the update is rejected with `adminSettings.INVALID_SETTING_VALUE`. This gate is **load-bearing**: consumers parse these with `Number(...)`, and a non-numeric value would otherwise propagate as `NaN` into the cart total and `Order.couponDiscount`, surfacing as a Prisma failure at checkout instead of a validation error here. `TEXT` and `PHONE` values are still stored as-is, with no format check.
@@ -39,3 +40,4 @@ Admin management of runtime settings: reading every setting and updating a setti
 | Address by key | Routes are keyed by `SettingKey`, never by id |
 | Validate against the persisted type | The DTO checks only `@IsString()`; `updateSetting` reads the row's `SettingType` and enforces the format — `CURRENCY` must be a plain non-negative integer |
 | Client read elsewhere | Active-settings read lives in the store app's settings module |
+| Ordered by a unique key | The listing sorts on `key`, which is `@unique` — the app-wide rule that every ordering ends on a unique column is satisfied outright, not exempted |

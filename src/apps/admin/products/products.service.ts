@@ -47,10 +47,12 @@ export class AdminProductsService {
       }),
     };
 
-    const orderBy: ProductOrderByWithRelationInput = {
-      ...(dto.sortKey && { [dto.sortKey]: dto.sortDirection ?? "desc" }),
-      ...(!dto.sortKey && { createdAt: "desc" }),
-    };
+    const orderBy: ProductOrderByWithRelationInput[] = [
+      dto.sortKey
+        ? { [dto.sortKey]: dto.sortDirection ?? "desc" }
+        : { createdAt: "desc" },
+      { id: "desc" },
+    ];
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
@@ -81,9 +83,7 @@ export class AdminProductsService {
       where: {
         deletedAt: null,
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
     return products;
@@ -94,9 +94,7 @@ export class AdminProductsService {
       where: {
         deletedAt: null,
       },
-      orderBy: {
-        sortOrder: "asc",
-      },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
 
     return products;

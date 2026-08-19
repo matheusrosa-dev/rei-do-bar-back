@@ -95,10 +95,10 @@ export class AdminCustomersService {
       );
     }
 
-    const orderBy: Prisma.CustomerOrderByWithRelationInput =
+    const orderBy: Prisma.CustomerOrderByWithRelationInput[] =
       dto.sortKey === "allOrdersCount"
-        ? { orders: { _count: direction } }
-        : { createdAt: "desc" };
+        ? [{ orders: { _count: direction } }, { id: "desc" }]
+        : [{ createdAt: "desc" }, { id: "desc" }];
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.customer.findMany({
@@ -131,9 +131,7 @@ export class AdminCustomersService {
         deletedAt: null,
         isActive: true,
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
     return customers;
@@ -150,9 +148,7 @@ export class AdminCustomersService {
           include: {
             items: true,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: [{ createdAt: "desc" }, { orderNumber: "desc" }],
         },
       },
     });
@@ -181,6 +177,12 @@ export class AdminCustomersService {
     skip: number,
     direction: "asc" | "desc",
   ) {
+    // O `orderBy` não é redundante com a ordenação em memória: sem ele o
+    // Postgres não garante ordem alguma, e como o `sort` é estável os empates
+    // — a maioria das linhas, todas com zero pedidos entregues — seriam
+    // fatiados de forma diferente a cada página, duplicando ou omitindo
+    // clientes ao longo da paginação. O `id` desempata o `createdAt`, que não
+    // é único.
     const allCustomers = await this.prisma.customer.findMany({
       where,
       select: {
@@ -191,6 +193,7 @@ export class AdminCustomersService {
           },
         },
       },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
 
     allCustomers.sort((a, b) => {

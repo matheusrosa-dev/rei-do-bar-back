@@ -22,9 +22,7 @@ export class AdminCategoriesService {
       where: {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         _count: {
           select: {
@@ -46,9 +44,7 @@ export class AdminCategoriesService {
 
   async findAllToSort() {
     const categories = await this.prisma.category.findMany({
-      orderBy: {
-        sortOrder: "asc",
-      },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
 
     return categories;

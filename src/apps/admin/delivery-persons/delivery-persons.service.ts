@@ -49,7 +49,7 @@ export class AdminDeliveryPersonsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         include: {
           _count: { select: DELIVERED_ORDERS_COUNT },
           session: { select: { refreshTokenExpiresAt: true } },
@@ -74,9 +74,7 @@ export class AdminDeliveryPersonsService {
       where: {
         isActive: true,
       },
-      orderBy: {
-        name: "asc",
-      },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
     return deliveryPersons.map((item) => mapDeliveryPerson(item));

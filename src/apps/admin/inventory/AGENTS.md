@@ -18,7 +18,7 @@ The inventory ledger and admin stock adjustments: listing stock movements, and i
 - **Admin-driven movements**: restock and removal mutate stock and write the movement **inside the same transaction**. Restock takes a **`totalCost` per line** (not a unit price) and stores the derived, rounded unit cost (`Math.round(totalCost / quantity)`) — the column is an integer, so the division is always rounded before persisting; removal snapshots the product's current sale price.
 - **Atomic stock mutation**: both directions use a guarded conditional update filtered on non-deleted products. Decrement additionally guards on `stockQuantity >= quantity`; on a zero-row result, a follow-up lookup distinguishes "product not found" from "insufficient stock", each mapped to an `adminInventory` error. Increment uses the same guard, where a zero-row result can only mean "not found". Soft-deleted products are treated as not-found by both.
 - **Duplicate guard**: a batch is rejected up front when the same product appears twice, so a single movement can never carry two lines for the same product.
-- **Listing**: movements are returned paginated (newest first) with their order and product relations, following the standard page-object contract. Filterable by `origin` and by a set of product ids.
+- **Listing**: movements are returned paginated (newest first) with their order and product relations, following the standard page-object contract. The listing accepts no sort input, but the fixed order still ends on the id: `createdAt` is not unique, so movements committed in the same millisecond would be sliced differently on each page request. Filterable by `origin` and by a set of product ids.
 
 ---
 

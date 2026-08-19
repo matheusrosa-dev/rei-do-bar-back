@@ -56,12 +56,17 @@ export class AdminCouponsService {
 
     const sortDirection = dto.sortDirection ?? "desc";
 
-    let orderBy: CouponOrderByWithRelationInput = { startsAt: "asc" };
+    let primaryOrderBy: CouponOrderByWithRelationInput = { startsAt: "asc" };
     if (dto.sortKey === "usageCount") {
-      orderBy = { usages: { _count: sortDirection } };
+      primaryOrderBy = { usages: { _count: sortDirection } };
     } else if (dto.sortKey) {
-      orderBy = { [dto.sortKey]: sortDirection };
+      primaryOrderBy = { [dto.sortKey]: sortDirection };
     }
+
+    const orderBy: CouponOrderByWithRelationInput[] = [
+      primaryOrderBy,
+      { id: "desc" },
+    ];
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.coupon.findMany({
