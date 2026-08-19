@@ -13,9 +13,9 @@ import {
 } from "./dtos";
 import { AppException } from "@shared/exceptions/app.exception";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { getRecentOrdersWindowStart } from "@shared/helpers/orders-window";
 import { isForeignKeyConstraintViolation } from "@shared/helpers/prisma-errors";
 import {
-  FINALIZED_WINDOW_HOURS,
   ORDER_STATUS_TRANSITIONS,
   OrderSortValueSource,
   OrderWithItems,
@@ -34,9 +34,7 @@ export class AdminOrdersService {
   ) {}
 
   async listOrdersManagement() {
-    const windowStart = new Date(
-      Date.now() - FINALIZED_WINDOW_HOURS * 60 * 60 * 1000,
-    );
+    const windowStart = getRecentOrdersWindowStart();
 
     const include = {
       customer: true,

@@ -36,9 +36,11 @@ export function mapDeliveryPersonWithCount({
 export function mapDeliveryPersonListItem(
   { session, ...deliveryPerson }: DeliveryPersonListItem,
   now: Date,
+  recentDeliveredCount: number,
 ) {
   return {
     ...mapDeliveryPersonWithCount(deliveryPerson),
+    recentDeliveredCount,
     hasAccess: Boolean(
       deliveryPerson.isActive &&
         ((session && session.refreshTokenExpiresAt > now) ||

@@ -33,6 +33,7 @@ Admin order oversight: a status-grouped management board, a paginated/sortable l
 
 | Rule | Detail |
 |---|---|
+| The board's window is the shared one | The recent-activity window comes from the shared recent-orders helper, which the delivery app's shift count and the admin delivery-person listing read too — never a constant of this module's own, and never config. Widening it needs a migration: the event-timestamp backfill cut off at exactly that boundary |
 | Status via state machine | Never an unchecked status update; always through the allowed-transition map |
 | Stock-affecting transitions | Run inside a transaction with guarded updates |
 | Side effects via events | Stock-ledger and notifications are decoupled through order events, emitted only after the transaction commits |

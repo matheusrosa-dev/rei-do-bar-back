@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { OrderStatus, Prisma } from "@shared/database/prisma/generated/client";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
+import { getRecentOrdersWindowStart } from "@shared/helpers/orders-window";
 import { hashPassword } from "@shared/helpers/password";
 import {
   isForeignKeyConstraintViolation,
@@ -58,8 +59,19 @@ export class AdminDeliveryPersonsService {
       this.prisma.deliveryPerson.count({ where }),
     ]);
 
+    const recentDeliveriesByPerson = await this.countRecentDeliveriesByPerson(
+      items,
+      now,
+    );
+
     return {
-      items: items.map((item) => mapDeliveryPersonListItem(item, now)),
+      items: items.map((item) =>
+        mapDeliveryPersonListItem(
+          item,
+          now,
+          recentDeliveriesByPerson.get(item.id) ?? 0,
+        ),
+      ),
       meta: {
         total,
         page,
@@ -274,6 +286,34 @@ export class AdminDeliveryPersonsService {
 
       throw error;
     }
+  }
+
+  private async countRecentDeliveriesByPerson(
+    deliveryPersons: { id: string }[],
+    now: Date,
+  ) {
+    if (deliveryPersons.length === 0) {
+      return new Map<string | null, number>();
+    }
+
+    const windowStart = getRecentOrdersWindowStart(now);
+
+    const recentDeliveries = await this.prisma.order.groupBy({
+      by: ["deliveryPersonId"],
+      where: {
+        deliveryPersonId: { in: deliveryPersons.map(({ id }) => id) },
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: windowStart },
+      },
+      _count: { _all: true },
+    });
+
+    return new Map(
+      recentDeliveries.map((group) => [
+        group.deliveryPersonId,
+        group._count._all,
+      ]),
+    );
   }
 
   private async updateDeliveryPersonOrThrow(

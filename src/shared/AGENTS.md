@@ -4,7 +4,7 @@
 
 Cross-cutting infrastructure used by every feature module. Feature modules import from this directory through the `@shared/` path alias — never via relative paths.
 
-Nothing here is domain-specific, with one deliberate exception: the product/order money helpers (`helpers/products-totals.ts`). That calculation is a **shared invariant** rather than one module's rule — the cart, the customer order response, the admin order listing and the admin customer detail must all report the same total for the same items, and a copy per module is exactly how they drift apart. It lives here for that reason, and only for that reason; a rule owned by a single module still belongs to that module.
+Nothing here is domain-specific, with two deliberate exceptions — the product/order money helpers and the recent-orders window. Both are **shared invariants** rather than one module's rule, and both live here for that reason and only for that reason; a rule owned by a single module still belongs to that module. The money calculation must report the same total for the same items across the cart, the customer order response, the admin order listing and the admin customer detail. The window is the same story in time: it decides what counts as recent activity on the admin board, how many deliveries the delivery app shows the entregador for their shift, and the shift figure the admin's delivery-person listing puts next to the lifetime one — the last two are literally the same number on two surfaces, and a copy per module is exactly how they drift apart while nothing fails.
 
 ## Subdirectory Roles
 
@@ -35,7 +35,7 @@ The Prisma service extends the generated client and is provided by a global modu
 
 ## helpers/
 
-Standalone functions (no classes) covering seven concerns: digest hashing and constant-time comparison, **password hashing**, one-time-code generation, **opaque-token generation**, timezone-aware dates (luxon, `America/Sao_Paulo`), **product totals**, and **Prisma error predicates**.
+Standalone functions (no classes) covering eight concerns: digest hashing and constant-time comparison, **password hashing**, one-time-code generation, **opaque-token generation**, timezone-aware dates (luxon, `America/Sao_Paulo`), the **recent-orders window**, **product totals**, and **Prisma error predicates**.
 
 The two hashing concerns are **not interchangeable** and live in separate files. The plain digest is for high-entropy values the server itself generated (one-time codes, refresh tokens, delivery-person session tokens) — fast is the point, and a stolen digest is useless without the original. User-chosen passwords go through the password helper, which wraps a deliberately slow KDF (bcrypt) with a fixed cost factor and its own verification function; never store a password with the digest helper, and never put a KDF in the token path. Bcrypt's comparison is already constant-time, so the timing-safe string comparison is for static credentials only.
 
@@ -55,6 +55,10 @@ Two functions in `products-totals.ts` are the single source of truth for order/c
 `computeOrderTotals` wraps it with the order-level money, returning `total = productsTotalLessDiscount + deliveryFee - couponDiscount`. Every read of a **persisted** order spreads it over the row (`{ ...order, ...computeOrderTotals(order) }`) rather than re-deriving the formula.
 
 Two **pre-persistence** call sites assemble that same subtraction inline and are meant to: `formatCart` and the order module's minimum-order check both work from a `deliveryFee` read out of settings and a `couponDiscount` computed on the fly, so there is no order row to pass and `computeOrderTotals` would only recompute the item totals they already hold. They still take their base from `productsTotalLessDiscount` — the *base* is what must never diverge, and that part is always the helper's.
+
+The **recent-orders window** is a length in hours plus the function that turns it into a window start, and it is the only definition of "recent" in the codebase. Three surfaces read it and must agree: the admin management board (which finalized orders still show), the delivery app's shift count, and the admin delivery-person listing's shift figure. It is a **constant, never configuration** — it is pinned to data, not to taste: the migrations that backfilled the order event timestamps cut off at exactly this boundary, so rows finalized inside it carry a null stamp. Widening the window without a new migration pulls those gaps back into every one of the three surfaces as if they were recent activity.
+
+It windows on the event timestamps (`deliveredAt`, `cancelledAt`), never on `updatedAt`, which any later write bumps — an admin reassigning the delivery person on an already-delivered order would otherwise resurrect it as recent. The window start takes the caller's `now` when the caller has one to share (a paginated page evaluates every row against a single instant) and defaults to the current time otherwise. This does **not** belong in the date helper, which is for timezone-aware calendar boundaries; a rolling window is plain arithmetic and has no zone.
 
 The Prisma predicates are the canonical way to branch on a Prisma failure — never match on the raw error code inline:
 
@@ -91,7 +95,7 @@ Thin adapters around external SDKs, each wrapped in its own injectable module/se
 | Rule | Detail |
 |---|---|
 | Import via alias | Always `@shared/...`, never relative paths into shared |
-| No domain logic | Keep feature-specific rules out of shared. The money helpers are the one carve-out (see Purpose) — an invariant several modules must agree on, not one module's rule |
+| No domain logic | Keep feature-specific rules out of shared. The money helpers and the recent-orders window are the two carve-outs (see Purpose) — invariants several modules must agree on, not one module's rule |
 | Direct Prisma access | No repository layer; services inject the Prisma service |
 | Config only via `ConfigService` | Never read `process.env` in application code |
 | Prisma errors via predicates | Branch on `isRecordNotFound` / `isUniqueConstraintViolation` / `isForeignKeyConstraintViolation` from `helpers/`, never on raw error codes |

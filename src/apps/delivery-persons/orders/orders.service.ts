@@ -4,9 +4,8 @@ import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { OrderStatusUpdatedEvent } from "@shared/events/order";
 import { AppException } from "@shared/exceptions/app.exception";
+import { getRecentOrdersWindowStart } from "@shared/helpers/orders-window";
 import { computeOrderTotals } from "@shared/helpers/products-totals";
-
-const DELIVERED_WINDOW_HOURS = 10;
 
 @Injectable()
 export class DeliveryPersonsOrdersService {
@@ -34,9 +33,7 @@ export class DeliveryPersonsOrdersService {
   }
 
   async countRecentDeliveries(deliveryPersonId: string) {
-    const windowStart = new Date(
-      Date.now() - DELIVERED_WINDOW_HOURS * 60 * 60 * 1000,
-    );
+    const windowStart = getRecentOrdersWindowStart();
 
     const deliveredCount = await this.prisma.order.count({
       where: {
