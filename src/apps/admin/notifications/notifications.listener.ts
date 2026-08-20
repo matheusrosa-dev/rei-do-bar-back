@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { OnEvent } from "@nestjs/event-emitter";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { NotificationAction } from "@shared/types/notifications";
+import { NotificationAction } from "@shared/database/prisma/generated/enums";
 import { ExpoNotificationsService } from "@shared/libs/expo-notifications/expo-notifications.service";
 import { OrderStatusUpdatedEvent } from "@shared/events/order";
 

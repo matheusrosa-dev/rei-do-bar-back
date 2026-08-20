@@ -344,6 +344,19 @@ model Setting {
   @@map("settings")
 }
 
+model Notification {
+  id             String              @id @default(uuid())
+  target         NotificationTarget
+  title          String
+  description    String
+  action         NotificationAction?
+  status         NotificationStatus
+  customersCount Int                 @map("customers_count")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@map("notifications")
+}
+
 enum SettingKey {
   ALERT_MESSAGE
   WHATSAPP_CONTACT
@@ -386,4 +399,21 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+enum NotificationTarget {
+  ALL
+  NO_ORDERS
+  ABANDONED_CART
+  INACTIVE_30_DAYS
+  SINGLE_ORDER
+}
+
+enum NotificationAction {
+  REDIRECT_TO_ORDERS
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
 }

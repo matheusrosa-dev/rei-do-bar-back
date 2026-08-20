@@ -146,7 +146,7 @@ After finishing **all** edits in a task:
 │   │   │   ├── customers/        # Customer listing, status, hard deletion
 │   │   │   ├── delivery-persons/ # Delivery-person CRUD, password assignment, access revocation
 │   │   │   ├── inventory/        # Stock movements + order lifecycle listener
-│   │   │   ├── notifications/    # Push dispatch + order lifecycle listener
+│   │   │   ├── notifications/    # Push dispatch + broadcast history + order lifecycle listener
 │   │   │   ├── orders/           # Order listing, status transitions, delivery-person assignment
 │   │   │   ├── products/         # Product CRUD, ordering, status
 │   │   │   └── settings/         # Runtime settings read/update/toggle
@@ -176,7 +176,7 @@ After finishing **all** edits in a task:
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)
 │       ├── testing/             # Test factories and mocks (test-only)
-│       └── types/               # Shared TypeScript interfaces and enums
+│       └── types/               # Shared TypeScript interfaces and enum re-exports
 └── test/                        # E2E tests (supertest)
 ```
 

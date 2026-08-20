@@ -2,8 +2,12 @@ import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { OrderStatus, Prisma } from "@shared/database/prisma/generated/client";
 import { ExpoNotificationsService } from "@shared/libs/expo-notifications/expo-notifications.service";
-import { PushNotificationDto } from "./dtos";
-import { getInactivityCutoff, NotificationTarget } from "./helpers";
+import { FindAllNotificationsDto, PushNotificationDto } from "./dtos";
+import { getInactivityCutoff } from "./helpers";
+import {
+  NotificationStatus,
+  NotificationTarget,
+} from "@shared/database/prisma/generated/enums";
 
 @Injectable()
 export class AdminNotificationsService {
@@ -14,7 +18,36 @@ export class AdminNotificationsService {
     private expoNotificationsService: ExpoNotificationsService,
   ) {}
 
+  async findAll(dto: FindAllNotificationsDto) {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.NotificationWhereInput = {};
+
+    if (dto.target?.length) where.target = { in: dto.target };
+    if (dto.status?.length) where.status = { in: dto.status };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.notification.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
   async pushNotification(dto: PushNotificationDto) {
+    let customersCount = 0;
+    let status: NotificationStatus = NotificationStatus.SENT;
+
     try {
       const targetWhere = await this.resolveTargetWhere(dto.target);
 
@@ -30,6 +63,8 @@ export class AdminNotificationsService {
         },
       });
 
+      customersCount = customers.length;
+
       const tokens = customers.flatMap((customer) =>
         customer.pushTokens.map((pushToken) => pushToken.token),
       );
@@ -41,7 +76,23 @@ export class AdminNotificationsService {
         action: dto.action,
       });
     } catch (error) {
+      status = NotificationStatus.FAILED;
       this.logger.error("Falha ao enviar notificação push em massa", error);
+    }
+
+    try {
+      await this.prisma.notification.create({
+        data: {
+          target: dto.target,
+          title: dto.title,
+          description: dto.description,
+          action: dto.action,
+          status,
+          customersCount,
+        },
+      });
+    } catch (error) {
+      this.logger.error("Falha ao registrar a notificação push", error);
     }
   }
 

@@ -1,6 +1,8 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
-import { NotificationTarget } from "../helpers";
-import { NotificationAction } from "@shared/types/notifications";
+import {
+  NotificationAction,
+  NotificationTarget,
+} from "@shared/database/prisma/generated/enums";
 
 export class PushNotificationDto {
   @IsEnum(NotificationTarget)

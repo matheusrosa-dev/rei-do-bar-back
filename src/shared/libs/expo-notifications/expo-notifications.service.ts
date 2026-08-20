@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { IExpoConfig } from "@shared/config/env-config.interface";
-import { NotificationAction } from "@shared/types/notifications";
+import { NotificationAction } from "@shared/database/prisma/generated/enums";
 import Expo, { ExpoPushMessage } from "expo-server-sdk";
 
 @Injectable()
