@@ -594,7 +594,7 @@ describe("AuthService", () => {
         token: "plain-refresh-token",
         deviceId: "device-id",
       });
-      expect(prismaMock.refreshToken.delete).toHaveBeenCalledWith({
+      expect(prismaMock.refreshToken.deleteMany).toHaveBeenCalledWith({
         where: {
           customerId: "customer-id",
           hashedToken: hashString("plain-refresh-token"),
@@ -608,6 +608,24 @@ describe("AuthService", () => {
         token: "plain-refresh-token",
         deviceId: "device-id",
       });
+      expect(prismaMock.pushToken.deleteMany).toHaveBeenCalledWith({
+        where: {
+          deviceId: "device-id",
+        },
+      });
+    });
+
+    it("should not throw and should still revoke the push tokens when the refresh token no longer exists", async () => {
+      prismaMock.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.logout({
+          customerId: "customer-id",
+          token: "plain-refresh-token",
+          deviceId: "device-id",
+        }),
+      ).resolves.toBeUndefined();
+
       expect(prismaMock.pushToken.deleteMany).toHaveBeenCalledWith({
         where: {
           deviceId: "device-id",

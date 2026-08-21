@@ -44,11 +44,36 @@ export class ExpoNotificationsService {
     }));
 
     if (messages.length === 0) {
-      return;
+      return { unregisteredTokens: [] };
     }
 
+    const unregisteredTokens: string[] = [];
+
     for (const chunk of this.expo.chunkPushNotifications(messages)) {
-      await this.expo.sendPushNotificationsAsync(chunk);
+      const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+
+      tickets.forEach((ticket, index) => {
+        if (
+          ticket.status !== "error" ||
+          ticket.details?.error !== "DeviceNotRegistered"
+        ) {
+          return;
+        }
+
+        // Expo echoes the rejected token back, but the field is optional. The
+        // fallback relies on the ticket matching the message at the same index,
+        // which only holds because every message here targets a single token.
+        const to = chunk[index]?.to;
+        const token =
+          ticket.details?.expoPushToken ??
+          (typeof to === "string" ? to : undefined);
+
+        if (token) {
+          unregisteredTokens.push(token);
+        }
+      });
     }
+
+    return { unregisteredTokens };
   }
 }

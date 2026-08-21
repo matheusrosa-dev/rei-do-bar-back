@@ -86,7 +86,7 @@ Event payload classes emitted through the event emitter to decouple side effects
 
 ## libs/
 
-Thin adapters around external SDKs, each wrapped in its own injectable module/service so feature code depends on a local abstraction instead of the vendor SDK directly. Feature modules import the wrapper module; they never import the SDK.
+Thin adapters around external SDKs, each wrapped in its own injectable module/service so feature code depends on a local abstraction instead of the vendor SDK directly. Feature modules import the wrapper module; they never import the SDK. A wrapper stays free of Prisma: when the vendor reports something the database should act on — the push transport surfacing the tokens its tickets rejected as unregistered — it **returns** that to the caller and lets the owning feature module do the write.
 
 ---
 

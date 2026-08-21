@@ -16,9 +16,7 @@ gerar migration unica de init
 Importante:
 corrigir o menu na barra de navegação no android
 implementar sistema de XP
-fazer app de entregas
 adicionar tela de quantos e quais pedidos já foram entregues por um entregador
 criar dashboard
-salvar notificações manuais
-tornar possivel o cliente permitir notificações pelas configurações do app
 adicionar basic auth em todas aplicações
+atribuir apenas entregadores com sessão nos pedidos

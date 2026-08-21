@@ -23,4 +23,13 @@ export class NotificationsService {
       },
     });
   }
+
+  async revokeToken(session: ICurrentSession) {
+    await this.prisma.pushToken.deleteMany({
+      where: {
+        deviceId: session.deviceId!,
+        customerId: session.customerId!,
+      },
+    });
+  }
 }

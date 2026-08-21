@@ -160,7 +160,7 @@ After finishing **all** edits in a task:
 │   │       ├── coupons/         # Coupon redemption rules (availability, discount calc, usage limits) + coupon listing for authenticated customers
 │   │       ├── customers/       # Internal customer service (no public controller)
 │   │       ├── me/              # Authenticated customer self-management
-│   │       ├── notifications/   # Push token registration for authenticated customers
+│   │       ├── notifications/   # Push token registration and per-device revocation for authenticated customers
 │   │       ├── orders/          # Order creation, listing, and cancellation (authenticated customers)
 │   │       ├── products/        # Product catalog (best-sellers listing)
 │   │       └── settings/        # Client-facing read of active runtime settings (delivery fee, alerts, etc.)

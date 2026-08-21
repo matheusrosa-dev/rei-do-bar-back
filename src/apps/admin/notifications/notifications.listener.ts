@@ -5,6 +5,7 @@ import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { NotificationAction } from "@shared/database/prisma/generated/enums";
 import { ExpoNotificationsService } from "@shared/libs/expo-notifications/expo-notifications.service";
 import { OrderStatusUpdatedEvent } from "@shared/events/order";
+import { AdminNotificationsService } from "./notifications.service";
 
 @Injectable()
 export class AdminNotificationsListener {
@@ -13,6 +14,7 @@ export class AdminNotificationsListener {
   constructor(
     private prisma: PrismaService,
     private expoNotificationsService: ExpoNotificationsService,
+    private notificationsService: AdminNotificationsService,
   ) {}
 
   @OnEvent(OrderStatusUpdatedEvent.NAME)
@@ -51,12 +53,17 @@ export class AdminNotificationsListener {
 
       if (tokens.length === 0) return;
 
-      await this.expoNotificationsService.pushNotification({
-        title,
-        description,
-        tokens: tokens.map((pushToken) => pushToken.token),
-        action: NotificationAction.REDIRECT_TO_ORDERS,
-      });
+      const { unregisteredTokens } =
+        await this.expoNotificationsService.pushNotification({
+          title,
+          description,
+          tokens: tokens.map((pushToken) => pushToken.token),
+          action: NotificationAction.REDIRECT_TO_ORDERS,
+        });
+
+      await this.notificationsService.revokeUnregisteredTokens(
+        unregisteredTokens,
+      );
     } catch (error) {
       this.logger.error(
         `Falha ao enviar notificação push do pedido ${order.orderNumber}`,

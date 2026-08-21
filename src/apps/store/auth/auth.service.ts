@@ -196,7 +196,7 @@ export class AuthService {
   }
 
   async logout(session: ICurrentSession) {
-    await this.prisma.refreshToken.delete({
+    await this.prisma.refreshToken.deleteMany({
       where: {
         customerId: session.customerId,
         hashedToken: hashString(session.token!),

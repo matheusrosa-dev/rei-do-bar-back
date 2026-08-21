@@ -69,12 +69,15 @@ export class AdminNotificationsService {
         customer.pushTokens.map((pushToken) => pushToken.token),
       );
 
-      await this.expoNotificationsService.pushNotification({
-        title: dto.title,
-        description: dto.description,
-        tokens,
-        action: dto.action,
-      });
+      const { unregisteredTokens } =
+        await this.expoNotificationsService.pushNotification({
+          title: dto.title,
+          description: dto.description,
+          tokens,
+          action: dto.action,
+        });
+
+      await this.revokeUnregisteredTokens(unregisteredTokens);
     } catch (error) {
       status = NotificationStatus.FAILED;
       this.logger.error("Falha ao enviar notificação push em massa", error);
@@ -93,6 +96,18 @@ export class AdminNotificationsService {
       });
     } catch (error) {
       this.logger.error("Falha ao registrar a notificação push", error);
+    }
+  }
+
+  async revokeUnregisteredTokens(tokens: string[]) {
+    if (tokens.length === 0) return;
+
+    try {
+      await this.prisma.pushToken.deleteMany({
+        where: { token: { in: tokens } },
+      });
+    } catch (error) {
+      this.logger.error("Falha ao remover push tokens não registrados", error);
     }
   }
 
