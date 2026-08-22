@@ -38,6 +38,7 @@ It exposes six of the seven `SettingKey` values. The **welcome coupon is deliber
 
 | Rule | Detail |
 |---|---|
+| Open read | The controller carries no `StoreAuth` — no `x-device-id`, no JWT. The active settings are the same for every visitor, and the client needs them before it has a session |
 | Read-only | This module never writes settings; mutations live in the admin sub-module |
 | Active-only | Only active settings are returned; missing key means "not configured" |
 | Default on absence | Consumers fall back to a default instead of throwing on a missing key |

@@ -23,7 +23,6 @@ export class AppException extends HttpException {
       PRODUCT_OUT_OF_STOCK: "CART_006",
       CUSTOMER_NOT_FOUND: "CART_007",
       PRODUCT_INACTIVE: "CART_008",
-      INVALID_SESSION: "CART_009",
       COUPON_NOT_FOUND: "CART_010",
       COUPON_UNAVAILABLE: "CART_011",
       COUPON_MIN_ORDER_NOT_MET: "CART_012",
@@ -71,9 +70,6 @@ export class AppException extends HttpException {
       COUPON_ALREADY_USED: "ORDER_017",
       WELCOME_COUPON_UNAVAILABLE: "ORDER_018",
       COUPON_NOT_ELIGIBLE: "ORDER_019",
-    },
-    products: {
-      INVALID_SESSION: "PRODUCTS_001",
     },
     adminProducts: {
       PRODUCT_NOT_FOUND: "ADMIN_PRODUCTS_002",

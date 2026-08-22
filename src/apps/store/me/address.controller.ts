@@ -1,16 +1,7 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Param,
-  Post,
-  Put,
-  UseGuards,
-} from "@nestjs/common";
+import { Body, Controller, Delete, Param, Post, Put } from "@nestjs/common";
 import { MeService } from "./me.service";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import type { ICurrentSession } from "@shared/types/jwt";
-import { AccessTokenGuard } from "@shared/guards/access-token.guard";
 import {
   AddAddressDto,
   MeDto,
@@ -19,9 +10,10 @@ import {
   UpdateAddressDto,
 } from "./dtos";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
+import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("me/address")
-@UseGuards(AccessTokenGuard)
+@StoreAuth("accessToken")
 @Serialize(MeDto)
 export class AddressController {
   constructor(private readonly meService: MeService) {}

@@ -2,7 +2,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AppException } from "@shared/exceptions/app.exception";
 import { prismaMock } from "@shared/testing/mocks";
 import {
   AnonymousCustomerFactory,
@@ -304,14 +303,6 @@ describe("ProductsService", () => {
       });
     });
 
-    it("should throw INVALID_SESSION when the session has neither deviceId nor customerId", async () => {
-      await expect(service.findBestSellers({})).rejects.toMatchObject({
-        code: AppException.errorCodes.products.INVALID_SESSION,
-        message: "Sessão inválida",
-        httpStatus: AppException.HttpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-
     it("should return quantityInCart=0 when the found record has no cart", async () => {
       const product = ProductFactory.createOne({ stockQuantity: 20 });
 
@@ -420,14 +411,6 @@ describe("ProductsService", () => {
           },
         }),
       );
-    });
-
-    it("should throw AppException when session does not have deviceId or customerId", () => {
-      const invalidSession = {};
-
-      expect(() =>
-        (service as any).findAnonymousOrCustomerWithCart(invalidSession),
-      ).toThrow(AppException);
     });
 
     it("should query customer (not anonymous) when session has both deviceId and customerId", () => {

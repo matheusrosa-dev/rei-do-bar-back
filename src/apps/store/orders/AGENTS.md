@@ -14,7 +14,7 @@ The order lifecycle for authenticated customers: creating an order from the curr
 
 ## Auth Requirement
 
-The entire controller is protected by the access-token guard. The authenticated customer id comes from the current session. All endpoints return the customer's full, freshly computed order list rather than just the affected order.
+The entire controller carries `@StoreAuth("accessToken")` at class level — device-id then bearer JWT. The authenticated customer id comes from the current session. All endpoints return the customer's full, freshly computed order list rather than just the affected order.
 
 ---
 

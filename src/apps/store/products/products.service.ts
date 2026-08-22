@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AppException } from "@shared/exceptions/app.exception";
 import type { ICurrentSession } from "@shared/types/jwt";
 import { FindBestSellersDto } from "./dtos";
 
@@ -78,14 +77,6 @@ export class ProductsService {
         },
       },
     };
-
-    if (!session?.deviceId && !session?.customerId) {
-      throw new AppException(
-        AppException.errorCodes.products.INVALID_SESSION,
-        "Sessão inválida",
-        AppException.HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
 
     if (session?.customerId) {
       return this.prisma.customer.findFirst({

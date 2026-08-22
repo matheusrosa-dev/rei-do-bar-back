@@ -20,7 +20,7 @@ The listing fetches products and the current session's cart **in parallel**, reu
 - the quantity already in the session's cart (zero when absent), and
 - `remainingStock`: the actual remaining count **at or below the low-stock threshold of 10**, and `null` above it. The field is always present — `null` means "plenty", not "unknown". The raw stock quantity is queried but never exposed.
 
-One deliberate difference from the cart resolver: this one **does not throw** when the session's owner or cart is missing — it falls back to an empty cart, so a stale device id still gets a browsable catalog. The only failure is a session carrying neither a device id nor a customer id.
+One deliberate difference from the cart resolver: this one **never throws** — it falls back to an empty cart when the session's owner or cart is missing, so a stale device id still gets a browsable catalog. There is no "invalid session" case left to handle: `@StoreAuth("deviceId")` on the controller guarantees a valid `x-device-id` before the handler runs, so the session always carries an identifier. That guarantee lives in the guard, not in a re-check here — do not add one back.
 
 ---
 
@@ -43,4 +43,5 @@ The query DTO validates the optional filter params. The response DTO (applied at
 | Parallel I/O | Product and cart lookups run together, not sequentially |
 | Reuse the duality | Session resolution mirrors the cart domain's anonymous/customer branching, but degrades to an empty cart instead of throwing |
 | Explicit ordering | Results are always sorted by the explicit sort field, independent of active filters |
-| Errors | Thrown as `AppException`; codes are listed in the API contract reference |
+| No error codes | This module throws nothing and owns no namespace in the error registry. The listing degrades instead of failing, and the session invariant is enforced by the route's guard |
+| Anonymous, not open | `@StoreAuth("deviceId")` at controller class level: a valid `x-device-id` is required, a JWT is not. The listing is cart-aware, so it needs a session to enrich against — it just does not need an authenticated one |

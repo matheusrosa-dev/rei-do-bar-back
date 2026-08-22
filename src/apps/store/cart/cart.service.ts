@@ -429,14 +429,6 @@ export class CartService {
       },
     };
 
-    if (!session?.deviceId && !session?.customerId) {
-      throw new AppException(
-        AppException.errorCodes.cart.INVALID_SESSION,
-        "Sessão inválida",
-        AppException.HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-
     if (!session?.customerId) {
       const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({
         where: { deviceId: session.deviceId },

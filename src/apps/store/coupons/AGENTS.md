@@ -16,13 +16,13 @@ It also owns the single **client-facing** coupon route — the authenticated cus
 
 ## Module Design
 
-The module provides and exports its service so other modules can depend on it, **and** registers a controller for the client-facing listing. It is imported both by `AppModule` (for the route) and by the modules that consume the service (`cart`, `orders`).
+The module provides and exports its service so other modules can depend on it, **and** registers a controller for the client-facing listing. It is imported both by `StoreModule` (for the route) and by the modules that consume the service (`cart`, `orders`).
 
 ---
 
 ## Client Listing
 
-The module's only route. Authenticated only (`AccessTokenGuard` on the controller class); returns the coupons an authenticated customer can see, serialized through the response DTO. A coupon is listed when it is active and has started — including coupons the customer can no longer redeem, each carrying a flag saying **why**, so the client renders them disabled instead of them silently disappearing.
+The module's only route. Authenticated only — `@StoreAuth("accessToken")` at controller class level, so the request is checked for a valid `x-device-id` before its bearer JWT. It returns the coupons an authenticated customer can see, serialized through the response DTO. A coupon is listed when it is active and has started — including coupons the customer can no longer redeem, each carrying a flag saying **why**, so the client renders them disabled instead of them silently disappearing.
 
 A coupon the customer already redeemed (they have a `CouponUsage` row for it) stays in the list flagged as used, with no time limit.
 

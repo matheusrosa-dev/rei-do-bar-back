@@ -17,7 +17,7 @@ Each resource sub-module has its own `AGENTS.md` documenting its resource-specif
 
 ## Authentication
 
-All admin controllers apply the admin-auth composite decorator **at class level**. It marks routes as public (bypassing the global device-id guard and any JWT guard) and then enforces the **admin** Basic Auth guard, which validates credentials against the admin config namespace (other audiences have their own guard and credentials — see `src/shared/guards/AGENTS.md`). Admin routes therefore require neither an `x-device-id` header nor a JWT.
+All admin controllers apply the admin-auth composite decorator **at class level**. It applies the **admin** Basic Auth guard and nothing else — that guard validates credentials against the admin config namespace (other audiences have their own guard and credentials — see `src/shared/guards/AGENTS.md`). Admin routes therefore require neither an `x-device-id` header nor a JWT: no guard on this surface asks for either. Nothing is bypassed — the customer guards are simply never applied here.
 
 ---
 

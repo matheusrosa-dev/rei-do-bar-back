@@ -33,7 +33,7 @@ The delivery app authenticates with **opaque bearer tokens** issued by `auth/`, 
 - **Both tokens travel in `Authorization: Bearer`**, each validated by its own guard before the handler runs — the access token on every protected controller, the refresh token on the one refresh route. No token is ever read from a request body.
 - **No logout endpoint** (deliberate, for now): a session ends by expiring or by admin revocation. Adding one means deleting the session row, not inventing a second mechanism.
 
-Every controller outside `auth/` is gated by the delivery-person auth composite at class level, which marks the route public (bypassing the global device-id guard — the delivery app sends no `x-device-id`) and applies the access-token guard. Inside `auth/`, only the refresh route is guarded, by the refresh-token guard applied directly on the handler. See `src/shared/guards/AGENTS.md`.
+Every controller outside `auth/` is gated by the delivery-person auth composite at class level, which applies the access-token guard and nothing else — the delivery app sends no `x-device-id`, and no guard on this surface asks for one. Inside `auth/`, only the refresh route is guarded, by the refresh-token guard applied directly on the handler; login carries no auth guard at all. See `src/shared/guards/AGENTS.md`.
 
 **The token is the identity.** Handlers read the delivery person from `@CurrentDeliveryPerson()`, never from a route param or the body. Keep scoping every query by that id anyway — defense in depth, and it keeps identity a guard concern rather than a service one.
 

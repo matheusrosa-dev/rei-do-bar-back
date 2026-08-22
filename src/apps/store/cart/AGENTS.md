@@ -18,7 +18,7 @@ All cart operations for both anonymous and authenticated customers:
 
 ## The Anonymous/Customer Duality
 
-Every cart operation resolves the owner from the current session. The session always carries a device id, and *additionally* a customer id once authenticated — so the resolver branches on **whether a `customerId` is present**, not on an either/or. A single private resolver encapsulates that branching (anonymous lookup by device id vs. customer lookup by id) and always loads the cart with its items and their products. It throws a domain error when the owner or cart is missing.
+Every cart operation resolves the owner from the current session. The session always carries a device id — `@StoreAuth("deviceId")` on the controller guarantees it, so the resolver never re-checks for a session with no identifier at all — and *additionally* a customer id once authenticated — so the resolver branches on **whether a `customerId` is present**, not on an either/or. A single private resolver encapsulates that branching (anonymous lookup by device id vs. customer lookup by id) and always loads the cart with its items and their products. It throws a domain error when the owner or cart is missing.
 
 The customer lookup deliberately does **not** filter on `isActive` or the soft-delete timestamp — an inactive customer can still load and edit a cart. That gate lives at order placement, not here, so a deactivated customer is blocked at checkout rather than silently losing their cart.
 

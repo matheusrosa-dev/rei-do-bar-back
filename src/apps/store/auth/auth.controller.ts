@@ -1,13 +1,5 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post,
-  UseGuards,
-} from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
 import { AuthService } from "./auth.service";
-import { Public } from "@shared/decorators/public.decorator";
 import {
   SyncDeviceIdDto,
   LoginOtpCodeDto,
@@ -19,16 +11,15 @@ import {
   IpThrottle,
 } from "@shared/decorators/throttle.decorator";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
-import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
 import type { ICurrentSession } from "@shared/types/jwt";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
+import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("auth")
 @Serialize(AuthDto)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Public()
   @Post("sync-device-id")
   @IpThrottle("deviceSync")
   async syncDeviceId(@Body() body: SyncDeviceIdDto) {
@@ -39,6 +30,7 @@ export class AuthController {
 
   @Post("send-otp-code")
   @DeviceThrottle("otpSend", "otpSendLong")
+  @StoreAuth("deviceId")
   @HttpCode(HttpStatus.NO_CONTENT)
   async sendOtpCode(
     @CurrentSession() session: ICurrentSession,
@@ -49,6 +41,7 @@ export class AuthController {
 
   @Post("login-otp-code")
   @DeviceThrottle("otpLogin")
+  @StoreAuth("deviceId")
   async loginWithOtpCode(
     @CurrentSession() session: ICurrentSession,
     @Body() body: LoginOtpCodeDto,
@@ -57,7 +50,7 @@ export class AuthController {
   }
 
   @Post("refresh")
-  @UseGuards(RefreshTokenGuard)
+  @StoreAuth("refreshToken")
   async refreshTokens(@CurrentSession() session: ICurrentSession) {
     return this.authService.refreshTokens({
       customerId: session.customerId!,
@@ -66,7 +59,7 @@ export class AuthController {
   }
 
   @Post("logout")
-  @UseGuards(RefreshTokenGuard)
+  @StoreAuth("refreshToken")
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@CurrentSession() session: ICurrentSession) {
     await this.authService.logout(session);

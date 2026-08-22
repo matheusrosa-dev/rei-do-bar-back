@@ -4,8 +4,10 @@ import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import { FindBestSellersDto, ProductsDto } from "./dtos";
 import type { ICurrentSession } from "@shared/types/jwt";
+import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("products")
+@StoreAuth("deviceId")
 @Serialize(ProductsDto)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}

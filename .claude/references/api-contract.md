@@ -56,7 +56,6 @@ Codes are namespaced by domain on the application exception's static registry. A
 | cart | `PRODUCT_OUT_OF_STOCK` | `CART_006` |
 | cart | `CUSTOMER_NOT_FOUND` | `CART_007` |
 | cart | `PRODUCT_INACTIVE` | `CART_008` |
-| cart | `INVALID_SESSION` | `CART_009` |
 | cart | `COUPON_NOT_FOUND` | `CART_010` |
 | cart | `COUPON_UNAVAILABLE` | `CART_011` |
 | cart | `COUPON_MIN_ORDER_NOT_MET` | `CART_012` |
@@ -98,7 +97,6 @@ Codes are namespaced by domain on the application exception's static registry. A
 | order | `COUPON_ALREADY_USED` | `ORDER_017` |
 | order | `WELCOME_COUPON_UNAVAILABLE` | `ORDER_018` |
 | order | `COUPON_NOT_ELIGIBLE` | `ORDER_019` |
-| products | `INVALID_SESSION` | `PRODUCTS_001` |
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
 | adminProducts | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` |
 | adminProducts | `CATEGORY_INACTIVE` | `ADMIN_PRODUCTS_004` |
@@ -176,6 +174,8 @@ All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00)
 The session is **additive, not exclusive**. The current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId` / `phone` on top when a valid access token is present — so an authenticated session carries **both**. Cart-, product-, and order-related reads branch on *whether a `customerId` is present*, not on an either/or.
 
 The raw `token` is attached only on the two routes that consume a refresh token: `/auth/refresh` and `/auth/logout`.
+
+**A store route can also run with no session at all.** Authentication is opt-in per route, so three of them require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id), `GET /categories`, and `GET /settings`. Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
 
 The **delivery app is a separate audience** and shares none of this. It sends no `x-device-id` and no customer JWT; it carries an opaque bearer token minted by `POST /delivery-persons/auth/login`, which its guard resolves to a delivery-person id on its own request property. Its routes live under `/delivery-persons/` and never take an id in the path.
 

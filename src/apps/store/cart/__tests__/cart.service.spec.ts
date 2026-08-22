@@ -797,16 +797,6 @@ describe("CartService", () => {
       expect(prismaMock.anonymousCustomer.findUnique).not.toHaveBeenCalled();
     });
 
-    it("should throw AppException when session has neither deviceId nor customerId", async () => {
-      await expect(
-        (service as any).findAnonymousOrCustomerWithCartOrThrow({}),
-      ).rejects.toMatchObject({
-        code: AppException.errorCodes.cart.INVALID_SESSION,
-        message: "Sessão inválida",
-        httpStatus: AppException.HttpStatus.INTERNAL_SERVER_ERROR,
-      });
-    });
-
     it("should throw AppException when anonymous customer is not found", async () => {
       prismaMock.anonymousCustomer.findUnique.mockResolvedValue(null);
 

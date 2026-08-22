@@ -11,8 +11,10 @@ import {
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import type { ICurrentSession } from "@shared/types/jwt";
+import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("cart")
+@StoreAuth("deviceId")
 @Serialize(CartDto)
 export class CartController {
   constructor(private readonly cartService: CartService) {}

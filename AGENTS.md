@@ -6,7 +6,7 @@ REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
-Feature modules are grouped by **consumer audience** under `src/apps/`: `store/` (the customer app), `admin/` (the backoffice), and `delivery-persons/` (the delivery app). The grouping is organizational, not a new layer — an app directory adds no abstraction of its own, and `admin/` and `delivery-persons/` additionally own a **container module** that registers their sub-modules, while `store/` modules are registered directly in `AppModule`. A new feature belongs to exactly one app directory; when two audiences need the same rules, the owning module exports its service and the other imports it (as `store/coupons/` does) instead of the logic being duplicated or hoisted out of `apps/`.
+Feature modules are grouped by **consumer audience** under `src/apps/`: `store/` (the customer app), `admin/` (the backoffice), and `delivery-persons/` (the delivery app). The grouping is organizational, not a new layer — an app directory adds no abstraction of its own, but each one owns a **container module** at its root (`StoreModule`, `AdminModule`, `DeliveryPersonsModule`) that registers its sub-modules, and only those three are imported by `AppModule`. A new feature belongs to exactly one app directory; when two audiences need the same rules, the owning module exports its service and the other imports it (as `store/coupons/` does) instead of the logic being duplicated or hoisted out of `apps/`.
 
 ---
 
@@ -153,7 +153,7 @@ After finishing **all** edits in a task:
 │   │   ├── delivery-persons/    # Delivery app surface (opaque bearer tokens) — container module + sub-modules
 │   │   │   ├── auth/            # CPF + password login, token refresh
 │   │   │   └── orders/          # Orders out for delivery, delivery confirmation, shift delivery count
-│   │   └── store/               # Customer-facing app — no container module; each module is registered in AppModule
+│   │   └── store/               # Customer-facing app — container module + sub-modules
 │   │       ├── auth/            # Authentication: OTP flow, JWT issuance, token refresh
 │   │       ├── cart/            # Cart management (anonymous + authenticated)
 │   │       ├── categories/      # Product categories (read-only for clients)
@@ -167,11 +167,11 @@ After finishing **all** edits in a task:
 │   └── shared/                  # Cross-cutting concerns
 │       ├── config/              # Env config loading and interfaces
 │       ├── database/            # PrismaService + generated Prisma client
-│       ├── decorators/          # Route/param decorators (public, current-session, current-delivery-person, current-delivery-person-session, admin-auth, delivery-person-auth, throttle)
+│       ├── decorators/          # Route/param decorators (current-session, current-delivery-person, current-delivery-person-session, store-auth, admin-auth, delivery-person-auth, throttle)
 │       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # Device-id, access-token, refresh-token, admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards
+│       ├── guards/              # Device-id, access-token, refresh-token, admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards — none registered globally
 │       ├── helpers/             # Digest hashing, password hashing (bcrypt), OTP generation, opaque tokens, timezone dates, Prisma error predicates
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)
@@ -190,7 +190,7 @@ After finishing **all** edits in a task:
 - Every feature module lives under `src/apps/<app>/<feature>/`, one directory per feature, never at the `src/` root. Nesting stops there: features are not further grouped into sub-domains inside an app.
 - A feature module directory typically contains: a module, a service, a controller, a `dtos/` directory, and a `__tests__/` directory. Three deviations are expected:
   - **Internal modules** (`store/customers/`) have no controller and no `dtos/` — they are consumed by other services, not over HTTP. `store/coupons/` is a hybrid: it exports its service to other modules **and** owns a client-facing controller.
-  - **Container modules** (`admin/`, `delivery-persons/`) sit at an app root and hold only a module file plus their sub-module directories — no service, controller, or `dtos/` of their own.
+  - **Container modules** (`store/`, `admin/`, `delivery-persons/`) sit at an app root and hold only a module file plus their sub-module directories — no service, controller, or `dtos/` of their own.
   - Modules add supporting files when the domain needs them: `strategies/` (store auth), `helpers.ts` (several admin sub-modules), `validators/` (admin coupons), `*.listener.ts` (admin inventory/notifications), and a second controller (`store/me/address.controller.ts`).
 - Test files live in `__tests__/` subdirectories named `<subject>.spec.ts`.
 
@@ -263,8 +263,9 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 
 | Provider | Scope | Effect |
 |---|---|---|
-| Device-id guard | `APP_GUARD` (global) | All non-public routes require a valid UUID in the `x-device-id` header |
 | Delay interceptor | `APP_INTERCEPTOR` (global) | Adds the artificial delay from `API_DELAY`; no-ops when the value is 0 |
+
+**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. See `src/shared/guards/AGENTS.md`.
 
 `ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 

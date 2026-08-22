@@ -5,16 +5,15 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  UseGuards,
 } from "@nestjs/common";
 import { NotificationsService } from "./notifications.service";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import type { ICurrentSession } from "@shared/types/jwt";
-import { AccessTokenGuard } from "@shared/guards/access-token.guard";
 import { RegisterTokenDto } from "./dtos";
+import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("notifications")
-@UseGuards(AccessTokenGuard)
+@StoreAuth("accessToken")
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
