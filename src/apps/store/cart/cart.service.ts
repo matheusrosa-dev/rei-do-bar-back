@@ -4,6 +4,7 @@ import { AddToCartDto, AssignCouponToCartDto, RemoveFromCartDto } from "./dtos";
 import {
   CartItem,
   Coupon,
+  Prisma,
   Product,
   SettingKey,
 } from "@shared/database/prisma/generated/client";
@@ -94,6 +95,7 @@ export class CartService {
             include: {
               product: true,
             },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           coupon: true,
         },
@@ -212,6 +214,7 @@ export class CartService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         coupon: true,
       },
@@ -240,6 +243,7 @@ export class CartService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         coupon: true,
       },
@@ -303,6 +307,7 @@ export class CartService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         coupon: true,
       },
@@ -340,6 +345,7 @@ export class CartService {
         select: {
           items: {
             include: { product: true },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           coupon: true,
         },
@@ -365,6 +371,7 @@ export class CartService {
       select: {
         items: {
           include: { product: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         coupon: true,
       },
@@ -405,6 +412,7 @@ export class CartService {
           include: {
             product: true,
           },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         },
         coupon: true,
       },
@@ -423,11 +431,12 @@ export class CartService {
             include: {
               product: true,
             },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           coupon: true,
         },
       },
-    };
+    } satisfies Prisma.AnonymousCustomerInclude & Prisma.CustomerInclude;
 
     if (!session?.customerId) {
       const anonymousCustomer = await this.prisma.anonymousCustomer.findUnique({

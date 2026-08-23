@@ -725,6 +725,7 @@ describe("CartService", () => {
                 include: {
                   product: true,
                 },
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               },
               coupon: true,
             },
@@ -757,6 +758,7 @@ describe("CartService", () => {
                 include: {
                   product: true,
                 },
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               },
               coupon: true,
             },
@@ -788,6 +790,7 @@ describe("CartService", () => {
                 include: {
                   product: true,
                 },
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               },
               coupon: true,
             },
@@ -1182,6 +1185,7 @@ describe("CartService", () => {
             include: {
               product: true,
             },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           coupon: true,
         },
@@ -1224,6 +1228,7 @@ describe("CartService", () => {
             include: {
               product: true,
             },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           },
           coupon: true,
         },
