@@ -58,6 +58,28 @@ The Passport **refresh-token guard** is applied on the two **customer** routes t
 
 ---
 
+## Directory Layout
+
+Guards are split into **one directory per audience**, mirroring `src/apps/`:
+
+```
+guards/
+├── store/                    # customer app: store basic-auth, device-id, access-token,
+│                             # refresh-token, otp-throttler
+├── admin/                    # backoffice: admin basic-auth
+├── delivery-persons/         # delivery app: delivery-person access-token, refresh-token
+├── throttler.guard.ts        # shared rate-limiting base
+└── ip-throttler.guard.ts     # shared IP tracker
+```
+
+Each audience directory owns its own `__tests__/`. A guard goes into the directory of the audience whose **credential or header** it reads — never the one that happens to use it first. The device-id guard sits under `store/` because the header is the customer app's; the admin and delivery surfaces never send it.
+
+The rate-limiting guards split on the same rule, by **what they track**. `OtpThrottlerGuard` lives under `store/` because its tracker keys on `x-device-id` — the customer app's header, which no other audience sends, so the guard is unusable outside the store surface however its callers change.
+
+`BaseThrottlerGuard` and `IpThrottlerGuard` **stay at the root**: the base only translates a limit breach into `AUTH_007`, and the IP tracker is the library default. Neither reads an audience header, and both are reusable as-is by an admin or delivery rate limit. Their being called only from store routes today is a fact about today's routes, not about the guards.
+
+Filenames keep the audience prefix they already carried (`store-basic-auth.guard.ts`, `delivery-person-access-token.guard.ts`) even though the directory now repeats it — the class names are the prefixed ones, and file and class stay in step. Do not strip the prefix on a move.
+
 ## Guard Roles
 
 - **Device-id guard**: reads the `x-device-id` header and validates it as a UUID. It only gates access and does not populate the request user. It has **no dependencies and no metadata lookup** — it runs on exactly the routes whose `StoreAuth` level includes it, and on no others.
@@ -123,6 +145,7 @@ The delivery-person composite keeps its name (`DeliveryPersonAuth`) across the c
 | Rule | Detail |
 |---|---|
 | No global guards | Nothing is registered as `APP_GUARD`. Auth is opt-in per route, through the audience composite |
+| One directory per audience | A guard lives under `store/`, `admin/`, or `delivery-persons/`, chosen by the credential or header it reads; its spec lives in that directory's `__tests__/`. A guard that reads no audience header — the throttler base and the IP tracker — stays at the root |
 | Per-scope auth | Every guard — device-id included — is applied per controller/route, never globally |
 | A guard is never listed in `providers` | `@UseGuards` (bare or through the audience composite) is the registration — Nest picks the class up from the controller metadata and injects its dependencies. No guard needs an explicit entry anywhere. Passport strategies are not guards: they stay in `providers` |
 | One guard per audience | Each audience gets its own standalone guard — own credential store, own header, and its own answer on whether failed attempts are counted (the admin guard has a lockout window and storage key; the store guard deliberately has neither) — named after the audience. The duplication is intentional |

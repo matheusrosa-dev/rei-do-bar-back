@@ -1,6 +1,6 @@
 import { Body, Controller, Ip, Post, UseGuards } from "@nestjs/common";
 import { CurrentDeliveryPersonSession } from "@shared/decorators/current-delivery-person-session.decorator";
-import { DeliveryPersonRefreshTokenGuard } from "@shared/guards/delivery-person-refresh-token.guard";
+import { DeliveryPersonRefreshTokenGuard } from "@shared/guards/delivery-persons/delivery-person-refresh-token.guard";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import type { ICurrentDeliveryPersonSession } from "@shared/types/delivery-person";
 import { DeliveryPersonsAuthService } from "./auth.service";

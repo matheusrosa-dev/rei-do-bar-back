@@ -171,7 +171,7 @@ After finishing **all** edits in a task:
 │       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # Device-id, access-token, refresh-token, store basic-auth and admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards — none registered globally
+│       ├── guards/              # One directory per audience — store/ (basic-auth, device-id, access/refresh token, OTP throttler), admin/ (basic-auth), delivery-persons/ (access/refresh token, DB session) — plus the throttler base and IP tracker at the root; none registered globally
 │       ├── helpers/             # Digest hashing, password hashing (bcrypt), OTP generation, opaque tokens, timezone dates, Prisma error predicates
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)

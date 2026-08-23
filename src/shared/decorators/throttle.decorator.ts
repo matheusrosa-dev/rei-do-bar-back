@@ -1,6 +1,6 @@
 import { UseGuards, applyDecorators } from "@nestjs/common";
 import { SkipThrottle } from "@nestjs/throttler";
-import { OtpThrottlerGuard } from "@shared/guards/otp-throttler.guard";
+import { OtpThrottlerGuard } from "@shared/guards/store/otp-throttler.guard";
 import { IpThrottlerGuard } from "@shared/guards/ip-throttler.guard";
 
 export const DEVICE_THROTTLERS = [

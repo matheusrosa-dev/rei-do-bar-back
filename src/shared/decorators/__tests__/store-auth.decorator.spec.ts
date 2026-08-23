@@ -1,9 +1,9 @@
 import { Controller } from "@nestjs/common";
 import { GUARDS_METADATA } from "@nestjs/common/constants";
-import { AccessTokenGuard } from "@shared/guards/access-token.guard";
-import { DeviceIdGuard } from "@shared/guards/device-id.guard";
-import { RefreshTokenGuard } from "@shared/guards/refresh-token.guard";
-import { StoreBasicAuthGuard } from "@shared/guards/store-basic-auth.guard";
+import { AccessTokenGuard } from "@shared/guards/store/access-token.guard";
+import { DeviceIdGuard } from "@shared/guards/store/device-id.guard";
+import { RefreshTokenGuard } from "@shared/guards/store/refresh-token.guard";
+import { StoreBasicAuthGuard } from "@shared/guards/store/store-basic-auth.guard";
 import { StoreAuth } from "../store-auth.decorator";
 
 const guardsOf = (level: Parameters<typeof StoreAuth>[0]) => {

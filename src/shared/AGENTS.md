@@ -16,7 +16,7 @@ Nothing here is domain-specific, with two deliberate exceptions — the product/
 | `events/` | Cross-module event payload classes carried by the event emitter (e.g. order lifecycle events) |
 | `exceptions/` | The single application exception type and its error-code registry |
 | `filters/` | The global exception filter |
-| `guards/` | Device-id, access-token, refresh-token, one standalone guard per audience credential (store Basic Auth, admin Basic Auth, delivery-person opaque access and refresh tokens), and throttler (rate-limiting) guards — none of them registered globally |
+| `guards/` | One subdirectory per audience (`store/`, `admin/`, `delivery-persons/`) holding that audience's guards — device-id, access-token, refresh-token and store Basic Auth under `store/`, admin Basic Auth under `admin/`, the opaque access and refresh token guards under `delivery-persons/` — plus the device-keyed OTP throttler under `store/`. The rate-limiting base and the IP tracker stay at the root, since neither reads an audience header. None of them registered globally |
 | `helpers/` | Standalone utility functions with no class wrappers |
 | `interceptors/` | Response wrapping, serialization, artificial delay, and HTTP request logging |
 | `libs/` | Thin wrappers over third-party SDKs, exposed as injectable modules/services (e.g. the Expo push-notification transport) |
