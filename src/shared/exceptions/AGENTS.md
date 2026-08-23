@@ -4,7 +4,7 @@
 
 This directory defines the **only** exception class used in application code. It extends the framework's HTTP exception and carries a stable error **code**, a user-facing **message**, and an **HTTP status**. The framework's status enum is re-exported from the class, so call sites do not import it separately.
 
-Error codes are organized into a static registry, namespaced by domain. New failure cases must register a code in that registry **before** it is thrown. The registry's concrete code values are the API's error contract and are catalogued in `references/api-contract.md` (`.claude/references/api-contract.md` for Claude Code, `.opencode/references/api-contract.md` for opencode) — do not duplicate the value list here, where it would drift.
+Error codes are organized into a static registry, namespaced by domain. New failure cases must register a code in that registry **before** it is thrown. The registry's concrete code values are the API's error contract and are catalogued in `.claude/references/api-contract.md` — do not duplicate the value list here, where it would drift.
 
 A namespace is keyed by **audience + resource**, and is prefixed with the audience whenever the resource is not the customer app's (`admin*`, `deliveryPersons*`; the store's namespaces carry no prefix). Two things follow from that, and they pull in opposite directions:
 

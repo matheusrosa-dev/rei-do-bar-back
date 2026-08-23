@@ -16,9 +16,7 @@ Before accessing, creating, or modifying any file inside a directory, you **must
 
 The `AGENTS.md` files are the source of truth for the conventions in their respective scopes and take precedence over any inferred pattern. Never assume a convention — always consult the corresponding `AGENTS.md` first.
 
-For the stable API contract (response envelope, error response shape, the error-code registry, and the pagination shape), consult `references/api-contract.md` — available at both `.claude/references/api-contract.md` (Claude Code) and `.opencode/references/api-contract.md` (opencode).
-
-The `.claude/` and `.opencode/` directories are **mirrors**: files in `commands/` and `references/` must be kept in sync — a change to one side must be applied to the other in the same task, with only the tool-specific frontmatter (e.g. `agent` vs `argument-hint`) and internal path references allowed to differ.
+For the stable API contract (response envelope, error response shape, the error-code registry, and the pagination shape), consult `.claude/references/api-contract.md`.
 
 ---
 
@@ -45,9 +43,9 @@ The `.claude/` and `.opencode/` directories are **mirrors**: files in `commands/
 After finishing **all** edits in a task:
 
 1. Run `npm run lint` and `npm run typecheck` in the terminal. Fix every reported lint and type error before proceeding.
-2. Launch an **independent subagent** with the `/review-changes` command as the prompt (`.claude/commands/review-changes.md` for Claude Code, `.opencode/commands/review-changes.md` for opencode), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
+2. Launch an **independent subagent** with the `/review-changes` command as the prompt (`.claude/commands/review-changes.md`), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
 3. Fix **all Critical and Warning** issues from the report, then re-run `npm run lint` and `npm run typecheck` to confirm no new issues were introduced.
-4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md` for Claude Code, `.opencode/commands/review-agents-docs.md` for opencode) with the same list of changed files to audit the affected documentation.
+4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md`) with the same list of changed files to audit the affected documentation.
 
 > **Review severity levels.** **Critical** = broken contract, bug, security risk, or a violation of a structural project convention. **Warning** = style inconsistency, a pattern applied incompletely, or a decision that will accrue debt. **Suggestion** = optional improvement with no immediate impact.
 
@@ -253,7 +251,7 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 
 ### Response Shape & Errors
 
-All successful responses are automatically wrapped as `{ "data": ... }`. Errors follow `{ "code": "DOMAIN_NNN", "message": "..." }`. The full response envelope, error contract, and error-code registry are documented in `references/api-contract.md` (`.claude/references/api-contract.md` for Claude Code, `.opencode/references/api-contract.md` for opencode).
+All successful responses are automatically wrapped as `{ "data": ... }`. Errors follow `{ "code": "DOMAIN_NNN", "message": "..." }`. The full response envelope, error contract, and error-code registry are documented in `.claude/references/api-contract.md`.
 
 ### Monetary Values
 
