@@ -85,6 +85,7 @@ export class AdminDeliveryPersonsService {
     const deliveryPersons = await this.prisma.deliveryPerson.findMany({
       where: {
         isActive: true,
+        hashedPassword: { not: null },
       },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });

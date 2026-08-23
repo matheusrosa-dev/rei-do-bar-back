@@ -5,6 +5,7 @@ diminuir o id
 o ExpoNotificationsService não trata tickets/receipts, então tokens DeviceNotRegistered nunca são removidos de push_tokens. Conforme a base envelhece, todo segmento vai carregar tokens mortos. Não é problema deste plano, mas é a próxima dívida do canal.
 adicionar logs para alterações em produtos e categorias
 nao deve ser possivel alterar status de um cupom que já foi finalizado
+adicionar categoria de ofertas
 
 Em produção:
 substituir placeholders nos arquivos lgpd
@@ -18,5 +19,3 @@ corrigir o menu na barra de navegação no android
 implementar sistema de XP
 adicionar tela de quantos e quais pedidos já foram entregues por um entregador
 criar dashboard
-adicionar basic auth em todas aplicações
-atribuir apenas entregadores com sessão nos pedidos
