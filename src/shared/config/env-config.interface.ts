@@ -29,6 +29,11 @@ export interface IStoreConfig {
   password: string;
 }
 
+export interface IDeliveryPersonConfig {
+  username: string;
+  password: string;
+}
+
 export interface IExpoConfig {
   accessToken: string;
 }

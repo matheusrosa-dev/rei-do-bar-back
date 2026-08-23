@@ -1,6 +1,6 @@
-import { Body, Controller, Ip, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Ip, Post } from "@nestjs/common";
 import { CurrentDeliveryPersonSession } from "@shared/decorators/current-delivery-person-session.decorator";
-import { DeliveryPersonRefreshTokenGuard } from "@shared/guards/delivery-persons/delivery-person-refresh-token.guard";
+import { DeliveryPersonAuth } from "@shared/decorators/delivery-person-auth.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import type { ICurrentDeliveryPersonSession } from "@shared/types/delivery-person";
 import { DeliveryPersonsAuthService } from "./auth.service";
@@ -12,12 +12,13 @@ export class DeliveryPersonsAuthController {
   constructor(private readonly authService: DeliveryPersonsAuthService) {}
 
   @Post("login")
+  @DeliveryPersonAuth("basic")
   login(@Ip() ip: string, @Body() dto: LoginDto) {
     return this.authService.login(ip, dto);
   }
 
   @Post("refresh")
-  @UseGuards(DeliveryPersonRefreshTokenGuard)
+  @DeliveryPersonAuth("refreshToken")
   refreshTokens(
     @CurrentDeliveryPersonSession() session: ICurrentDeliveryPersonSession,
   ) {

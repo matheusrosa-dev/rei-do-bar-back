@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement — the whole customer surface sits behind a fixed app-wide HTTP Basic credential sent in the `x-store-authorization` header, on top of whichever session credential each route requires. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue, confirms each delivery — the one order transition the entregador can perform, alongside the backoffice — and sees how many deliveries they have closed in the recent window.
+REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement — the whole customer surface sits behind a fixed app-wide HTTP Basic credential sent in the `x-store-authorization` header, on top of whichever session credential each route requires. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own app-wide HTTP Basic credential (in the `x-delivery-person-authorization` header) plus its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue, confirms each delivery — the one order transition the entregador can perform, alongside the backoffice — and sees how many deliveries they have closed in the recent window.
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
@@ -169,7 +169,7 @@ After finishing **all** edits in a task:
 │       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # One directory per audience — store/ (basic-auth, device-id, access/refresh token, OTP throttler), admin/ (basic-auth), delivery-persons/ (access/refresh token, DB session) — plus the throttler base and IP tracker at the root; none registered globally
+│       ├── guards/              # One directory per audience — store/ (basic-auth, device-id, access/refresh token, OTP throttler), admin/ (basic-auth), delivery-persons/ (basic-auth, access/refresh token, DB session) — plus the throttler base and IP tracker at the root; none registered globally
 │       ├── helpers/             # Digest hashing, password hashing (bcrypt), OTP generation, opaque tokens, timezone dates, Prisma error predicates
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)
@@ -236,6 +236,8 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `STORE_PASSWORD` | Store app password (HTTP Basic Auth) |
 | `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
 | `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
+| `DELIVERY_PERSON_USERNAME` | Delivery app username (HTTP Basic Auth, required on every delivery-person route) |
+| `DELIVERY_PERSON_PASSWORD` | Delivery app password (HTTP Basic Auth) |
 | `EXPO_ACCESS_TOKEN` | Expo access token for push notification delivery (required — startup fails without it) |
 | `RATE_LIMIT_DEVICE_SYNC_TTL` / `_LIMIT` | Rate limit for `sync-device-id` (per IP); TTL in seconds |
 | `RATE_LIMIT_OTP_SEND_TTL` / `_LIMIT` | Short-window rate limit for OTP send (per device-id); TTL in seconds |
@@ -265,7 +267,7 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 |---|---|---|
 | Delay interceptor | `APP_INTERCEPTOR` (global) | Adds the artificial delay from `API_DELAY`; no-ops when the value is 0 |
 
-**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. Every store route carries a `StoreAuth`, whose lowest level (`basic`) is the app-wide Basic credential in the `x-store-authorization` header — the store has session-less routes, but no credential-less ones. See `src/shared/guards/AGENTS.md`.
+**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. The store and delivery composites are **leveled**, and the lowest level of each (`basic`) is that app's app-wide Basic credential — `x-store-authorization` for the customer app, `x-delivery-person-authorization` for the delivery app. Both surfaces have session-less routes (store categories and settings, delivery login), but neither has a credential-less one. See `src/shared/guards/AGENTS.md`.
 
 `ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 

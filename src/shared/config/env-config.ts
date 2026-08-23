@@ -4,6 +4,7 @@ import {
   IApiConfig,
   IAuthConfig,
   IDatabaseConfig,
+  IDeliveryPersonConfig,
   IExpoConfig,
   IRateLimitConfig,
   IStoreConfig,
@@ -49,6 +50,14 @@ export const storeConfig = registerAs<IStoreConfig>("store", () => ({
   username: process.env.STORE_USERNAME!,
   password: process.env.STORE_PASSWORD!,
 }));
+
+export const deliveryPersonConfig = registerAs<IDeliveryPersonConfig>(
+  "deliveryPerson",
+  () => ({
+    username: process.env.DELIVERY_PERSON_USERNAME!,
+    password: process.env.DELIVERY_PERSON_PASSWORD!,
+  }),
+);
 
 export const expoConfig = registerAs<IExpoConfig>("expo", () => ({
   accessToken: process.env.EXPO_ACCESS_TOKEN!,
@@ -103,6 +112,9 @@ export const validationSchema = Joi.object({
 
   ADMIN_USERNAME: Joi.string().required(),
   ADMIN_PASSWORD: Joi.string().required(),
+
+  DELIVERY_PERSON_USERNAME: Joi.string().required(),
+  DELIVERY_PERSON_PASSWORD: Joi.string().required(),
 
   EXPO_ACCESS_TOKEN: Joi.string().required(),
 

@@ -15,7 +15,7 @@ import { DeliveryPersonsOrdersService } from "./orders.service";
 
 @Controller("delivery-persons/orders")
 @Serialize(DeliveryPersonsOrdersDto)
-@DeliveryPersonAuth()
+@DeliveryPersonAuth("accessToken")
 export class DeliveryPersonsOrdersController {
   constructor(private readonly ordersService: DeliveryPersonsOrdersService) {}
 

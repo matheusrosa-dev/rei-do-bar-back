@@ -2,11 +2,11 @@
 
 ## What belongs here
 
-The login and session lifecycle of the delivery app: CPF + password login, and refresh-token rotation. Neither endpoint takes an *access* token: login carries a credential, refresh carries a refresh token, and both are what a delivery person calls when they cannot make an ordinary authenticated request.
+The login and session lifecycle of the delivery app: CPF + password login, and refresh-token rotation. Neither endpoint takes an *access* token: login carries a credential, refresh carries a refresh token, and both are what a delivery person calls when they cannot make an ordinary authenticated request. Both still carry the **app credential** every route on this surface requires (see below).
 
 ## What does NOT belong here
 
-- The guards that validate an issued token — access **and** refresh → `src/shared/guards/`. This module mints tokens; the only check it keeps is the count guard on the rotation write, which is a concurrency guard, not an authentication one. A shared guard is wired in by the `@UseGuards` on this module's controller and **never enters `providers`** — Nest registers it from that metadata and injects Prisma itself.
+- The guards that validate an issued token — access **and** refresh → `src/shared/guards/`. This module mints tokens; the only check it keeps is the count guard on the rotation write, which is a concurrency guard, not an authentication one. A shared guard reaches this module's routes through the **audience composite**, never through a bare `@UseGuards`, and **never enters `providers`** — Nest registers it from the decorator metadata and injects Prisma itself.
 - Password assignment and access revocation → `src/apps/admin/delivery-persons/`. The delivery person never sets or changes their own password, and cannot revoke their own session.
 - Customer OTP/JWT authentication → `src/apps/store/auth/`.
 
@@ -16,10 +16,10 @@ The login and session lifecycle of the delivery app: CPF + password login, and r
 
 | Route | Credential | Returns |
 |---|---|---|
-| `POST delivery-persons/auth/login` | body: `cpf` (11 digits), `password` (8–72) | the token pair |
-| `POST delivery-persons/auth/refresh` | header: `Authorization: Bearer <refreshToken>`, no body | the same two fields, freshly minted |
+| `POST delivery-persons/auth/login` | `x-delivery-person-authorization: Basic <base64>` + body: `cpf` (11 digits), `password` (8–72) | the token pair |
+| `POST delivery-persons/auth/refresh` | `x-delivery-person-authorization: Basic <base64>` + header: `Authorization: Bearer <refreshToken>`, no body | the same two fields, freshly minted |
 
-Neither carries an audience composite at class level: `login` is unauthenticated by definition (it mints the first token pair), and `refresh` authenticates through its own guard on the handler. No guard here reads an `x-device-id` header — the delivery app does not send one, and nothing on this surface asks for it.
+**The composite sits on the handlers, not the class, because the two routes need different levels**: `login` is `DeliveryPersonAuth("basic")` — the app credential and nothing else, since it mints the first token pair — and `refresh` is `DeliveryPersonAuth("refreshToken")`, which adds the refresh-token guard behind that same credential. Neither route is credential-less: the app credential (`x-delivery-person-authorization`) is required here exactly as on every other route of this surface, and it is checked **before** the CPF/password lookup or the session read. No guard here reads an `x-device-id` header — the delivery app does not send one, and nothing on this surface asks for it.
 
 **The refresh token travels in the `Authorization` header**, like every other bearer token on this surface and like the customer flow. `DeliveryPersonRefreshTokenGuard` extracts and validates it before the handler runs, so the route has **no request DTO** — only the class-level response DTO applies. An absent or malformed header is a 401 `DELIVERY_PERSONS_AUTH_002`, not a 422. Do not move it back into the body — header extraction belongs in a guard, never in the controller.
 
@@ -51,7 +51,7 @@ Neither carries an audience composite at class level: `login` is unauthenticated
 
 | Rule | Detail |
 |---|---|
-| No audience composite here | `login` carries no auth guard at all; `refresh` carries only `DeliveryPersonRefreshTokenGuard`, on the handler. Anything requiring an *access* token belongs in a sibling module |
+| The composite goes on the handler, per level | `login` sits at `DeliveryPersonAuth("basic")` and `refresh` at `DeliveryPersonAuth("refreshToken")` — the levels differ, so the composite cannot move up to the class. Anything requiring an *access* token belongs in a sibling module |
 | Bearer tokens come from the header, via a guard | The refresh route takes its token in `Authorization: Bearer`, extracted and validated by `DeliveryPersonRefreshTokenGuard`; never parse an auth header inside a controller or service |
 | Tokens are opaque | 32 random bytes via the shared opaque-token helper; only the sha256 hash is persisted |
 | Single session per person | Always upsert on `deliveryPersonId`; never create a second session row |

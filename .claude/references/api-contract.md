@@ -175,7 +175,19 @@ All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00)
 
 A missing, malformed, or wrong credential is rejected by the guard with **403** `{ "code": "UNKNOWN", "message": "Forbidden resource" }` — the framework fallback, the same answer an invalid `x-device-id` gets. There is no domain code and no 401: the client is expected to ship a correct credential, so this is a build-configuration error, not a recoverable auth state, and there is nothing to refresh.
 
-The credential is **not** rate-limited per IP (unlike the admin one), since the app resends it on every request and a shared NAT would take the whole lockout. The admin (`/admin/`) and delivery (`/delivery-persons/`) surfaces do not send this header at all — it is the store audience's credential only.
+The credential is **not** rate-limited per IP (unlike the admin one), since the app resends it on every request and a shared NAT would take the whole lockout. The admin (`/admin/`) and delivery (`/delivery-persons/`) surfaces do not send this header at all — it is the store audience's credential only. The delivery app has a credential of the **same shape under a different header and a different secret** (see below); the two are never interchangeable.
+
+---
+
+## Delivery App Credential
+
+**Every route under `/delivery-persons/` requires a fixed HTTP Basic credential**, sent as `x-delivery-person-authorization: Basic <base64(username:password)>` — the delivery app's counterpart to the store one, with its own username/password pair. It identifies the *application*, not the entregador, and it is additive to whatever token the route also requires: an authenticated call carries `x-delivery-person-authorization` **and** `Authorization: Bearer <opaque token>` at once. It does not ride `Authorization` because that header already carries the delivery token.
+
+**`POST /delivery-persons/auth/login` requires it too.** That route carries no *session* credential — it is what mints the first token pair — but it is not credential-less: without the header it never reaches the CPF/password check at all.
+
+A missing, malformed, or wrong credential is rejected by the guard with **403** `{ "code": "UNKNOWN", "message": "Forbidden resource" }` — the framework fallback, exactly as on the store surface. This is deliberately **not** the 401 the delivery token guards return: a 403 here means the *app build* is misconfigured and there is nothing to refresh, while a 401 means the *session* needs refreshing. A client that retries `POST /delivery-persons/auth/refresh` on a 403 is reacting to the wrong failure.
+
+Like the store credential and unlike the admin one, it is **not** rate-limited per IP — the app resends it on every request, and a shared NAT would take the whole lockout for a whole crew. The brute-force protection that matters on this surface guards the *login* credential (CPF + password) and is per IP, on failed attempts only.
 
 ---
 
@@ -187,13 +199,13 @@ The raw `token` is attached only on the two routes that consume a refresh token:
 
 **A store route can run with no session at all — but never with no credential.** Three routes require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id), `GET /categories`, and `GET /settings`. All three still require `x-store-authorization` (see above). Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
 
-The **delivery app is a separate audience** and shares none of this. It sends no `x-device-id` and no customer JWT; it carries an opaque bearer token minted by `POST /delivery-persons/auth/login`, which its guard resolves to a delivery-person id on its own request property. Its routes live under `/delivery-persons/` and never take an id in the path.
+The **delivery app is a separate audience** and shares none of this session machinery. It sends no `x-device-id` and no customer JWT; it carries its own app credential (`x-delivery-person-authorization`, see above) plus an opaque bearer token minted by `POST /delivery-persons/auth/login`, which its guard resolves to a delivery-person id on its own request property. The *pattern* is the store's — a fixed app credential under a non-`Authorization` header, additive to the session credential — but every value in it differs. Its routes live under `/delivery-persons/` and never take an id in the path.
 
 **Both delivery tokens travel in `Authorization: Bearer`** — the access token on every route under `/delivery-persons/` outside `auth/`, and the refresh token on `POST /delivery-persons/auth/refresh`, which takes **no request body**. Only `POST /delivery-persons/auth/login` sends a credential in the body.
 
 The login and refresh responses carry **only** `accessToken` and `refreshToken` — no expiration is returned. The tokens are opaque, so there is no `exp` claim either: the client does not track expiry at all, it refreshes when a request comes back 401 `DELIVERY_PERSONS_AUTH_003`.
 
-**Failure semantics on the authenticated delivery routes** (everything under `/delivery-persons/` outside `auth/`) — the guard throws, so *every* rejection is HTTP **401** `{ "code": "DELIVERY_PERSONS_AUTH_003", "message": "Acesso negado. O token de acesso fornecido é inválido." }` — the same status the customer JWT guard returns, but with a domain code instead of the `UNKNOWN` fallback. Four different causes collapse into that one response: no bearer token, an unknown token, an **expired** access token, and a delivery person who was deactivated or had their access revoked. The client cannot tell them apart and should not try — with a 5-minute access token, expiry is the *expected* case:
+**Failure semantics on the authenticated delivery routes** (everything under `/delivery-persons/` outside `auth/`) — assuming a valid `x-delivery-person-authorization` (without it the answer is a **403**, see above, and the token is never looked at) the token guard throws, so *every* rejection is HTTP **401** `{ "code": "DELIVERY_PERSONS_AUTH_003", "message": "Acesso negado. O token de acesso fornecido é inválido." }` — the same status the customer JWT guard returns, but with a domain code instead of the `UNKNOWN` fallback. Four different causes collapse into that one response: no bearer token, an unknown token, an **expired** access token, and a delivery person who was deactivated or had their access revoked. The client cannot tell them apart and should not try — with a 5-minute access token, expiry is the *expected* case:
 
 1. On any 401 `DELIVERY_PERSONS_AUTH_003` from those routes, call `POST /delivery-persons/auth/refresh`.
 2. If the refresh returns 401 `DELIVERY_PERSONS_AUTH_002`, the session is gone (expired, rotated, replaced by a login elsewhere, or revoked by the admin) — send the user back to the login screen. A missing or malformed `Authorization` header on that route collapses into the same 401, never a 422.
