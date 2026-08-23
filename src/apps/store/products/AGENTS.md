@@ -44,4 +44,4 @@ The query DTO validates the optional filter params. The response DTO (applied at
 | Reuse the duality | Session resolution mirrors the cart domain's anonymous/customer branching, but degrades to an empty cart instead of throwing |
 | Explicit ordering | Results are always sorted by the explicit sort field, independent of active filters |
 | No error codes | This module throws nothing and owns no namespace in the error registry. The listing degrades instead of failing, and the session invariant is enforced by the route's guard |
-| Anonymous, not open | `@StoreAuth("deviceId")` at controller class level: a valid `x-device-id` is required, a JWT is not. The listing is cart-aware, so it needs a session to enrich against — it just does not need an authenticated one |
+| Anonymous, not open | `@StoreAuth("deviceId")` at controller class level: the store app credential and a valid `x-device-id` are required, a JWT is not. The listing is cart-aware, so it needs a session to enrich against — it just does not need an authenticated one |

@@ -7,6 +7,7 @@ import {
   databaseConfig,
   expoConfig,
   rateLimitConfig,
+  storeConfig,
   validationSchema,
 } from "./env-config";
 
@@ -17,6 +18,7 @@ import {
         apiConfig,
         databaseConfig,
         authConfig,
+        storeConfig,
         adminConfig,
         expoConfig,
         rateLimitConfig,

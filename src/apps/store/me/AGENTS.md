@@ -18,7 +18,7 @@ Operations a **logged-in customer** performs on their own account:
 
 ## Auth Requirement
 
-This module has **two controllers** — the profile controller (`me`) and a separate address controller (`me/address`, in `address.controller.ts`). Both carry `@StoreAuth("accessToken")` at class level — device-id then bearer JWT — and are serialized with the same response DTO; neither controller has an open route. The two must stay on the same level: an address is customer data, so a divergence between them would be a bug, not a variation. Every service method receives the authenticated customer id from the current session.
+This module has **two controllers** — the profile controller (`me`) and a separate address controller (`me/address`, in `address.controller.ts`). Both carry `@StoreAuth("accessToken")` at class level — store app credential, then device-id, then bearer JWT — and are serialized with the same response DTO; neither controller drops to a lower level. The two must stay on the same level: an address is customer data, so a divergence between them would be a bug, not a variation. Every service method receives the authenticated customer id from the current session.
 
 ---
 

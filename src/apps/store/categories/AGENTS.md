@@ -13,7 +13,7 @@ Client-facing category listing: a single read-only endpoint that returns the act
 
 ## Behavior
 
-The controller carries **no `StoreAuth`** — the listing is an open read, requiring neither an `x-device-id` header nor a JWT. That is a deliberate choice, not an omission: the category list is the same for every visitor and reveals nothing session-specific. It returns only active categories, ordered by an explicit sort field.
+The controller carries **`@StoreAuth("basic")`** — the store app credential and nothing else, so the listing requires neither an `x-device-id` header nor a JWT. That is a deliberate choice, not an omission: the category list is the same for every visitor and reveals nothing session-specific, so it needs no session — but, like every store route, it still needs the app credential. It returns only active categories, ordered by an explicit sort field.
 
 The response DTO is applied at the controller class level and exposes the identity, the two display names (singular and plural), and the image URL; internal flags and timestamps are excluded.
 

@@ -6,6 +6,7 @@ import {
   IDatabaseConfig,
   IExpoConfig,
   IRateLimitConfig,
+  IStoreConfig,
 } from "./env-config.interface";
 
 import * as Joi from "joi";
@@ -42,6 +43,11 @@ export const authConfig = registerAs<IAuthConfig>("auth", () => ({
 export const adminConfig = registerAs<IAdminConfig>("admin", () => ({
   username: process.env.ADMIN_USERNAME!,
   password: process.env.ADMIN_PASSWORD!,
+}));
+
+export const storeConfig = registerAs<IStoreConfig>("store", () => ({
+  username: process.env.STORE_USERNAME!,
+  password: process.env.STORE_PASSWORD!,
 }));
 
 export const expoConfig = registerAs<IExpoConfig>("expo", () => ({
@@ -91,6 +97,9 @@ export const validationSchema = Joi.object({
   AUTH_JWT_REFRESH_EXPIRATION_TIME: Joi.string().required(),
   AUTH_DELIVERY_PERSON_TOKEN_EXPIRATION_MINUTES: Joi.number().required(),
   AUTH_DELIVERY_PERSON_REFRESH_EXPIRATION_MINUTES: Joi.number().required(),
+
+  STORE_USERNAME: Joi.string().required(),
+  STORE_PASSWORD: Joi.string().required(),
 
   ADMIN_USERNAME: Joi.string().required(),
   ADMIN_PASSWORD: Joi.string().required(),

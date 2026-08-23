@@ -22,6 +22,7 @@ export class AuthController {
 
   @Post("sync-device-id")
   @IpThrottle("deviceSync")
+  @StoreAuth("basic")
   async syncDeviceId(@Body() body: SyncDeviceIdDto) {
     const { deviceId } = await this.authService.syncDeviceId(body);
 

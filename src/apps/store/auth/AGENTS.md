@@ -18,7 +18,7 @@ Everything related to identity and session lifecycle:
 
 ## Auth Flow (stages)
 
-1. **Device-id sync** — the only auth step with no `StoreAuth` at all (it *mints* the device id, so it cannot require one); creates an anonymous customer and its cart, returning a device id used as the anonymous session key.
+1. **Device-id sync** — the only auth step at `@StoreAuth("basic")` (it *mints* the device id, so it cannot require one, but it still requires the app credential); creates an anonymous customer and its cart, returning a device id used as the anonymous session key.
 2. **OTP issuance** — clears any previous codes for the anonymous customer and stores a new hashed code, both inside a single transaction (the plaintext is logged to the console; SMS is not integrated). Returns no content.
 3. **OTP login** — validates the submitted code, finds or creates the customer for the phone number, hands the anonymous cart over to the customer, and returns a token pair. If customer creation races with a concurrent login for the same phone number, the resulting unique-constraint conflict is recovered by re-fetching the existing customer instead of failing.
 4. **Token refresh** — validated by the refresh-token guard (a separate Passport strategy), rotates the stored token, and returns a new pair.
@@ -44,9 +44,9 @@ The cart handover is delegated to the internal customers service and takes **two
 
 | Rule | Detail |
 |---|---|
-| Each route declares its `StoreAuth` level | `sync-device-id` carries none (it mints the device id); `send-otp-code` and `login` carry `@StoreAuth("deviceId")`; `refresh` and `logout` carry `@StoreAuth("refreshToken")` |
-| Auth routes are rate-limited | OTP send/login are throttled per device-id and the unauthenticated device-id sync per IP, via the shared throttler guards (implementations live in the shared guards directory). The throttle composite is stacked *alongside* `StoreAuth`, never bundled into it |
-| `StoreAuth` goes **below** the throttle composite | Guards run bottom-up (`UseGuards` appends, and method decorators apply from the signature upwards), so the decorator nearest the handler runs first. On the OTP routes `@StoreAuth("deviceId")` sits under `@DeviceThrottle(...)` so an invalid device id is rejected before it spends a throttle slot. Swapping the two lines reverses that silently |
+| Each route declares its `StoreAuth` level | `sync-device-id` carries `@StoreAuth("basic")` (it mints the device id, so it can require no session); `send-otp-code` and `login` carry `@StoreAuth("deviceId")`; `refresh` and `logout` carry `@StoreAuth("refreshToken")`. Every level includes the store app credential |
+| Auth routes are rate-limited | OTP send/login are throttled per device-id and the session-less device-id sync per IP, via the shared throttler guards (implementations live in the shared guards directory). The throttle composite is stacked *alongside* `StoreAuth`, never bundled into it |
+| `StoreAuth` goes **below** the throttle composite | Guards run bottom-up (`UseGuards` appends, and method decorators apply from the signature upwards), so the decorator nearest the handler runs first. On the OTP routes `@StoreAuth("deviceId")` sits under `@DeviceThrottle(...)` so an invalid device id is rejected before it spends a throttle slot, and on `sync-device-id` `@StoreAuth("basic")` sits under `@IpThrottle(...)` for the same reason. Swapping the two lines reverses that silently |
 | Secrets via injected config | Auth config is read once through `ConfigService` and stored on the service |
 | Sensitive values are always hashed | OTP codes and refresh tokens are never persisted in plaintext |
 | Refresh tokens use their own guard | The refresh and logout routes activate the refresh strategy explicitly, not the default access strategy |

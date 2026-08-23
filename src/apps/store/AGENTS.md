@@ -16,25 +16,28 @@ Every sub-module but `notifications/` has its own `AGENTS.md`; this file covers 
 
 ## Authentication
 
-The customer session is **additive**: a device id identifies the anonymous session, and a customer id is *added* on top once the person logs in — an authenticated request carries both. Because of that, the store has **three credential levels**, not two, and each route declares its own with `StoreAuth` (see `src/shared/guards/AGENTS.md`):
+Two things authenticate a store request, and they answer different questions. The **app credential** — a fixed Basic pair in the `x-store-authorization` header — answers *did this come from the store app*, and is required on **every route without exception**. The **session** answers *who is calling*, and is layered on top: a device id identifies the anonymous session, and a customer id is *added* to it once the person logs in, so an authenticated request carries both.
+
+That gives the store **four credential levels**, and each route declares its own with `StoreAuth` (see `src/shared/guards/AGENTS.md`):
 
 | Level | Guards | Where it is used |
 |---|---|---|
-| `@StoreAuth("deviceId")` | device-id | `cart/`, `products/`, and the OTP send/login routes in `auth/` |
-| `@StoreAuth("accessToken")` | device-id → access-token | `me/` (both controllers), `orders/`, `coupons/`, `notifications/` |
-| `@StoreAuth("refreshToken")` | device-id → refresh-token | the `refresh` and `logout` routes in `auth/` |
+| `@StoreAuth("basic")` | store basic-auth | `categories/`, `settings/`, and the `sync-device-id` route in `auth/` |
+| `@StoreAuth("deviceId")` | store basic-auth → device-id | `cart/`, `products/`, and the OTP send/login routes in `auth/` |
+| `@StoreAuth("accessToken")` | store basic-auth → device-id → access-token | `me/` (both controllers), `orders/`, `coupons/`, `notifications/` |
+| `@StoreAuth("refreshToken")` | store basic-auth → device-id → refresh-token | the `refresh` and `logout` routes in `auth/` |
 
-The device-id guard sits inside all three because an authenticated request still resolves its cart and catalog by device id. The access and refresh levels are **siblings**, not rungs on a ladder — a refresh token is a different credential from an access token, not a stronger one. Picking a level is a choice of **which credential the route consumes on top of the device id**, never a choice between device id *or* token.
+The app credential sits inside all four levels because it is unconditional. The device-id guard sits inside the other three because an authenticated request still resolves its cart and catalog by device id. The access and refresh levels are **siblings**, not rungs on a ladder — a refresh token is a different credential from an access token, not a stronger one. Picking a level is a choice of **which session credential the route consumes on top of the app credential**, never a choice between them.
 
-**Three routes carry no `StoreAuth` at all**, and each is open deliberately:
+**Three routes sit at `basic`** — session-less, but not credential-less:
 
-| Route | Why it is open |
+| Route | Why it needs no session |
 |---|---|
-| `POST auth/sync-device-id` | It *mints* the device id, so it cannot require one. Rate-limited per IP instead |
+| `POST auth/sync-device-id` | It *mints* the device id, so it cannot require one. Rate-limited per IP on top |
 | `GET categories` | The same list for every visitor; nothing session-specific |
 | `GET settings` | The client needs the delivery fee, alerts, and business hours before it has a session |
 
-Since no guard is registered globally, a controller without `StoreAuth` is unauthenticated — there is nothing left to catch an omission. **A new store controller must state its level explicitly**, and an open one must say so in its own `AGENTS.md`, so that "no decorator" always reads as a decision.
+Since no guard is registered globally, a controller without `StoreAuth` reaches its handler with no credential at all — there is nothing left to catch an omission. **A new store controller must state its level explicitly**, and `basic` is the floor: a session-less route says so in its own `AGENTS.md`, but no store route is ever left undecorated.
 
 ---
 

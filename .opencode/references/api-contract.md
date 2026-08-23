@@ -169,13 +169,23 @@ All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00)
 
 ---
 
+## Store App Credential
+
+**Every route of the store app requires a fixed HTTP Basic credential**, sent as `x-store-authorization: Basic <base64(username:password)>`. It identifies the *application*, not the person, and it is additive to whatever session credential the route also requires — a fully authenticated call carries `x-store-authorization`, `x-device-id`, **and** `Authorization: Bearer <jwt>` at once. The app credential deliberately does **not** ride the standard `Authorization` header: that one already carries the customer JWT, and the two must coexist on the same request.
+
+A missing, malformed, or wrong credential is rejected by the guard with **403** `{ "code": "UNKNOWN", "message": "Forbidden resource" }` — the framework fallback, the same answer an invalid `x-device-id` gets. There is no domain code and no 401: the client is expected to ship a correct credential, so this is a build-configuration error, not a recoverable auth state, and there is nothing to refresh.
+
+The credential is **not** rate-limited per IP (unlike the admin one), since the app resends it on every request and a shared NAT would take the whole lockout. The admin (`/admin/`) and delivery (`/delivery-persons/`) surfaces do not send this header at all — it is the store audience's credential only.
+
+---
+
 ## Session Context
 
 The session is **additive, not exclusive**. The current-session decorator always populates `deviceId` from the `x-device-id` header, and *adds* `customerId` / `phone` on top when a valid access token is present — so an authenticated session carries **both**. Cart-, product-, and order-related reads branch on *whether a `customerId` is present*, not on an either/or.
 
 The raw `token` is attached only on the two routes that consume a refresh token: `/auth/refresh` and `/auth/logout`.
 
-**A store route can also run with no session at all.** Authentication is opt-in per route, so three of them require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id), `GET /categories`, and `GET /settings`. Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
+**A store route can run with no session at all — but never with no credential.** Three routes require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id), `GET /categories`, and `GET /settings`. All three still require `x-store-authorization` (see above). Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
 
 The **delivery app is a separate audience** and shares none of this. It sends no `x-device-id` and no customer JWT; it carries an opaque bearer token minted by `POST /delivery-persons/auth/login`, which its guard resolves to a delivery-person id on its own request property. Its routes live under `/delivery-persons/` and never take an id in the path.
 

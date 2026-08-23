@@ -2,22 +2,28 @@
 
 ## Guard Chain
 
-**No guard is global.** Every route states its own protection through its audience's composite decorator, and a route with no decorator is genuinely unauthenticated. There is no public marker and no reflector lookup anywhere in this directory — a guard that runs, runs unconditionally.
+**No guard is global.** Every route states its own protection through its audience's composite decorator, and a route with no decorator is genuinely unauthenticated — with one audience-wide exception: the store has a floor, so a decorator-less store route is a hole rather than a decision (see the store levels below). There is no public marker and no reflector lookup anywhere in this directory — a guard that runs, runs unconditionally.
 
 ```
-Store request (customer app)
-  └── StoreAuth("deviceId") → device-id guard
-        └── require a valid UUID in the x-device-id header
+Store request (customer app) — every level starts at the app credential
+  └── StoreAuth("basic") → store basic-auth guard
+        └── validate x-store-authorization: Basic <base64> against the store config
 
-  └── StoreAuth("accessToken") → device-id guard
-        └── access-token guard
-              └── validate the bearer JWT (access strategy)
+  └── StoreAuth("deviceId") → store basic-auth guard
+        └── device-id guard
+              └── require a valid UUID in the x-device-id header
 
-  └── StoreAuth("refreshToken") → device-id guard
-        └── refresh-token guard
-              └── validate the bearer JWT (refresh strategy/secret)
+  └── StoreAuth("accessToken") → store basic-auth guard
+        └── device-id guard
+              └── access-token guard
+                    └── validate the bearer JWT (access strategy)
 
-  └── no decorator → open route (categories, settings, device-id sync)
+  └── StoreAuth("refreshToken") → store basic-auth guard
+        └── device-id guard
+              └── refresh-token guard
+                    └── validate the bearer JWT (refresh strategy/secret)
+
+  └── no decorator → nothing at all; no store route is left this way
 
 Rate-limited routes (per route, stacked on top of the above)
   └── throttler guard (OTP routes by device-id, device-id sync by IP)
@@ -55,6 +61,10 @@ The Passport **refresh-token guard** is applied on the two **customer** routes t
 ## Guard Roles
 
 - **Device-id guard**: reads the `x-device-id` header and validates it as a UUID. It only gates access and does not populate the request user. It has **no dependencies and no metadata lookup** — it runs on exactly the routes whose `StoreAuth` level includes it, and on no others.
+- **Store basic-auth guard**: the customer app's **application credential** — it proves the call came from the store app, and says nothing about *who* is calling. It parses `Basic <base64>` and compares both halves of the pair from the `store` config namespace with the timing-safe string helper, exactly like the admin guard, but reads them from **`x-store-authorization`, not `Authorization`**. That header is not a stylistic choice: the store's authenticated routes already spend `Authorization` on the customer's Bearer JWT, and the two credentials must travel together on the same request. Do not move it back.
+
+  It sits **first** in all four `StoreAuth` levels, so it is the app credential that is checked before the device id and before any token. It carries **no identity** and **no failed-attempt lockout** — unlike the admin guard, whose credential is typed by a person, this one is sent by the app on *every* request, so counting failures per IP would lock out legitimate users behind a shared NAT the moment an outdated app build shipped a stale credential. The abuse it would have slowed is already covered where it matters: the OTP routes and `sync-device-id` are throttled.
+
 - **Access-token guard**: extends the Passport JWT guard, triggering the access strategy that places the decoded payload on the request. It is an empty subclass on purpose — naming the strategy is its whole job.
 - **Refresh-token guard**: extends the Passport JWT guard with the separate refresh strategy/secret; used on the **customer** refresh and logout routes (the two that carry a customer refresh token). The delivery-person refresh route has its own guard — see below.
 - **Admin basic-auth guard**: a standalone guard (implementing the guard interface directly, not Passport-based), named after *whose* credentials it checks — never after the mechanism alone, since it accepts only admin credentials. It parses the `Authorization: Basic` header and compares both halves of the single operator credential pair from its config namespace with the timing-safe string helper. It carries **no identity** — every admin request is the same principal.
@@ -77,9 +87,9 @@ The Passport **refresh-token guard** is applied on the two **customer** routes t
 
   Like the access-token guard it carries **no lockout** — same reasoning, an unguessable 32-byte token against one indexed read.
 
-- **Throttler guards**: rate-limiting guards extending `@nestjs/throttler`'s `ThrottlerGuard`. A shared abstract base (`BaseThrottlerGuard`) overrides `throwThrottlingException` to throw `AppException` with `AUTH_007` (HTTP 429) instead of the library's generic exception, so the response matches the API contract. `OtpThrottlerGuard` overrides `getTracker` to key by the `x-device-id` header (falling back to the IP) and gates the OTP send/login routes; `IpThrottlerGuard` keeps the default IP tracker and gates the open `sync-device-id` route (so device-id minting can't be used to bypass the per-device OTP limits). Routes opt in through typed composite decorators that bundle the right guard with the throttler names to **keep** (skipping the rest): the device-keyed composite pairs the **OTP throttler guard** with the device-keyed throttler names, and the IP-keyed composite pairs the IP throttler guard with the IP-keyed names. (Neither composite bundles the device-id guard: an OTP route stacks `@StoreAuth("deviceId")` alongside its throttle composite, so the two concerns stay independently declared. **Decorator order matters there** — see the note below.) The throttler names are split by tracker into a single canonical source (also consumed when registering the module), so a name can only be used with the composite whose tracker matches it — pairing the wrong guard with a name is a compile error. Like the delivery-person access-token guard, throttler guards **throw** (a 429) rather than denying with `false`.
+- **Throttler guards**: rate-limiting guards extending `@nestjs/throttler`'s `ThrottlerGuard`. A shared abstract base (`BaseThrottlerGuard`) overrides `throwThrottlingException` to throw `AppException` with `AUTH_007` (HTTP 429) instead of the library's generic exception, so the response matches the API contract. `OtpThrottlerGuard` overrides `getTracker` to key by the `x-device-id` header (falling back to the IP) and gates the OTP send/login routes; `IpThrottlerGuard` keeps the default IP tracker and gates the session-less `sync-device-id` route (so device-id minting can't be used to bypass the per-device OTP limits). Routes opt in through typed composite decorators that bundle the right guard with the throttler names to **keep** (skipping the rest): the device-keyed composite pairs the **OTP throttler guard** with the device-keyed throttler names, and the IP-keyed composite pairs the IP throttler guard with the IP-keyed names. (Neither composite bundles a `StoreAuth` guard: a throttled route stacks its `StoreAuth` alongside its throttle composite — `deviceId` on the OTP routes, `basic` on `sync-device-id` — so the two concerns stay independently declared. **Decorator order matters there** — see the note below.) The throttler names are split by tracker into a single canonical source (also consumed when registering the module), so a name can only be used with the composite whose tracker matches it — pairing the wrong guard with a name is a compile error. Like the delivery-person access-token guard, throttler guards **throw** (a 429) rather than denying with `false`.
 
-**None of the standalone audience guards** (admin Basic Auth, delivery-person access and refresh) is registered globally, and **none is declared in a module's `providers`** — applying it with `@UseGuards` is the whole registration: Nest's scanner reads the guard metadata off the controller and registers the class as an injectable of the module that owns it. A guard still injects its dependencies like any other provider (Prisma, the config service, the throttler storage), resolved through the host module's injector — those all come from global modules. They **deliberately duplicate** their header parsing instead of sharing a base class: the audiences have fully diverged — a static operator credential checked per request versus a database-backed session identity. Do not re-unify them; when a new audience appears, write it as another standalone guard.
+**None of the standalone audience guards** (store Basic Auth, admin Basic Auth, delivery-person access and refresh) is registered globally, and **none is declared in a module's `providers`** — applying it with `@UseGuards` is the whole registration: Nest's scanner reads the guard metadata off the controller and registers the class as an injectable of the module that owns it. A guard still injects its dependencies like any other provider (Prisma, the config service, the throttler storage), resolved through the host module's injector — those all come from global modules. They **deliberately duplicate** their header parsing instead of sharing a base class. Between the token guards and the Basic ones the audiences have fully diverged — a static credential checked per request versus a database-backed session identity. The store and admin Basic guards are the near-identical pair, and they stay apart on purpose: they read **different headers** (`x-store-authorization` vs. `Authorization`), answer to different config namespaces, and only one of them counts failed attempts. A shared base would have to be parameterized on all three, and the next audience would bend it again. Do not re-unify them; when a new audience appears, write it as another standalone guard.
 
 ---
 
@@ -87,19 +97,20 @@ The Passport **refresh-token guard** is applied on the two **customer** routes t
 
 **Every audience has exactly one composite decorator**, and applying it is the only way a route gets protected. `AdminAuth()` applies the admin Basic Auth guard; `DeliveryPersonAuth()` applies the delivery-person access-token guard; `StoreAuth(level)` applies the customer stack. None of them bypasses anything — a composite applies its own guard(s) and nothing else, so the admin and delivery surfaces are free of the `x-device-id` requirement simply by never asking for it. A new audience means a new credential store, a new standalone guard, and a new composite; it never means reusing another audience's.
 
-The store composite is the one that takes a **parameter**, because the customer app has three credential levels rather than one. All three start at the device id and then branch — the access and refresh levels are **siblings**, not a ladder, since a refresh token is a different credential from an access token rather than a stronger one:
+The store composite is the one that takes a **parameter**, because the customer app has four credential levels rather than one. All four start at the **app credential**, the next three add the device id, and the last two then branch — the access and refresh levels are **siblings**, not a ladder, since a refresh token is a different credential from an access token rather than a stronger one:
 
 | Level | Guards applied | Used by |
 |---|---|---|
-| `StoreAuth("deviceId")` | device-id | anonymous session routes — cart, OTP send/login |
-| `StoreAuth("accessToken")` | device-id → access-token | authenticated routes — me, orders, coupons, notifications |
-| `StoreAuth("refreshToken")` | device-id → refresh-token | the two routes carrying a customer refresh token — refresh and logout |
+| `StoreAuth("basic")` | store basic-auth | session-less routes — categories, settings, `sync-device-id` |
+| `StoreAuth("deviceId")` | store basic-auth → device-id | anonymous session routes — cart, products, OTP send/login |
+| `StoreAuth("accessToken")` | store basic-auth → device-id → access-token | authenticated routes — me, orders, coupons, notifications |
+| `StoreAuth("refreshToken")` | store basic-auth → device-id → refresh-token | the two routes carrying a customer refresh token — refresh and logout |
 
-The device-id guard is inside all three on purpose: the customer session is **additive**, so an authenticated request still carries the device id its cart and catalog lookups are keyed by. Picking a level is therefore never a choice between device id *or* token — it is a choice of **which credential the route consumes on top of the device id**. Adding a fourth level means adding a row to the map in the decorator, not a new decorator.
+The store basic-auth guard is inside all four because the app credential is **unconditional**: every store route requires it, so no level can opt out. The device-id guard is inside the other three because the customer session is **additive** — an authenticated request still carries the device id its cart and catalog lookups are keyed by. Picking a level is therefore never a choice between the app credential *or* a session — it is a choice of **which credential the route consumes on top of the app credential**. Adding a fifth level means adding a row to the map in the decorator, not a new decorator.
 
-**A store controller with no `StoreAuth` is open by design, never by omission** — categories, settings, and `sync-device-id` are the only such routes today. This is the one place the opt-in model can fail quietly: there is no global guard left to catch a controller that forgot its decorator, so every new store controller must state its level explicitly, even when the answer is "none" (say so in the module's `AGENTS.md`).
+**Every store controller carries a `StoreAuth`; there is no open level.** The three routes that need no session (categories, settings, `sync-device-id`) sit at `basic` — session-less, but never credential-less. A store controller with no decorator at all would be a genuine hole, and the opt-in model has no global guard left to catch it, so a new store controller must state its level explicitly and `basic` is the floor, never "none".
 
-**Stacked composites run bottom-up.** `UseGuards` *appends* to the guard metadata (`extendArrayMetadata`), and method decorators are applied from the signature upwards — so the decorator written **closest to the handler runs first**. On the OTP routes that means `@StoreAuth("deviceId")` sits *below* `@DeviceThrottle(...)`, which reads backwards and is exactly why it is worth stating: the device id is validated before a throttle slot is spent, never after. Reordering those two lines silently changes which guard rejects an invalid header, so `store-auth.decorator.spec.ts` pins the composition of each level.
+**Stacked composites run bottom-up.** `UseGuards` *appends* to the guard metadata (`extendArrayMetadata`), and method decorators are applied from the signature upwards — so the decorator written **closest to the handler runs first**. On the OTP routes that means `@StoreAuth("deviceId")` sits *below* `@DeviceThrottle(...)`, and on `sync-device-id` `@StoreAuth("basic")` sits *below* `@IpThrottle(...)` — both read backwards, which is exactly why it is worth stating: the credential is validated before a throttle slot is spent, never after. Reordering those two lines silently changes which guard rejects an invalid header, so `store-auth.decorator.spec.ts` pins the composition of each level.
 
 **A guard covering a single route inside an otherwise unauthenticated controller is not folded into the audience composite** — it goes straight on the handler with `@UseGuards`, as the delivery-person refresh guard does. A route whose credential differs from the audience's ordinary one is not the audience's composite to begin with.
 
@@ -114,11 +125,12 @@ The delivery-person composite keeps its name (`DeliveryPersonAuth`) across the c
 | No global guards | Nothing is registered as `APP_GUARD`. Auth is opt-in per route, through the audience composite |
 | Per-scope auth | Every guard — device-id included — is applied per controller/route, never globally |
 | A guard is never listed in `providers` | `@UseGuards` (bare or through the audience composite) is the registration — Nest picks the class up from the controller metadata and injects its dependencies. No guard needs an explicit entry anywhere. Passport strategies are not guards: they stay in `providers` |
-| One guard per audience | Each audience gets its own standalone guard — own credential store, own lockout window, own storage key — named after the audience. The duplication is intentional; the audiences have fully diverged |
+| One guard per audience | Each audience gets its own standalone guard — own credential store, own header, and its own answer on whether failed attempts are counted (the admin guard has a lockout window and storage key; the store guard deliberately has neither) — named after the audience. The duplication is intentional |
 | Composite per controller, unless the levels differ | An audience composite gates a whole controller at class level. It moves to the handler when one controller mixes levels — as store `auth/` does, where its routes sit at three different levels — or when a single route inside an otherwise unauthenticated controller needs a guard, as the delivery-person refresh route does |
-| Every store route declares its level | A store controller without `StoreAuth` is unauthenticated. With no global guard left to catch an omission, an open route must be a documented decision, not an oversight |
-| Static credentials compared in constant time | The admin guard compares its config credential pair with the timing-safe string helper; a stored password goes through the password helper (bcrypt already compares in constant time) |
+| Every store route declares its level | A store controller without `StoreAuth` reaches the handler with no credential at all. With no global guard left to catch an omission, `basic` is the floor for a session-less route — never a missing decorator |
+| One `Authorization` header, one credential | A second credential on the same request needs its own header. The store app credential rides `x-store-authorization` precisely because the customer JWT already owns `Authorization` |
+| Static credentials compared in constant time | The admin and store basic-auth guards compare their config credential pair with the timing-safe string helper; a stored password goes through the password helper (bcrypt already compares in constant time) |
 | Opaque tokens are looked up by hash | Never store or query a bearer token in plaintext — hash it with the shared string helper and match on the hash column |
 | Identity comes from the token, not the path | A guard that resolves an individual puts the id on the request for its param decorator; authenticated routes carry no id param to reconcile |
-| Deny with the audience's own status | The device-id and admin guards deny by returning false (the framework maps it to a forbidden response); the delivery-person access- and refresh-token guards throw a 401 `AppException` so their audience matches the customer JWT guard, and rate limiting (throttler guards, admin lockout) throws a 429 `AppException`. A guard that throws must use `AppException` with a registered code and a pt-BR message — never a raw framework exception |
+| Deny with the audience's own status | The device-id, store basic-auth, and admin guards deny by returning false (the framework maps it to a forbidden response); the delivery-person access- and refresh-token guards throw a 401 `AppException` so their audience matches the customer JWT guard, and rate limiting (throttler guards, admin lockout) throws a 429 `AppException`. A guard that throws must use `AppException` with a registered code and a pt-BR message — never a raw framework exception |
 | Rate-limit errors via `AppException` | Rate limiting (throttler guards, the admin lockout, and the delivery-person login lockout) translates a limit breach into `AUTH_007` (429) so the response matches the API contract |

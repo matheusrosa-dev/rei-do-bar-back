@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue, confirms each delivery — the one order transition the entregador can perform, alongside the backoffice — and sees how many deliveries they have closed in the recent window.
+REST API for a bar/restaurant delivery app. Built with **NestJS v11** on Node.js, written in **TypeScript**. Handles anonymous browsing, phone-based OTP authentication, product catalog, cart management, and order placement — the whole customer surface sits behind a fixed app-wide HTTP Basic credential sent in the `x-store-authorization` header, on top of whichever session credential each route requires. An admin backoffice manages products, categories, customers, and orders via HTTP Basic Auth, and a delivery-person surface serves the delivery app behind its own login: the entregador authenticates with a CPF and a password the admin assigns, and receives short-lived **opaque tokens** the admin can revoke at any time. From that app the entregador reads their delivery queue, confirms each delivery — the one order transition the entregador can perform, alongside the backoffice — and sees how many deliveries they have closed in the recent window.
 
 The architecture is **feature-oriented and layered**: each feature is a NestJS module exposing a controller (HTTP edge) over a service (business logic), with Prisma as the single data-access layer (no repository abstraction). Cross-cutting infrastructure lives under a shared module and is consumed through a path alias.
 
@@ -171,7 +171,7 @@ After finishing **all** edits in a task:
 │       ├── events/              # Order lifecycle event payloads (event-emitter)
 │       ├── exceptions/          # AppException with typed error codes
 │       ├── filters/             # Global exception filter
-│       ├── guards/              # Device-id, access-token, refresh-token, admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards — none registered globally
+│       ├── guards/              # Device-id, access-token, refresh-token, store basic-auth and admin basic-auth (env credentials), delivery-person access-token and refresh-token (DB session), throttler guards — none registered globally
 │       ├── helpers/             # Digest hashing, password hashing (bcrypt), OTP generation, opaque tokens, timezone dates, Prisma error predicates
 │       ├── interceptors/        # Response wrapping, serialization, artificial delay, HTTP logging
 │       ├── libs/                # Third-party wrappers (Expo push notifications)
@@ -234,6 +234,8 @@ Defined in `.env` (copy from `.env.example`). Loaded via `@nestjs/config` with J
 | `AUTH_JWT_REFRESH_EXPIRATION_TIME` | Refresh token TTL (e.g. `30d`) |
 | `AUTH_DELIVERY_PERSON_TOKEN_EXPIRATION_MINUTES` | Delivery-person access token TTL in minutes (5) |
 | `AUTH_DELIVERY_PERSON_REFRESH_EXPIRATION_MINUTES` | Delivery-person refresh token TTL in minutes (240), sliding on every refresh |
+| `STORE_USERNAME` | Store app username (HTTP Basic Auth, required on every store route) |
+| `STORE_PASSWORD` | Store app password (HTTP Basic Auth) |
 | `ADMIN_USERNAME` | Admin backoffice username (HTTP Basic Auth) |
 | `ADMIN_PASSWORD` | Admin backoffice password (HTTP Basic Auth) |
 | `EXPO_ACCESS_TOKEN` | Expo access token for push notification delivery (required — startup fails without it) |
@@ -265,7 +267,7 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 |---|---|---|
 | Delay interceptor | `APP_INTERCEPTOR` (global) | Adds the artificial delay from `API_DELAY`; no-ops when the value is 0 |
 
-**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. See `src/shared/guards/AGENTS.md`.
+**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. Every store route carries a `StoreAuth`, whose lowest level (`basic`) is the app-wide Basic credential in the `x-store-authorization` header — the store has session-less routes, but no credential-less ones. See `src/shared/guards/AGENTS.md`.
 
 `ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 
