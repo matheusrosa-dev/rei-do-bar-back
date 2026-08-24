@@ -1,10 +1,8 @@
 Baixa prioridade:
 futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
 futuramente adicionar opção para alterar número do usuario
-diminuir o id
 o ExpoNotificationsService não trata tickets/receipts, então tokens DeviceNotRegistered nunca são removidos de push_tokens. Conforme a base envelhece, todo segmento vai carregar tokens mortos. Não é problema deste plano, mas é a próxima dívida do canal.
 adicionar logs para alterações em produtos e categorias
-nao deve ser possivel alterar status de um cupom que já foi finalizado
 adicionar categoria de ofertas
 
 Em produção:

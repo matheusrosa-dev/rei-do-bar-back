@@ -306,14 +306,11 @@ export class AdminDeliveryPersonsService {
         status: OrderStatus.DELIVERED,
         deliveredAt: { gte: windowStart },
       },
-      _count: { _all: true },
+      _count: true,
     });
 
     return new Map(
-      recentDeliveries.map((group) => [
-        group.deliveryPersonId,
-        group._count._all,
-      ]),
+      recentDeliveries.map((group) => [group.deliveryPersonId, group._count]),
     );
   }
 

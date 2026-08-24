@@ -142,6 +142,7 @@ After finishing **all** edits in a task:
 │   │   │   ├── categories/       # Category CRUD, ordering, status
 │   │   │   ├── coupons/          # Coupon CRUD, listing, status
 │   │   │   ├── customers/        # Customer listing, status, hard deletion
+│   │   │   ├── dashboard/        # Read-only aggregations for the backoffice panel
 │   │   │   ├── delivery-persons/ # Delivery-person CRUD, password assignment, access revocation
 │   │   │   ├── inventory/        # Stock movements + order lifecycle listener
 │   │   │   ├── notifications/    # Push dispatch + broadcast history + order lifecycle listener

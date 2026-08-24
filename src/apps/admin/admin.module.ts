@@ -8,6 +8,7 @@ import { AdminNotificationsModule } from "./notifications/notifications.module";
 import { AdminInventoryModule } from "./inventory/inventory.module";
 import { AdminCouponsModule } from "./coupons/coupons.module";
 import { AdminDeliveryPersonsModule } from "./delivery-persons/delivery-persons.module";
+import { AdminDashboardModule } from "./dashboard/dashboard.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminDeliveryPersonsModule } from "./delivery-persons/delivery-persons.
     AdminInventoryModule,
     AdminCouponsModule,
     AdminDeliveryPersonsModule,
+    AdminDashboardModule,
   ],
 })
 export class AdminModule {}
