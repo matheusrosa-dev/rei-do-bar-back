@@ -22,9 +22,10 @@ Today it exposes a single reading: delivery-person performance.
 ## Delivery-person performance
 
 `GET /admin/dashboard/delivery-persons` returns an **object with two halves**: `totals`,
-a set of aggregate counters, and `deliveryPersons`, one entry per registered delivery
-person. It is not a list endpoint — no pagination, no configurable sort. It takes exactly
-two optional query params, `startDate` and `endDate`, and nothing else. The shape is
+a set of aggregate counters, and `deliveryPersons`, one entry per delivery person with at
+least one closed order in the period. It is not a list endpoint — no pagination, no
+configurable sort. It takes exactly two optional query params, `startDate` and `endDate`,
+and nothing else. The shape is
 deliberately narrow, and widening it is a product decision, not a refactor.
 
 Both halves count the same universe: **orders that reached a delivery person and then
@@ -35,9 +36,12 @@ rows.
 
 Load-bearing decisions:
 
-- **Every delivery person is listed**, active or not, including those with zero orders.
-  A deactivated entregador keeps their history, so filtering on `isActive` would silently
-  drop past deliveries from the panel.
+- **Only delivery persons with closed orders in the period are listed**, but the roster is
+  never filtered on its own attributes. The listed ids come from the `groupBy` result, so a
+  deactivated entregador still appears while they have history in the window, and a person
+  with nothing closed is absent instead of coming back as a zero row. Filtering on `isActive`
+  would be a different rule and would silently drop past deliveries from the panel — do not
+  add it.
 - **The bounds are the caller's instants, used verbatim.** `startDate` / `endDate` are
   optional and independent, parsed to a `Date` and handed straight to Prisma as `gte` / `lte`.
   The module deliberately performs **no** timezone work: it does not snap to a day boundary,
@@ -66,6 +70,12 @@ Load-bearing decisions:
   importing it across feature modules would couple them; zero is a coherent answer for an
   empty interval. If this ever has to 422, move that validator to `@shared/` rather than
   duplicating it here.
+- **The `groupBy` runs first and drives the roster read.** The counts query executes before
+  `deliveryPerson.findMany`, which is then constrained to `id: { in: <ids from the groups> }`.
+  That ordering is what makes "only who has orders" a query rather than a post-filter, and it
+  needs no empty-case guard: no groups means an empty `in` list, which Prisma compiles to an
+  always-false predicate — an empty roster and zeroed totals, at the cost of one round-trip
+  that returns nothing. Do not swap the two reads back.
 - **A single `groupBy` feeds both halves.** The module groups `order` by
   `["deliveryPersonId", "status"]` once; the per-person half keys the result on
   `` `${id}:${status}` ``, and the totals half reduces the same groups per status. That is
@@ -105,26 +115,28 @@ Load-bearing decisions:
 Because both halves derive from one `groupBy`, the totals are the sum of the listed rows by
 construction. The date range does **not** threaten that: it narrows the *order* universe,
 which both halves share, so both narrow together and still reconcile. The roster `findMany`
-gets no filter at all — a delivery person with nothing closed in the window comes back with
-zeros rather than disappearing.
+narrows with them — its `where` is derived from the group result, never from the delivery
+person's own attributes — so it can only drop rows that would have counted zero.
 
-What would break it is a filter on the **roster**: active delivery persons only, a search
-term, a slice. Those would shrink the listed rows without shrinking the aggregate, and the
-totals would then have to move to a `groupBy` of their own — or, worse, silently start
-reporting a subset while claiming to be the whole.
+What would break it is a filter on the **roster** that the groups do not imply: active
+delivery persons only, a search term, a slice. Those would shrink the listed rows without
+shrinking the aggregate, and the totals would then have to move to a `groupBy` of their own
+— or, worse, silently start reporting a subset while claiming to be the whole.
 
-The two reads (`findMany` for the roster, then `groupBy` for the counts) run **outside** a
+The two reads (`groupBy` for the counts, then `findMany` for the roster) run **outside** a
 transaction — the same looseness the sibling listing in `admin/delivery-persons/` accepts
 between its roster and its counts, though that one does wrap its roster and its total in a
 `$transaction` pair.
 
-Because the `groupBy` runs second, it sees the newer state, so nothing an in-flight
-transition touches can go *uncounted*, and the two halves can never contradict each other
-— both come from that one grouping. The single reachable skew runs the other way: a
-delivery person created after the roster read, whose first order is assigned **and reaches a
-terminal status** before the `groupBy`, lands in `totals` with no row of their own, so the
-totals momentarily exceed the listed rows. That is a narrow window — it needs a whole
-delivery to close inside it — and it is gone on the next request.
+Both halves still come from the one grouping, so they can never contradict each other, and
+under this ordering **no interleaving skews them either** — an invariant worth relying on
+rather than defending against. Every id in the groups has at least one order attached, and
+such a delivery person cannot vanish between the reads: the FK is `onDelete: Restrict` and
+`admin/delivery-persons/` refuses the deletion with `DELIVERY_PERSON_HAS_ORDERS`. Nothing in
+`src/` deletes an order either, so the roster read always resolves every id the grouping
+produced. (The previous ordering — roster first — did have a window, where a delivery person
+created and credited with a whole closed delivery in between landed in `totals` with no row
+of their own.)
 
 The status filter is load-bearing, not a formality: an assigned order sitting in `SHIPPED`
 is excluded from every counter on purpose, so "orders that reached a delivery person" means
@@ -145,3 +157,4 @@ not, as long as anything is in transit.
 | Ordering ends on a unique column | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order |
 | Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping are private methods fed by the shared query result. Add the file only when something outside the service needs the shape |
 | `id` is read but not returned | The service selects `id` to key the count map and drops it from the response. Exposing it is a one-line change if a client needs a stable row key |
+| The roster is scoped by the counts, not the reverse | `deliveryPerson.findMany` runs after the `groupBy` and takes its ids. Anything that needs a person absent from the groups needs a second query, not a widened `where` here |

@@ -15,11 +15,6 @@ export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findDeliveryPersonsPerformance(dto: FindDeliveryPersonsPerformanceDto) {
-    const deliveryPersons = await this.prisma.deliveryPerson.findMany({
-      select: { id: true, name: true },
-      orderBy: [{ name: "asc" }, { id: "asc" }],
-    });
-
     const closedAt = this.buildClosedAtRange(dto);
 
     const groups = await this.prisma.order.groupBy({
@@ -32,6 +27,12 @@ export class AdminDashboardService {
         ],
       },
       _count: true,
+    });
+
+    const deliveryPersons = await this.prisma.deliveryPerson.findMany({
+      where: { id: { in: groups.map((group) => group.deliveryPersonId!) } },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
     return {
