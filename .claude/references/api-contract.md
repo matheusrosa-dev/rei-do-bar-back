@@ -159,7 +159,7 @@ The response is a normalized page:
 }
 ```
 
-**Exceptions**: the admin categories and settings listings are not paginated — they return a flat array with no `meta`. The admin dashboard is not a listing at all: it returns an object pairing aggregate counters with the per-row breakdown they sum to, so it carries neither `meta` nor a top-level array. The products, customers, and delivery persons listings support `simple=true` for the same flat, unpaginated shape.
+**Exceptions**: the admin categories and settings listings are not paginated — they return a flat array with no `meta`. The admin dashboard is not a listing at all: it returns an object pairing aggregate counters with the per-row breakdown they sum to, so it carries neither `meta` nor a top-level array. Its query params are filters only, with no pagination param to go alongside them: it accepts `startDate` and `endDate`, each optional and independent, and nothing else. Both are parsed as instants and applied verbatim as inclusive bounds — the server does no timezone adjustment and no day-boundary snapping, so a caller that means a civil day sends the offset itself. Omitting both is what yields lifetime figures. The products, customers, and delivery persons listings support `simple=true` for the same flat, unpaginated shape.
 
 ---
 

@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@shared/database/prisma/generated/client";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
+import { FindDeliveryPersonsPerformanceDto } from "./dtos";
 
 type OrderGroup = {
   deliveryPersonId: string | null;
@@ -12,17 +14,22 @@ type OrderGroup = {
 export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findDeliveryPersonsPerformance() {
+  async findDeliveryPersonsPerformance(dto: FindDeliveryPersonsPerformanceDto) {
     const deliveryPersons = await this.prisma.deliveryPerson.findMany({
       select: { id: true, name: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
+    const closedAt = this.buildClosedAtRange(dto);
+
     const groups = await this.prisma.order.groupBy({
       by: ["deliveryPersonId", "status"],
       where: {
         deliveryPersonId: { not: null },
-        status: { in: [OrderStatus.DELIVERED, OrderStatus.CANCELLED] },
+        OR: [
+          { status: OrderStatus.DELIVERED, deliveredAt: closedAt },
+          { status: OrderStatus.CANCELLED, cancelledAt: closedAt },
+        ],
       },
       _count: true,
     });
@@ -30,6 +37,22 @@ export class AdminDashboardService {
     return {
       totals: this.buildTotals(groups),
       deliveryPersons: this.buildDeliveryPersons(deliveryPersons, groups),
+    };
+  }
+
+  private buildClosedAtRange({
+    startDate,
+    endDate,
+  }: FindDeliveryPersonsPerformanceDto):
+    | Prisma.DateTimeNullableFilter
+    | undefined {
+    if (!startDate && !endDate) {
+      return undefined;
+    }
+
+    return {
+      ...(startDate && { gte: startDate }),
+      ...(endDate && { lte: endDate }),
     };
   }
 
