@@ -47,8 +47,12 @@ export async function seedCategories(prisma: PrismaClient) {
     },
   });
 
+  const existingNames = new Set(
+    categoriesFound.map((category) => category.name),
+  );
+
   const nonExistingCategories = categories.filter(
-    (_, index) => !categoriesFound[index],
+    (category) => !existingNames.has(category.name),
   );
 
   await prisma.category.createMany({

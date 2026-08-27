@@ -25,6 +25,7 @@
     "migrate:reset": "prisma migrate reset",
     "prisma:generate": "prisma generate",
     "seed": "NODE_ENV=development tsx prisma/seed.ts",
+    "seed:reset": "SEED_RESET=true NODE_ENV=development tsx prisma/seed.ts",
     "seed:production": "tsx prisma/seed.ts"
   },
   "dependencies": {

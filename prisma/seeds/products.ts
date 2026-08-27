@@ -352,8 +352,12 @@ export async function seedProducts(prisma: PrismaClient) {
     },
   });
 
+  const existingKeys = new Set(
+    productsFound.map((product) => `${product.name}|${product.imageUrl}`),
+  );
+
   const nonExistingProducts = products.filter(
-    (_, index) => !productsFound[index],
+    (product) => !existingKeys.has(`${product.name}|${product.imageUrl}`),
   );
 
   const categories = await prisma.category.findMany();

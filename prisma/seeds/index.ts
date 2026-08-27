@@ -1,3 +1,10 @@
 export { seedCategories } from "./categories";
+export { seedCoupons } from "./coupons";
+export { seedCustomers } from "./customers";
+export { seedDeliveryPersons } from "./delivery-persons";
+export { seedInventory } from "./inventory";
+export { seedNotifications } from "./notifications";
+export { seedOrders } from "./orders";
 export { seedProducts } from "./products";
-export { seedSettings } from "./settings";
+export { resetDemoData } from "./reset";
+export { seedDemoSettings, seedSettings } from "./settings";
