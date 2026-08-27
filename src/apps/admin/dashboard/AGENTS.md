@@ -22,19 +22,47 @@ Today it exposes a single reading: delivery-person performance.
 ## Delivery-person performance
 
 `GET /admin/dashboard/delivery-persons` returns an **object with two halves**: `totals`,
-a set of aggregate counters, and `deliveryPersons`, one entry per delivery person with at
-least one closed order in the period. It is not a list endpoint — no pagination, no
-configurable sort. It takes exactly two optional query params, `startDate` and `endDate`,
-and nothing else. The shape is
-deliberately narrow, and widening it is a product decision, not a refactor.
+a set of aggregate counters plus two average durations, and `deliveryPersons`, one entry
+per delivery person with at least one closed order in the period. It is not a list
+endpoint — no pagination, no configurable sort. It takes exactly two optional query
+params, `startDate` and `endDate`, and nothing else. The shape is deliberately narrow, and
+widening it is a product decision, not a refactor.
 
-Both halves count the same universe: **orders that reached a delivery person and then
+Both halves **count** the same universe: **orders that reached a delivery person and then
 closed**, delivered or cancelled. Every counter on both sides carries the same filters —
 a non-null delivery-person assignment, a terminal status, and the date range when one is
-given — which is what keeps them reconcilable: the totals are the column-wise sum of the
-rows.
+given — which is what keeps them reconcilable: the total counters are the column-wise sum
+of the row counters. That invariant covers the counters only; the averages below sit
+outside it deliberately.
 
 Load-bearing decisions:
+
+- **The two averages are not summable and do not describe the counted universe.** `totals`
+  carries an average span from **dispatch to close**, one per terminal status, in whole
+  minutes. They are totals-only by product decision — there is no per-person counterpart to
+  recompose them from, and adding one would not restore the sum invariant anyway, since an
+  average is not a column that adds up. More important, they run over a **strict subset** of
+  the counted orders: only those carrying a dispatch stamp, which the timings read asks
+  for. The service checks the *closing* stamp again on each row, and that second check is
+  belt-and-braces: every path that writes a terminal status writes its stamp in the same
+  update, and no order predating the dispatch column can reach the read anyway, so a row
+  that gets this far always has both. It stays because it is what keeps a missing stamp out
+  of the arithmetic instead of turning the whole field into `NaN`. Two consequences that a reader
+  of the panel has to be told about, because nothing in the numbers reveals them:
+  - the dispatch column was added with **no backfill**, so every order shipped before it
+    existed is outside both averages while still inside both counters — an old period can
+    answer a high delivered count next to a `null` average, and that is correct;
+  - an order cancelled **before** it ever shipped has no dispatch stamp and no street time
+    to measure, so it counts and is not averaged. The cancellation field is named for that
+    qualifier rather than leaving it implicit. The delivery field needs no such name: the
+    state machine has no arrow into delivered that skips dispatch.
+
+  A status with no sample answers **`null`, never `0`** — zero would read as an instant
+  close. The spans are averaged in milliseconds and rounded **once, at the end**, to the
+  nearest minute, so `0` is still a legitimate answer for a real sub-half-minute average;
+  `null` is what separates "nothing to measure" from "measured, and very fast". Rounding
+  each order first and averaging the results would drift, and is not what happens. Same
+  spirit as the `NULL` caveat below: accepted contract, not a defect.
 
 - **Only delivery persons with closed orders in the period are listed**, but the roster is
   never filtered on its own attributes. The listed ids come from the `groupBy` result, so a
@@ -76,14 +104,15 @@ Load-bearing decisions:
   needs no empty-case guard: no groups means an empty `in` list, which Prisma compiles to an
   always-false predicate — an empty roster and zeroed totals, at the cost of one round-trip
   that returns nothing. Do not swap the two reads back.
-- **A single `groupBy` feeds both halves.** The module groups `order` by
+- **A single `groupBy` feeds both counted halves.** The module groups `order` by
   `["deliveryPersonId", "status"]` once; the per-person half keys the result on
   `` `${id}:${status}` ``, and the totals half reduces the same groups per status. That is
   the primary reason for the shape — a relation `_count` could not serve it, since
   `_count.select` accepts the `orders` relation only once and cannot express several
-  differently-filtered counts of it. Adding a status to the panel never costs another query
-  — but it is not one edit either: a branch in the `OR`, a counter in the totals builder, a
-  field in the row builder, and a decision on whether it belongs inside the summed total all
+  differently-filtered counts of it. Adding a status to the panel never costs another
+  *count* query — but it is not one edit either: a branch in the `OR`, a counter in the
+  totals builder, a field in the row builder, a branch in the timings builder if the new
+  status is worth timing, and a decision on whether it belongs inside the summed total all
   have to move together, or the total silently stops matching its parts.
 - **The assignment filter is `deliveryPersonId: { not: null }`, not an id list.** It
   expresses the same set as passing every registered id, without a query that grows with
@@ -97,9 +126,9 @@ Load-bearing decisions:
   filter is a two-branch `OR` rather than a flat `status: { in: [...] }` because each status
   carries its **own** timestamp column, so the range has to be paired with the matching one.
   With no range the range object is `undefined`, Prisma drops the comparison, and the `OR`
-  degrades to exactly the old `in` filter. The single branch on "was a param sent" lives in
-  the range builder and returns `undefined`; the `where` clause itself is built once and
-  never forks, so one query shape serves both cases.
+  degrades to exactly the old `in` filter. The single branch on "was a param sent" sits inside
+  the `where` builder, next to the clause it feeds, and resolves to `undefined`; the clause
+  itself is built once and never forks, so one query shape serves both cases.
 - **Cancelled orders legitimately carry a `deliveryPersonId`.** The status-transition
   state machine allows `SHIPPED → CANCELLED`, and no write path ever clears the FK
   (`admin/orders/orders.service.ts` only adds fields on transition; admin reassignment
@@ -112,26 +141,36 @@ Load-bearing decisions:
 
 ### Coupling to watch
 
-Because both halves derive from one `groupBy`, the totals are the sum of the listed rows by
-construction. The date range does **not** threaten that: it narrows the *order* universe,
-which both halves share, so both narrow together and still reconcile. The roster `findMany`
+Because both counted halves derive from one `groupBy`, the total counters are the sum of
+the listed rows by construction. The averages sit outside that: they come from a read of
+their own, and no arrangement of rows adds up to them. The date range does **not** threaten
+that: it narrows the *order* universe, which every read shares, so they narrow together and
+the counters still reconcile. The roster `findMany`
 narrows with them — its `where` is derived from the group result, never from the delivery
 person's own attributes — so it can only drop rows that would have counted zero.
 
 What would break it is a filter on the **roster** that the groups do not imply: active
 delivery persons only, a search term, a slice. Those would shrink the listed rows without
-shrinking the aggregate, and the totals would then have to move to a `groupBy` of their own
+shrinking the aggregate, and the total counters would then have to move to a `groupBy` of
+their own
 — or, worse, silently start reporting a subset while claiming to be the whole.
 
-The two reads (`groupBy` for the counts, then `findMany` for the roster) run **outside** a
-transaction — the same looseness the sibling listing in `admin/delivery-persons/` accepts
-between its roster and its counts, though that one does wrap its roster and its total in a
-`$transaction` pair.
+The three reads (`groupBy` for the counts, `findMany` for the roster, `findMany` for the
+timings) run **outside** a transaction — the same looseness the sibling listing in
+`admin/delivery-persons/` accepts between its roster and its counts, though that one does
+wrap its roster and its total in a `$transaction` pair.
 
-Both halves still come from the one grouping, so they can never contradict each other, and
-under this ordering **no interleaving skews them either** — an invariant worth relying on
-rather than defending against. Every id in the groups has at least one order attached, and
-such a delivery person cannot vanish between the reads: the FK is `onDelete: Restrict` and
+Both counted halves still come from the one grouping, so they can never contradict each
+other, and under this ordering **no interleaving skews them either** — an invariant worth
+relying on rather than defending against. The **timings read is the one that can drift**: it
+runs last, so an order that closes between it and the `groupBy` is averaged without being
+counted, and the panel can answer a non-null average beside a count that does not include
+it. Nothing is wrong when that happens — the averages already describe a different set of
+orders than the counters do — and closing the gap would mean wrapping all three in a
+transaction to buy consistency between figures that are not comparable anyway.
+
+Every id in the groups has at least one order attached, and such a delivery person cannot
+vanish between the reads: the FK is `onDelete: Restrict` and
 `admin/delivery-persons/` refuses the deletion with `DELIVERY_PERSON_HAS_ORDERS`. Nothing in
 `src/` deletes an order either, so the roster read always resolves every id the grouping
 produced. (The previous ordering — roster first — did have a window, where a delivery person
@@ -140,7 +179,7 @@ of their own.)
 
 The status filter is load-bearing, not a formality: an assigned order sitting in `SHIPPED`
 is excluded from every counter on purpose, so "orders that reached a delivery person" means
-*and have since closed*. Both halves apply the same filter, so they stay reconcilable with
+*and have since closed*. Both counted halves apply the same filter, so they stay reconcilable with
 each other — but neither reconciles against the raw count of assigned orders, and they will
 not, as long as anything is in transit.
 
@@ -153,7 +192,8 @@ not, as long as anything is in transit.
 | No response DTO | Like the rest of the admin surface, there is no `@Serialize` layer — the service hand-maps its result and that mapping *is* the contract |
 | `dtos/` holds only what a handler receives | The query DTO is where the range params are declared and validated, never in the service. There is still no *response* DTO |
 | Date params are parsed, never adjusted | `@Type(() => Date)` parses and `@IsDate()` rejects what came out `Invalid` (→ 422) — and that is the whole treatment. No `@Transform`, no timezone helper, no day boundary: the instant the client sent is the instant that reaches the query. The nearest thing to a counter-example is the coupon DTOs' *end* bound, which does snap (their start bound only carries a floor), and the difference is intentional — a coupon window is a calendar rule the store owns, a dashboard range is a question the caller is asking |
-| Aggregate and detail come from one read | Never issue a second query for a total that the existing `groupBy` can reduce |
+| Counters come from one read; the averages earn a second | Never issue a second query for a total that the existing `groupBy` can reduce. The averages are the one thing it cannot: a grouped average needs a numeric column, and the span between two timestamps is not one, so they get a read of their own. That read **reuses the same `where` object** and only narrows it by the dispatch stamp — rebuilding the filter, in another shape or another language, is exactly how the two halves stop describing the same orders |
+| The spans are averaged in the service, not in SQL | Raw SQL could aggregate them in the database, but it would restate the two-branch `OR` and the optional range a second time. Sharing the `where` object literally is what makes drift impossible. The price is the row fetch: it takes no `take`, and the default period is lifetime, so it grows with every order ever dispatched — the missing backfill holds the count down today but that bound expires by one day per day, and nothing will signal the crossing. Cap it or move the aggregation into the database when the volume justifies it, not before |
 | Ordering ends on a unique column | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order |
 | Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping are private methods fed by the shared query result. Add the file only when something outside the service needs the shape |
 | `id` is read but not returned | The service selects `id` to key the count map and drops it from the response. Exposing it is a one-line change if a client needs a stable row key |

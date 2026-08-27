@@ -23,7 +23,10 @@ export class DeliveryPersonsOrdersService {
       include: {
         items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: [
+        { shippedAt: { sort: "asc", nulls: "first" } },
+        { orderNumber: "asc" },
+      ],
     });
 
     return orders.map((order) => ({

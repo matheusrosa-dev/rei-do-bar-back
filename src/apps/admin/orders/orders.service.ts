@@ -47,20 +47,26 @@ export class AdminOrdersService {
       },
     } satisfies Prisma.OrderInclude;
 
-    const [ongoingOrders, deliveredOrders, cancelledOrders] =
+    const [ongoingOrders, shippedOrders, deliveredOrders, cancelledOrders] =
       await this.prisma.$transaction([
         this.prisma.order.findMany({
           where: {
             status: {
-              in: [
-                OrderStatus.PENDING,
-                OrderStatus.PREPARING,
-                OrderStatus.SHIPPED,
-              ],
+              in: [OrderStatus.PENDING, OrderStatus.PREPARING],
             },
           },
           include,
           orderBy: [{ createdAt: "asc" }, { orderNumber: "asc" }],
+        }),
+        this.prisma.order.findMany({
+          where: {
+            status: OrderStatus.SHIPPED,
+          },
+          include,
+          orderBy: [
+            { shippedAt: { sort: "asc", nulls: "first" } },
+            { orderNumber: "asc" },
+          ],
         }),
         this.prisma.order.findMany({
           where: {
@@ -97,10 +103,7 @@ export class AdminOrdersService {
         formattedOngoingOrders,
         OrderStatus.PREPARING,
       ),
-      [OrderStatus.SHIPPED]: this.filterOrdersByStatus(
-        formattedOngoingOrders,
-        OrderStatus.SHIPPED,
-      ),
+      [OrderStatus.SHIPPED]: this.calculateOrdersTotals(shippedOrders),
       [OrderStatus.DELIVERED]: this.calculateOrdersTotals(deliveredOrders),
       [OrderStatus.CANCELLED]: this.calculateOrdersTotals(cancelledOrders),
     };
@@ -322,6 +325,7 @@ export class AdminOrdersService {
             }),
             ...(dto.status === OrderStatus.SHIPPED && {
               deliveryPersonId: dto.deliveryPersonId,
+              shippedAt: new Date(),
             }),
             ...(dto.status === OrderStatus.DELIVERED && {
               deliveredAt: new Date(),

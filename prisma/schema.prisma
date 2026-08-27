@@ -213,6 +213,7 @@ model Order {
   couponDiscount   Int         @map("coupon_discount")
   paymentType      PaymentType @map("payment_type")
   deliveryPersonId String?     @map("delivery_person_id")
+  shippedAt        DateTime?   @map("shipped_at")
   deliveredAt      DateTime?   @map("delivered_at")
   cancelledAt      DateTime?   @map("cancelled_at")
   createdAt        DateTime    @default(now()) @map("created_at")

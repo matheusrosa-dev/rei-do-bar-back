@@ -15,5 +15,4 @@ gerar migration unica de init
 Importante:
 corrigir o menu na barra de navegação no android
 implementar sistema de XP
-adicionar tela de quantos e quais pedidos já foram entregues por um entregador
-criar dashboard
+criar seeds mais completas

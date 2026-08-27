@@ -66,13 +66,22 @@ describe("DeliveryPersonsOrdersService", () => {
       );
     });
 
-    it("should order the delivery queue oldest first", async () => {
+    it("should order the delivery queue by dispatch time, oldest first", async () => {
       prismaMock.order.findMany.mockResolvedValue([]);
 
       await service.findShippedOrders(DELIVERY_PERSON_ID);
 
       expect(prismaMock.order.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ orderBy: { createdAt: "asc" } }),
+        // Por createdAt a fila sairia na ordem em que os clientes pediram, que
+        // não é a ordem em que o admin despachou. Os nulos vêm primeiro porque
+        // são os pedidos despachados antes da coluna existir, os mais antigos
+        // da fila — o padrão do Postgres em ASC os jogaria para o fim.
+        expect.objectContaining({
+          orderBy: [
+            { shippedAt: { sort: "asc", nulls: "first" } },
+            { orderNumber: "asc" },
+          ],
+        }),
       );
     });
 

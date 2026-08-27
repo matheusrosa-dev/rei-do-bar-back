@@ -27,7 +27,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Column naming | Database columns mapped to `snake_case` |
 | Table naming | Tables mapped to `snake_case`, pluralized |
 | Timestamps | `createdAt` / `updatedAt` on entities, mapped to snake_case columns — join tables (e.g. `CouponUsage`, `CouponCustomer`) only carry `createdAt`, and so do append-only records of something that happened (movement ledgers, dispatch history), which are never updated after the insert |
-| Event timestamps | The moment a domain event happened gets its **own nullable column**, written once at the transition — never inferred from `updatedAt`, which every later write to the row overwrites. Null means the event has not happened |
+| Event timestamps | The moment a domain event happened gets its **own nullable column**, written once at the transition — never inferred from `updatedAt`, which every later write to the row overwrites. Null means the event has not happened — or, on a column introduced without a backfill, that it happened before the column existed; a reader that windows or sorts on the column has to decide deliberately where those rows land |
 | Enums | A closed set of domain values is a **schema enum** — the schema is its single source of truth. Application code re-exports the generated enum (from a module helper, or a shared types file when several modules need it) instead of redeclaring a parallel TypeScript enum, so adding a value means a schema change plus a migration, never an edit in two places |
 | Monetary values | Stored as integer cents — never floats |
 | Soft delete | Availability is an `isActive` flag. Logical deletion uses a nullable deletion timestamp that all reads filter out — applied wherever a row must survive deletion (e.g. to preserve linked history); on records holding personal data, deletion also scrubs that data (anonymization) |
@@ -46,11 +46,15 @@ Use the project scripts (`migrate:dev` to create/apply in development, `migrate:
 
 A migration may carry a **data backfill** alongside its DDL when a new column has to mean something for rows that already exist. Backfilling from an approximate source is only acceptable where the approximation cannot be mistaken for the real thing.
 
+When no existing column even approximates the event, the honest backfill is **none at all**: the whole history stays null and only new transitions stamp. That is the right call whenever the candidate source is overwritten by a later transition or by an unrelated write — such a value does not approximate the moment the event happened, it merely looks like it does. A non-terminal transition rarely has an acceptable source for this reason.
+
 If any query reads the new column through a time window, the backfill must **stop at that window's boundary**, leaving the rows inside it null. A null says "unknown", which every reader already handles; a plausible-looking wrong value silently becomes a wrong answer.
+
+If instead a query **orders** on the new column, the rows left null need a declared position: the default placement follows the sort direction and is an accident, not a decision. Choose the end that preserves the order those rows already had under the column being replaced, and state it in the query rather than relying on the database default.
 
 A column no query reads yet may be backfilled in full — the values are historical record, not an answer to anything. Note that a window over the same rows often already exists on `updatedAt`; the comment must name it and say what happens the day that filter moves onto the new column, so whoever makes that move knows to null the rows inside the window first.
 
-Either way, say in a comment which source was used and why it stops where it does — or why it does not stop.
+Either way, the comment says which source was used and why it stops where it does — or why it does not stop, or why no source was acceptable at all — and what the readers of the column do with the rows left null.
 
 ---
 
