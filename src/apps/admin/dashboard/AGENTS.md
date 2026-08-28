@@ -72,8 +72,10 @@ Load-bearing decisions:
   add it.
 - **The bounds are the caller's instants, used verbatim.** `startDate` / `endDate` are
   optional and independent, parsed to a `Date` and handed straight to Prisma as `gte` / `lte`.
-  The module deliberately performs **no** timezone work: it does not snap to a day boundary,
-  does not consult `America/Sao_Paulo`, and imports nothing from the date helper. Whoever
+  The **filter** deliberately performs no timezone work: it does not snap to a day boundary and
+  does not consult `America/Sao_Paulo`. (The module as a whole is no longer zone-blind — the
+  revenue series buckets through the shared date helper. That is the *grouping*, never the
+  bounds; see the series section.) Whoever
   calls decides what a period means — send an offset (`2026-08-01T00:00:00-03:00`) and the
   instant is unambiguous; send a bare `YYYY-MM-DD` and JavaScript reads it as UTC midnight,
   which is the caller's call to make, not this module's to correct. Do not reintroduce a snap
@@ -186,10 +188,13 @@ not, as long as anything is in transit.
 ## Revenue
 
 `GET /admin/dashboard/revenue` answers what the store took in over a period and how much
-of it was given away as coupon. Unlike the reading above it returns a **flat object of
-aggregates** — there is no per-row half, because the question has no row to break down
-into. It takes the same two optional params, `startDate` / `endDate`, under the same
-verbatim-instant rule, and nothing else.
+of it was given away as coupon. Like the reading above it returns an object with **two
+halves** — `totals`, the aggregates for the whole period, and `series`, the same four
+figures broken down over time so a client can plot them. The halves are not the same kind
+as the sibling's: `series` is a **time series**, not a roster of entities, and it
+reconciles against `totals` only under the condition spelled out below. It takes the same
+two optional params, `startDate` / `endDate`, under the same verbatim-instant rule, and
+nothing else.
 
 Load-bearing decisions:
 
@@ -212,32 +217,176 @@ Load-bearing decisions:
   reported beside it — the field answers "quanto foi abatido por cupom", not "quanto foi
   abatido". Consequently **revenue is already net of the coupon**: `revenue +
   couponDiscount` is the gross, not a double count.
-- **An empty period answers zeros, never `null`.** Nothing delivered means nothing
-  invoiced, and zero says exactly that. This is the opposite of the averages above, where
-  zero would be a lie and `null` is the empty answer — the difference is that a sum over no
-  rows has a meaningful identity and a mean does not.
-- **⚠️ A range filters on the delivery timestamp, so rows with a `NULL` one disappear.**
-  The same caveat the delivery-person reading carries, and for the same unbackfilled
-  column: those orders count when no param is sent and vanish from **every** range,
-  including one spanning all of history. Filtered revenue is not comparable to lifetime
-  revenue.
-- **An inverted range returns zeros, not a 422** — same as the sibling, same reason.
+- **`couponDiscountPercentage` divides by that gross, not by `revenue`.** It answers what
+  share of what the store *would* have taken in was given away as coupon —
+  `couponDiscount / (revenue + couponDiscount) * 100` — so it is bounded by 100 and reads
+  the same way whether or not a coupon was used. Dividing by `revenue` alone would inflate
+  it (the denominator has already lost the discount) and could exceed 100. It is a number
+  with **two decimals**, rounded **once at the end** like the sibling's averages, and it is
+  raw — the `%` sign is the client's business. The promotional price stays outside it on
+  both sides of the fraction, for the same reason it stays out of `couponDiscount`.
+- **⚠️ It is derived, not summed, so it is `null` where the sums are `0`.** A period — or a
+  bucket — with no gross has no ratio to report, and `0` would read as "sold, and gave
+  nothing away" rather than "nothing to measure". This is the one field on this endpoint
+  that follows the sibling's `null` rule instead of the zero rule below, and the reason is
+  the same one that separates them there: a sum over no rows has an identity, a ratio does
+  not. A real `0` is still reachable and means a period that sold and used no coupon.
+- **An empty period answers zeros, never `null` — for the sums.** Nothing delivered means
+  nothing invoiced, and zero says exactly that. This is the opposite of the averages above,
+  where zero would be a lie and `null` is the empty answer — the difference is that a sum
+  over no rows has a meaningful identity and a mean does not. `couponDiscountPercentage` is
+  on the other side of that line: it is a ratio, so it answers `null`. Two rules on one
+  payload is the intended state, not an inconsistency to tidy up.
+- **The read requires a delivery stamp, with or without a range.** A range filters on
+  `deliveredAt`, and a SQL comparison against `NULL` is `UNKNOWN`, so a ranged read already
+  drops the stamp-less rows; the unranged read asks for `not: null` explicitly so that it
+  drops them too. Without that the same counter would mean one thing filtered and another
+  unfiltered — the asymmetry the sibling reading still carries. The cost is that a
+  `DELIVERED` row with no stamp would vanish from revenue entirely rather than counting in a
+  figure it cannot be plotted in; no write path produces that row (status and stamp are
+  written in the same update), and the state is unreachable rather than merely unlikely.
+- **An inverted range returns zeros, not a 422** — same as the sibling, same reason. Zeros
+  for the sums, that is; the share answers `null` there like in any other empty period.
 - **One read, no `groupBy`.** No aggregate can express the figure: it needs
   `price * quantity` per item, which neither `aggregate` nor `groupBy` multiplies. So the
-  rows are fetched narrow — the fee, the coupon snapshot, and the item price/quantity — and
+  rows are fetched narrow — the delivery stamp, the fee, the coupon snapshot, and the item
+  price/quantity — and
   reduced in the service, the same shape the admin order listing already uses to sort by
   total. The count comes free from the fetched rows and never earns a query of its own.
 - **⚠️ That read takes no `take`, and it is heavier than the timings read above.** It pulls
   every delivered order ever **plus all of its item rows**, and unlike the timings read it
   is not gated on the dispatch stamp, so the missing backfill does not hold its volume down
   either. The row count that will hurt is the items, not the orders. Cap it or push the
-  aggregation into the database when the volume justifies it, not before.
+  aggregation into the database when the volume justifies it, not before. The series costs
+  nothing on top of it: it is grouped in memory from the rows already fetched, never a
+  second query.
+
+### The series
+
+- **⚠️ The bucket consults `America/Sao_Paulo`; the filter still does not.** These are two
+  different things and the distinction is load-bearing. The range bounds remain the
+  caller's instants used verbatim, exactly as the rule above states — what the timezone
+  decides is only which bucket a delivered order falls into. A delivery at 21h BRT is
+  midnight UTC the next day, and the store's peak hours are in the evening, so bucketing in
+  UTC would plot a whole evening on the wrong point of the line. Do not "unify" the two by
+  making the filter zone-aware, and do not drop the zone from the bucket.
+- **The granularity is adaptive and the client cannot choose it.** Three tiers, picked from
+  the span in inclusive São Paulo calendar days: **hourly** for a single day, **daily** up to
+  `MAX_DAILY_BUCKETS` (62) days, **monthly** beyond that. A year of daily points is ~365
+  entries no line chart can render, and a single day of daily points is one entry, which is
+  not a line at all. An open-ended interval has no length to measure, so a missing bound falls
+  back to months regardless.
+- **⚠️ A caller that omits the offset gets an axis shifted by a day.** This is the
+  verbatim-instant rule meeting the São Paulo bucket, and the label is what makes the
+  mismatch visible: a bare `2026-08-01`/`2026-08-31` is read as UTC midnight, so the series
+  runs `31/07 … 30/08` and its first point holds only the 21:00–00:00 BRT sliver of 31 July.
+  Nothing is internally inconsistent — the sum invariant and the 62-day threshold both
+  survive, since every bound shifts alike — but the chart is labelled wrong. **Sending the
+  offset (`2026-08-01T00:00:00-03:00`) is an integration requirement, not a nicety**, and the
+  fix belongs in the caller: snapping the bounds here would break the verbatim rule the
+  filter depends on.
+- **The dense path is capped at `MAX_BUCKETS` (600) points, and the cap truncates.** The
+  ceiling lives **in the shared date helper, not here** — this module neither passes it in nor
+  can override it, so it is a limit on every future caller of that helper and not a preference
+  of this panel. The same is true of the 62-day threshold: a product decision that sits in the
+  calendar module. Changing either is a shared-helper change with a shared-helper blast radius.
+  The cap guards the **dense path only**, since that is the only path that enumerates buckets;
+  the sparse path builds its series from the grouped keys and is bounded by the data instead.
+  It is needed because the fallback to months divides the point count without bounding it: a
+  millennium-wide range is still ~12k monthly points. Past the ceiling the series is silently
+  cut short rather than rejected, matching how this module already answers an inverted range
+  instead of raising a 422. **Buckets are enumerated ascending, so truncation keeps the
+  oldest points and drops the most recent ones** — the counterintuitive half for a revenue
+  chart, and worth knowing before trusting a very wide range. Because daily granularity is
+  itself bounded at 62 buckets and hourly at 24, the cap can only ever bite at monthly
+  granularity, i.e. on a
+  closed range wider than ~50 years.
+- **⚠️ The enumeration loop must compare instants, not formatted dates.** Past year 9999
+  luxon emits the expanded form (`+010000-01-01`), where `+` sorts below every digit, so a
+  lexicographic guard never turns false and the loop never ends. The helper carries no comment
+  saying so — what holds the line is its own regression test, which walks a range to `9999-12-31`
+  and asserts the ceiling truncates. Do not reimplement bucket enumeration in a module, and do
+  not "simplify" that comparison back to a formatted string. The sparse path's `.sort()` over
+  the same key format is **not** the same hazard and is correct as it stands: it only ever sees
+  keys derived from real delivery stamps, never a cursor walking past the 4-digit era.
+- **Granularity and density are separate rules with different triggers.** Density is
+  *dense* — empty buckets emitted as zeros — only when both bounds are present, at whatever
+  granularity; sparse otherwise, carrying only buckets that had a delivery. Both happen to
+  depend on the range being closed, which is why they read as one rule and are not: changing
+  the 62-day span does not touch zero-filling, and vice versa.
+- **A point carries a `label` and nothing else identifying it.** No ISO date, no
+  granularity field — a product decision. The ISO bucket exists only inside the service, as
+  the grouping and sort key. Consequences to hold on to: **the array order is the entire
+  ordering contract**, the granularity is only inferrable from the label's shape, and the
+  label format is therefore **contract, not cosmetics** — changing it is a breaking change.
+  A client that needs to reprocess the series needs a `date` field that does not exist yet;
+  adding one is purely additive and breaks nobody.
+- **`label` is a user-facing string, so it is pt-BR** — `14:00` hourly, `dd/MM` daily,
+  `Agosto/2026` monthly, the last capitalized because a chart axis reads better that way. It
+  is the one place in this module where a response field is formatted rather than raw.
+- **`totals` is the sum of `series`, unconditionally — except under truncation.** Both halves
+  reduce the same fetched rows, and every fetched row now carries a stamp, so each one lands
+  in exactly one bucket whether the series is dense or sparse. The **cap is the only way the
+  equality breaks**: a truncated series drops buckets whose orders still count in `totals`.
+  Do not reintroduce a path where a row counts in the aggregate without belonging to a bucket
+  — that asymmetry is what the query filter exists to prevent.
+  **The invariant covers the three summable figures only.** `couponDiscountPercentage` is
+  recomputed from each half's own gross, so it is neither the sum of the points nor their
+  average — a day of 50% beside a day of 0% with ten times the revenue is ~5% for the
+  period, not 25%. Averaging the buckets would weight a quiet day like a busy one; there is
+  no per-bucket figure to recompose the period's from, and there does not need to be, since
+  both are derived from sums that do reconcile.
+- **An inverted range yields an empty series**, consistent with the zeros it already answers.
+  That takes an explicit guard: without one, an inversion *within a single bucket* collapses
+  both bounds onto the same `startOf(...)` and emits one zeroed point, so the answer would
+  depend on whether the inversion happened to cross a boundary. It is the guard, not the loop,
+  that makes the case uniform.
+- **The granularity token is the shared helper's calendar unit, and that is what keeps the
+  tiers on one code path.** The same value is handed to every calendar function, so the three
+  never fork into parallel branches here. A fourth tier is a change to that shared type — it
+  has to be a unit luxon understands — not something this module can add alone.
+- **⚠️ The bucket key carries full precision at every tier, and the tier is not its concern.**
+  Keys look like `2026-08-26T14:00` whatever the unit — `startOf(unit)` has already zeroed
+  whatever the tier does not use, so a month reads `2026-08-01T00:00`. Dropping the time for
+  the coarser tiers is the tempting simplification and it is how the hourly tier broke once:
+  a key built from the date alone collapses all 24 hours of a day onto one entry **and**
+  labels them all `00:00`, since the formatter parses the key back — one mistake with two
+  symptoms. The key only has to sort as a string and round-trip through `fromISO`; **which
+  tier shows what is the formatter's business alone**.
+  ⚠️ The key format is currently written out at **two sites** in the helper — the grouping loop
+  and the dense cursor loop — and nothing enforces that they agree. If they drift, nothing
+  throws: enumerated keys stop matching grouped ones and **the whole series comes back zeroed
+  with the right labels**. The zero-fill test is what catches it, incidentally rather than by
+  design. Change one site and you must change the other.
+- **The key cannot be the label, and that is why there are two of them.** The sparse path
+  orders buckets by sorting the keys as strings, so the key has to sort chronologically —
+  `["01/09", "26/08"].sort()` puts September first, and `Agosto` sorts before `Julho`.
+  Collapsing the two into one field scrambles the chart on exactly the path that has no
+  bounds to enumerate from.
+- **One reducer feeds both halves.** The same private sums `totals` and every bucket, and the
+  same private derives the percentage from those sums, which is what makes them arithmetically
+  identical *by construction* rather than by two implementations agreeing. The derivation is a
+  wrapper around the reducer rather than a fourth accumulator: a ratio cannot be accumulated
+  row by row, so it is computed once per half, from that half's finished sums. It is the same argument as sharing the `where` object on the performance reading:
+  restating the sum per half is how they start to drift.
+- **The calendar work lives in the shared date helper, not here.** Resolving the unit,
+  counting inclusive days, formatting the label and — inside a single grouping function —
+  keying an instant to its bucket and enumerating a range are calendar concerns with no notion
+  of an order, so they sit next to the zone string that already owned `America/Sao_Paulo`.
+  This module hands that function the rows and the range and reduces what comes back; it
+  imports luxon nowhere.
+- **The adaptive granularity shrinks the series; the ceiling is what bounds it.** Falling
+  back to months divides the point count by ~30 — an absurd range (1900–2100) drops from
+  ~73k daily points to ~2400 monthly ones, still four times the ceiling — but it does not
+  bound anything on its own, which is why the explicit cap exists above it. The unbounded `findMany` remains the heavier
+  limit, and neither guard touches it.
 
 ### Coupling to watch
 
-Nothing reconciles across the two endpoints — not the counters, not the money. They share
-only the range semantics and the private that builds it. Adding a figure to one is never a
-reason to add it to the other.
+Nothing reconciles across the two endpoints — not the counters, not the money, and not the
+two lower halves, which are different kinds of breakdown over different universes. They
+share only the range semantics and the private that builds it. Adding a figure to one is
+never a reason to add it to the other.
 
 ## Conventions
 
@@ -248,9 +397,12 @@ reason to add it to the other.
 | No response DTO | Like the rest of the admin surface, there is no `@Serialize` layer — the service hand-maps its result and that mapping *is* the contract |
 | `dtos/` holds only what a handler receives | The query DTO is where the range params are declared and validated, never in the service. There is still no *response* DTO. **One DTO per handler**, even when two are field-for-field identical: they are free to diverge, and a shared base is what a third range-filtered endpoint would earn, not the second |
 | Date params are parsed, never adjusted | `@Type(() => Date)` parses and `@IsDate()` rejects what came out `Invalid` (→ 422) — and that is the whole treatment. No `@Transform`, no timezone helper, no day boundary: the instant the client sent is the instant that reaches the query. The nearest thing to a counter-example is the coupon DTOs' *end* bound, which does snap (their start bound only carries a floor), and the difference is intentional — a coupon window is a calendar rule the store owns, a dashboard range is a question the caller is asking |
+| Filtering is zone-blind; bucketing is not | The rule above governs the **`where`** and is unconditional. Grouping rows into named periods is a different problem — a calendar day only exists in some zone — and the revenue series resolves it in `America/Sao_Paulo`, in the service, never in the DTO. Keep the two apart: a zone leaking into a bound is a period silently changing meaning, and a bucket without one is an evening plotted on the wrong day |
+| Sums are accumulated; ratios are derived from them | A figure that adds up rides the reducer that feeds both halves. A figure that does not — the revenue percentage — is computed from the finished sums of each half, never accumulated per row and never carried over from `totals` to a bucket. That is also why it is the one revenue field that can answer `null` |
+| A formatted label is the exception, not the pattern | Response fields here are raw values the client formats. The series' `label` is the one that ships display-ready, in pt-BR, because it exists to be rendered on an axis — which also makes its format part of the contract. Do not generalize it to other fields, and do not add a second formatted field without deciding it is worth the same lock-in |
 | Counters come from one read; the averages earn a second *(performance reading)* | Never issue a second query for a total that the existing `groupBy` can reduce. The averages are the one thing it cannot: a grouped average needs a numeric column, and the span between two timestamps is not one, so they get a read of their own. That read **reuses the same `where` object** and only narrows it by the dispatch stamp — rebuilding the filter, in another shape or another language, is exactly how the two halves stop describing the same orders |
 | The spans are averaged in the service, not in SQL *(performance reading)* | Raw SQL could aggregate them in the database, but it would restate the two-branch `OR` and the optional range a second time. Sharing the `where` object literally is what makes drift impossible. The price is the row fetch: it takes no `take`, and the default period is lifetime, so it grows with every order ever dispatched — the missing backfill holds the count down today but that bound expires by one day per day, and nothing will signal the crossing. Cap it or move the aggregation into the database when the volume justifies it, not before |
-| Ordering ends on a unique column *(where anything is ordered)* | The revenue read orders nothing — it is reduced, never shown row by row. The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order |
+| Ordering ends on a unique column *(where anything is ordered)* | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order. Neither does the revenue read: its rows are grouped in memory, and the series is ordered by its own bucket keys, which are unique by construction |
 | The range is built once, in a shared private | Both readings derive their date filter from the same private, which returns `undefined` when neither bound is sent so the key drops from the `where` entirely. Restating the range per endpoint is how two panels start disagreeing about what a period means |
 | Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping are private methods fed by the shared query result. Add the file only when something outside the service needs the shape |
 | `id` is read but not returned | The service selects `id` to key the count map and drops it from the response. Exposing it is a one-line change if a client needs a stable row key |

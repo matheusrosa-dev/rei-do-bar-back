@@ -1,18 +1,25 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
+import { PrismaService } from "@shared/database/prisma/prisma.service";
+import {
+  averageMinutes,
+  DateRange,
+  listDataByDateUnit,
+} from "@shared/helpers/date";
 import {
   computeOrderTotals,
   OrderTotalsSource,
 } from "@shared/helpers/products-totals";
-import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { FindDeliveryPersonsPerformanceDto, FindRevenueDto } from "./dtos";
 
-const MINUTE_IN_MS = 60 * 1000;
+type RevenueOrder = OrderTotalsSource & {
+  deliveredAt: Date | null;
+};
 
-type DateRange = {
-  startDate?: Date;
-  endDate?: Date;
+type RevenueSums = {
+  revenue: number;
+  couponDiscount: number;
 };
 
 type OrderGroup = {
@@ -72,9 +79,10 @@ export class AdminDashboardService {
     const orders = await this.prisma.order.findMany({
       where: {
         status: OrderStatus.DELIVERED,
-        ...(deliveredAt && { deliveredAt }),
+        deliveredAt: deliveredAt ?? { not: null },
       },
       select: {
+        deliveredAt: true,
         deliveryFee: true,
         couponDiscount: true,
         items: {
@@ -84,12 +92,31 @@ export class AdminDashboardService {
     });
 
     return {
-      deliveredOrdersCount: orders.length,
-      ...this.sumRevenue(orders),
+      totals: {
+        deliveredOrdersCount: orders.length,
+        ...this.buildRevenueTotals(orders),
+      },
+      series: this.buildRevenueSeries(orders, dto),
     };
   }
 
-  private sumRevenue(orders: OrderTotalsSource[]) {
+  private buildRevenueTotals(orders: OrderTotalsSource[]) {
+    const sums = this.sumRevenue(orders);
+
+    const grossRevenue = sums.revenue + sums.couponDiscount;
+
+    const couponDiscountPercentage =
+      grossRevenue === 0
+        ? null
+        : Math.round((sums.couponDiscount / grossRevenue) * 10_000) / 100;
+
+    return {
+      ...sums,
+      couponDiscountPercentage,
+    };
+  }
+
+  private sumRevenue(orders: OrderTotalsSource[]): RevenueSums {
     return orders.reduce(
       (sums, order) => ({
         revenue: sums.revenue + computeOrderTotals(order).total,
@@ -97,6 +124,19 @@ export class AdminDashboardService {
       }),
       { revenue: 0, couponDiscount: 0 },
     );
+  }
+
+  private buildRevenueSeries(orders: RevenueOrder[], range: DateRange) {
+    const series = listDataByDateUnit(
+      orders.map((order) => ({ date: order.deliveredAt!, data: order })),
+      range,
+    );
+
+    return series.map((serie) => ({
+      label: serie.label,
+      deliveredOrdersCount: serie.data.length,
+      ...this.buildRevenueTotals(serie.data),
+    }));
   }
 
   private buildDateRange({
@@ -152,10 +192,10 @@ export class AdminDashboardService {
 
   private buildAverageTimings(orders: ShippedOrderTiming[]) {
     return {
-      averageDeliveryMinutes: this.averageMinutes(
+      averageDeliveryMinutes: averageMinutes(
         this.spansSinceShipping(orders, OrderStatus.DELIVERED),
       ),
-      averageCancellationAfterShippingMinutes: this.averageMinutes(
+      averageCancellationAfterShippingMinutes: averageMinutes(
         this.spansSinceShipping(orders, OrderStatus.CANCELLED),
       ),
     };
@@ -183,16 +223,6 @@ export class AdminDashboardService {
     }
 
     return spans;
-  }
-
-  private averageMinutes(spans: number[]) {
-    if (spans.length === 0) {
-      return null;
-    }
-
-    const total = spans.reduce((sum, span) => sum + span, 0);
-
-    return Math.round(total / spans.length / MINUTE_IN_MS);
   }
 
   private buildDeliveryPersons(
