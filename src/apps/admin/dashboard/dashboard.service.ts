@@ -1,10 +1,19 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@shared/database/prisma/generated/client";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
+import {
+  computeOrderTotals,
+  OrderTotalsSource,
+} from "@shared/helpers/products-totals";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { FindDeliveryPersonsPerformanceDto } from "./dtos";
+import { FindDeliveryPersonsPerformanceDto, FindRevenueDto } from "./dtos";
 
 const MINUTE_IN_MS = 60 * 1000;
+
+type DateRange = {
+  startDate?: Date;
+  endDate?: Date;
+};
 
 type OrderGroup = {
   deliveryPersonId: string | null;
@@ -57,18 +66,57 @@ export class AdminDashboardService {
     };
   }
 
-  private buildClosedOrdersWhere({
+  async findRevenue(dto: FindRevenueDto) {
+    const deliveredAt = this.buildDateRange(dto);
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.DELIVERED,
+        ...(deliveredAt && { deliveredAt }),
+      },
+      select: {
+        deliveryFee: true,
+        couponDiscount: true,
+        items: {
+          select: { price: true, compareAtPrice: true, quantity: true },
+        },
+      },
+    });
+
+    return {
+      deliveredOrdersCount: orders.length,
+      ...this.sumRevenue(orders),
+    };
+  }
+
+  private sumRevenue(orders: OrderTotalsSource[]) {
+    return orders.reduce(
+      (sums, order) => ({
+        revenue: sums.revenue + computeOrderTotals(order).total,
+        couponDiscount: sums.couponDiscount + order.couponDiscount,
+      }),
+      { revenue: 0, couponDiscount: 0 },
+    );
+  }
+
+  private buildDateRange({
     startDate,
     endDate,
-  }: FindDeliveryPersonsPerformanceDto): Prisma.OrderWhereInput {
-    let closedAt: Prisma.DateTimeNullableFilter | undefined;
-
-    if (startDate || endDate) {
-      closedAt = {
-        ...(startDate && { gte: startDate }),
-        ...(endDate && { lte: endDate }),
-      };
+  }: DateRange): Prisma.DateTimeNullableFilter | undefined {
+    if (!startDate && !endDate) {
+      return undefined;
     }
+
+    return {
+      ...(startDate && { gte: startDate }),
+      ...(endDate && { lte: endDate }),
+    };
+  }
+
+  private buildClosedOrdersWhere(
+    dto: FindDeliveryPersonsPerformanceDto,
+  ): Prisma.OrderWhereInput {
+    const closedAt = this.buildDateRange(dto);
 
     return {
       deliveryPersonId: { not: null },

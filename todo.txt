@@ -15,4 +15,3 @@ gerar migration unica de init
 Importante:
 corrigir o menu na barra de navegação no android
 implementar sistema de XP
-criar seeds mais completas

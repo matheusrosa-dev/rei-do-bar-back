@@ -6,7 +6,7 @@ Read-only aggregations for the backoffice dashboard. This module owns no entity:
 rows other modules write and returns comparable numbers over them. Every endpoint here is
 a `GET`, sits behind the class-level admin-auth composite, and performs no write.
 
-Today it exposes a single reading: delivery-person performance.
+Today it exposes two readings: delivery-person performance and revenue.
 
 ## What does NOT belong here
 
@@ -183,6 +183,62 @@ is excluded from every counter on purpose, so "orders that reached a delivery pe
 each other — but neither reconciles against the raw count of assigned orders, and they will
 not, as long as anything is in transit.
 
+## Revenue
+
+`GET /admin/dashboard/revenue` answers what the store took in over a period and how much
+of it was given away as coupon. Unlike the reading above it returns a **flat object of
+aggregates** — there is no per-row half, because the question has no row to break down
+into. It takes the same two optional params, `startDate` / `endDate`, under the same
+verbatim-instant rule, and nothing else.
+
+Load-bearing decisions:
+
+- **The universe is every `DELIVERED` order, assigned or not.** It is deliberately
+  *wider* than the delivery-person reading, which additionally requires a non-null
+  assignment and also counts cancellations. The two endpoints answer different questions
+  over different sets, and the numbers below are the consequence.
+- **⚠️ `deliveredOrdersCount` is the name of a counter on both endpoints, scoped
+  differently.** Here it counts every delivered order; on the delivery-person reading it
+  counts only the ones that reached an entregador. For the same period the two legitimately
+  disagree, and nothing in either payload reveals it. Do not treat them as the same figure,
+  and do not "fix" the divergence by narrowing this one — the wider set is the point.
+- **Revenue is the full order total, delivery fee included**, computed by the shared order
+  totals helper rather than restated here. That helper is what the store charges with, so
+  reusing it is what keeps the panel from drifting away from the note; if the total's
+  formula changes, this number moves with it, which is the intent. `Order` stores no total
+  or subtotal column, so the figure has to come from the item rows either way.
+- **The discount figure is the coupon discount only.** A product's promotional price is a
+  discount too, but it is already absorbed *inside* revenue and is deliberately not
+  reported beside it — the field answers "quanto foi abatido por cupom", not "quanto foi
+  abatido". Consequently **revenue is already net of the coupon**: `revenue +
+  couponDiscount` is the gross, not a double count.
+- **An empty period answers zeros, never `null`.** Nothing delivered means nothing
+  invoiced, and zero says exactly that. This is the opposite of the averages above, where
+  zero would be a lie and `null` is the empty answer — the difference is that a sum over no
+  rows has a meaningful identity and a mean does not.
+- **⚠️ A range filters on the delivery timestamp, so rows with a `NULL` one disappear.**
+  The same caveat the delivery-person reading carries, and for the same unbackfilled
+  column: those orders count when no param is sent and vanish from **every** range,
+  including one spanning all of history. Filtered revenue is not comparable to lifetime
+  revenue.
+- **An inverted range returns zeros, not a 422** — same as the sibling, same reason.
+- **One read, no `groupBy`.** No aggregate can express the figure: it needs
+  `price * quantity` per item, which neither `aggregate` nor `groupBy` multiplies. So the
+  rows are fetched narrow — the fee, the coupon snapshot, and the item price/quantity — and
+  reduced in the service, the same shape the admin order listing already uses to sort by
+  total. The count comes free from the fetched rows and never earns a query of its own.
+- **⚠️ That read takes no `take`, and it is heavier than the timings read above.** It pulls
+  every delivered order ever **plus all of its item rows**, and unlike the timings read it
+  is not gated on the dispatch stamp, so the missing backfill does not hold its volume down
+  either. The row count that will hurt is the items, not the orders. Cap it or push the
+  aggregation into the database when the volume justifies it, not before.
+
+### Coupling to watch
+
+Nothing reconciles across the two endpoints — not the counters, not the money. They share
+only the range semantics and the private that builds it. Adding a figure to one is never a
+reason to add it to the other.
+
 ## Conventions
 
 | Rule | Detail |
@@ -190,11 +246,12 @@ not, as long as anything is in transit.
 | Auth | Class-level `@AdminAuth()` — it takes no argument, unlike the store and delivery composites |
 | Read-only | `GET` handlers only; no `AppException` codes are registered for this module because it has no not-found or conflict path |
 | No response DTO | Like the rest of the admin surface, there is no `@Serialize` layer — the service hand-maps its result and that mapping *is* the contract |
-| `dtos/` holds only what a handler receives | The query DTO is where the range params are declared and validated, never in the service. There is still no *response* DTO |
+| `dtos/` holds only what a handler receives | The query DTO is where the range params are declared and validated, never in the service. There is still no *response* DTO. **One DTO per handler**, even when two are field-for-field identical: they are free to diverge, and a shared base is what a third range-filtered endpoint would earn, not the second |
 | Date params are parsed, never adjusted | `@Type(() => Date)` parses and `@IsDate()` rejects what came out `Invalid` (→ 422) — and that is the whole treatment. No `@Transform`, no timezone helper, no day boundary: the instant the client sent is the instant that reaches the query. The nearest thing to a counter-example is the coupon DTOs' *end* bound, which does snap (their start bound only carries a floor), and the difference is intentional — a coupon window is a calendar rule the store owns, a dashboard range is a question the caller is asking |
-| Counters come from one read; the averages earn a second | Never issue a second query for a total that the existing `groupBy` can reduce. The averages are the one thing it cannot: a grouped average needs a numeric column, and the span between two timestamps is not one, so they get a read of their own. That read **reuses the same `where` object** and only narrows it by the dispatch stamp — rebuilding the filter, in another shape or another language, is exactly how the two halves stop describing the same orders |
-| The spans are averaged in the service, not in SQL | Raw SQL could aggregate them in the database, but it would restate the two-branch `OR` and the optional range a second time. Sharing the `where` object literally is what makes drift impossible. The price is the row fetch: it takes no `take`, and the default period is lifetime, so it grows with every order ever dispatched — the missing backfill holds the count down today but that bound expires by one day per day, and nothing will signal the crossing. Cap it or move the aggregation into the database when the volume justifies it, not before |
-| Ordering ends on a unique column | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order |
+| Counters come from one read; the averages earn a second *(performance reading)* | Never issue a second query for a total that the existing `groupBy` can reduce. The averages are the one thing it cannot: a grouped average needs a numeric column, and the span between two timestamps is not one, so they get a read of their own. That read **reuses the same `where` object** and only narrows it by the dispatch stamp — rebuilding the filter, in another shape or another language, is exactly how the two halves stop describing the same orders |
+| The spans are averaged in the service, not in SQL *(performance reading)* | Raw SQL could aggregate them in the database, but it would restate the two-branch `OR` and the optional range a second time. Sharing the `where` object literally is what makes drift impossible. The price is the row fetch: it takes no `take`, and the default period is lifetime, so it grows with every order ever dispatched — the missing backfill holds the count down today but that bound expires by one day per day, and nothing will signal the crossing. Cap it or move the aggregation into the database when the volume justifies it, not before |
+| Ordering ends on a unique column *(where anything is ordered)* | The revenue read orders nothing — it is reduced, never shown row by row. The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. The `groupBy` needs none — its result is only ever keyed or reduced, never shown in order |
+| The range is built once, in a shared private | Both readings derive their date filter from the same private, which returns `undefined` when neither bound is sent so the key drops from the `where` entirely. Restating the range per endpoint is how two panels start disagreeing about what a period means |
 | Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping are private methods fed by the shared query result. Add the file only when something outside the service needs the shape |
 | `id` is read but not returned | The service selects `id` to key the count map and drops it from the response. Exposing it is a one-line change if a client needs a stable row key |
 | The roster is scoped by the counts, not the reverse | `deliveryPerson.findMany` runs after the `groupBy` and takes its ids. Anything that needs a person absent from the groups needs a second query, not a widened `where` here |

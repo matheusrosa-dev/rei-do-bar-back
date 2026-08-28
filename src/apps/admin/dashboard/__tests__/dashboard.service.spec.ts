@@ -22,6 +22,22 @@ const cancelled = (shippedAt: Date | null, cancelledAt: Date | null) => ({
   cancelledAt,
 });
 
+const item = (
+  price: number,
+  quantity: number,
+  compareAtPrice: number | null = null,
+) => ({
+  price,
+  compareAtPrice,
+  quantity,
+});
+
+const deliveredOrder = (
+  items: ReturnType<typeof item>[],
+  deliveryFee: number,
+  couponDiscount: number,
+) => ({ items, deliveryFee, couponDiscount });
+
 const mockReads = (shippedOrders: unknown[] = []) => {
   prismaMock.order.groupBy.mockResolvedValue([]);
   prismaMock.deliveryPerson.findMany.mockResolvedValue([]);
@@ -173,6 +189,66 @@ describe("AdminDashboardService", () => {
           cancelledOrdersCount: 1,
         },
       ]);
+    });
+  });
+
+  describe("findRevenue", () => {
+    it("should sum the full order total and the coupon discount apart from it", async () => {
+      prismaMock.order.findMany.mockResolvedValue([
+        // 2x1000 com compareAtPrice 1200: o desconto de produto (400) sai do
+        // total mas não entra em couponDiscount.
+        deliveredOrder([item(1000, 2, 1200)], 500, 300),
+        deliveredOrder([item(1500, 1), item(700, 3)], 500, 0),
+      ]);
+
+      const revenue = await service.findRevenue({});
+
+      // (2400 - 400) + 500 - 300 = 2200 | (1500 + 2100) + 500 = 4100
+      expect(revenue).toEqual({
+        deliveredOrdersCount: 2,
+        revenue: 6300,
+        couponDiscount: 300,
+      });
+    });
+
+    it("should return zeros, not nulls, when nothing was delivered in the period", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      // Aqui zero é resposta legítima — nada faturado. O null do endpoint irmão
+      // existe porque média sem amostra não é zero.
+      expect(await service.findRevenue({})).toEqual({
+        deliveredOrdersCount: 0,
+        revenue: 0,
+        couponDiscount: 0,
+      });
+    });
+
+    it("should read only delivered orders, narrowed by the delivery stamp when a range is given", async () => {
+      const startDate = at("00:00:00");
+      const endDate = at("23:59:59");
+
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      await service.findRevenue({ startDate, endDate });
+
+      const [[findManyArgs]] = prismaMock.order.findMany.mock.calls;
+
+      expect(findManyArgs.where).toEqual({
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: startDate, lte: endDate },
+      });
+    });
+
+    it("should drop the date filter entirely when no bound is given", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
+
+      await service.findRevenue({});
+
+      const [[findManyArgs]] = prismaMock.order.findMany.mock.calls;
+
+      // O padrão é lifetime, e é a ausência do filtro que mantém dentro da
+      // conta os entregues sem deliveredAt (a migração não fez backfill).
+      expect(findManyArgs.where).not.toHaveProperty("deliveredAt");
     });
   });
 });
