@@ -135,7 +135,6 @@ describe("Date Helpers", () => {
 
       expect(series.map(({ label, data }) => [label, data.length])).toEqual([
         ["26/08", 1],
-        ["27/08", 0],
       ]);
     });
 
@@ -151,16 +150,15 @@ describe("Date Helpers", () => {
         },
       );
 
-      // The key has to carry the hour: with toISODate() all 24 hours fall into the
+      // The key has to carry the hour: with toISODate() both points fall into the
       // same key and the series becomes a single point, labelled 00:00.
-      expect(series).toHaveLength(24);
-      expect(series[14].label).toBe("14:00");
-      expect(series[14].data).toHaveLength(1);
-      expect(series[20].data).toHaveLength(1);
-      expect(series[0].data).toHaveLength(0);
+      expect(series.map(({ label, data }) => [label, data.length])).toEqual([
+        ["14:00", 1],
+        ["20:00", 1],
+      ]);
     });
 
-    it("should zero-fill the buckets between two bounds", () => {
+    it("should skip the empty buckets between two bounds", () => {
       const series = listDataByDateUnit(
         [point(at("2026-06-10")), point(at("2026-08-27"))],
         { startDate: at("2026-06-01"), endDate: at("2026-08-31") },
@@ -168,7 +166,6 @@ describe("Date Helpers", () => {
 
       expect(series.map(({ label, data }) => [label, data.length])).toEqual([
         ["Junho/2026", 1],
-        ["Julho/2026", 0],
         ["Agosto/2026", 1],
       ]);
     });
@@ -199,20 +196,6 @@ describe("Date Helpers", () => {
         }),
       ).toEqual([]);
     });
-
-    it("should stop at the ceiling instead of running past the 4-digit year era", () => {
-      const series = listDataByDateUnit([], {
-        startDate: at("2026-01-01"),
-        endDate: at("9999-12-31"),
-      });
-
-      // Past 9999 luxon emits the expanded year ("+010000-01-01"), and "+" sorts
-      // below every digit: comparing the buckets as strings made the loop never
-      // end. The cut drops the most recent end.
-      expect(series).toHaveLength(600);
-      expect(series[0].label).toBe("Janeiro/2026");
-      expect(series[599].label).toBe("Dezembro/2075");
-    });
   });
 
   describe("averageMinutes", () => {
@@ -224,9 +207,10 @@ describe("Date Helpers", () => {
       expect(averageMinutes([twentyMinutes, twentyOneMinutesForty])).toBe(21);
     });
 
-    it("should answer null, not zero, for an empty sample", () => {
-      // Zero is a real average under half a minute; null is "nothing to measure".
-      expect(averageMinutes([])).toBeNull();
+    it("should answer zero for an empty sample", () => {
+      // An empty sample and a real average under half a minute answer alike:
+      // the caller separates them by the count it already has.
+      expect(averageMinutes([])).toBe(0);
       expect(averageMinutes([0])).toBe(0);
     });
   });

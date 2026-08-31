@@ -78,31 +78,9 @@ export function listDataByDateUnit<T>(
     }
   }
 
-  let buckets: string[] = [];
-
-  // Sparse when a bound is missing: only the buckets that got data, ordered by
-  // their keys. Dense otherwise: every bucket of the interval, enumerated.
-  if (!dateRange?.startDate || !dateRange?.endDate) {
-    buckets = [...dataByBucket.keys()].sort();
-  } else {
-    const lastBucket = DateTime.fromJSDate(dateRange.endDate, {
-      zone: TIME_ZONE,
-    })
-      .startOf(unit)
-      .toMillis();
-
-    let cursor = DateTime.fromJSDate(dateRange.startDate, {
-      zone: TIME_ZONE,
-    }).startOf(unit);
-
-    const MAX_BUCKETS = 600;
-
-    while (cursor.toMillis() <= lastBucket && buckets.length < MAX_BUCKETS) {
-      buckets.push(cursor.toFormat("yyyy-MM-dd'T'HH:mm"));
-
-      cursor = cursor.plus({ [unit]: 1 });
-    }
-  }
+  // Always sparse: only the buckets that got data, ordered by their keys. A
+  // bucket without data is left out of the series instead of zero-filled.
+  const buckets = [...dataByBucket.keys()].sort();
 
   return buckets.map((bucketName) => {
     const data = dataByBucket.get(bucketName) ?? [];
@@ -143,7 +121,7 @@ export function countInclusiveDays(startDate: Date, endDate: Date) {
 
 export function averageMinutes(spansInMs: number[]) {
   if (spansInMs.length === 0) {
-    return null;
+    return 0;
   }
 
   const total = spansInMs.reduce((sum, span) => sum + span, 0);

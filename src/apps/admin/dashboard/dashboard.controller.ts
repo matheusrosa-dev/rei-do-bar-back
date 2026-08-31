@@ -1,7 +1,11 @@
 import { Controller, Get, Query } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import { AdminDashboardService } from "./dashboard.service";
-import { FindDeliveryPersonsPerformanceDto, FindRevenueDto } from "./dtos";
+import {
+  FindDeliveryPersonsPerformanceDto,
+  FindSeriesDto,
+  FindSummaryDto,
+} from "./dtos";
 
 @Controller("admin/dashboard")
 @AdminAuth()
@@ -15,8 +19,13 @@ export class AdminDashboardController {
     return this.dashboardService.findDeliveryPersonsPerformance(query);
   }
 
-  @Get("revenue")
-  findRevenue(@Query() query: FindRevenueDto) {
-    return this.dashboardService.findRevenue(query);
+  @Get("series")
+  findSeries(@Query() query: FindSeriesDto) {
+    return this.dashboardService.findSeries(query);
+  }
+
+  @Get("summary")
+  findSummary(@Query() query: FindSummaryDto) {
+    return this.dashboardService.findSummary(query);
   }
 }

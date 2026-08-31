@@ -15,3 +15,5 @@ gerar migration unica de init
 Importante:
 corrigir o menu na barra de navegação no android
 implementar sistema de XP
+adicionar categoria de promoções no app(deve vir selecionado por padrão)
+implementar retornável
