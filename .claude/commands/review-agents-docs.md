@@ -55,6 +55,9 @@ After presenting the report, ask whether to apply the changes. If confirmed, app
 - Document **patterns, not instances** — no concrete file names, no import paths, no values that can become obsolete (route strings, error-code values). Stable contract values belong in `.claude/references/api-contract.md`, not in a directory `AGENTS.md`.
 - Document only **stable, intentional** conventions — never incidental choices seen in a single file.
 - Keep it concise and actionable; prefer a `Rule | Detail` table for convention summaries.
+- **Size budget**: a directory `AGENTS.md` should stay around ~200 lines. Pushing past that is a signal the module needs a table, not more prose — flag it as a Warning rather than adding another paragraph. A fact that keeps recurring in the file gets **one** home, referenced from the others, never restated.
+- **State, not history**: document the module as it is today, never its trajectory. Reject/flag phrasing like "used to", "no longer", "was moved/removed", "there were N readings until X" — where the history existed to guard against a regression, replace it with a one-line imperative rule instead (e.g. "Do not re-add `totalOrdersCount` — the caller sums the two columns").
+- **Parent points, child owns**: a parent-directory `AGENTS.md` documents only what is common across its sub-modules and links to each child's `AGENTS.md` for specifics. It never restates a child's contract (field lists, endpoint shapes, per-resource rules) — that duplication is what goes stale first.
 - Preserve the existing heading/section structure unless reorganization is clearly needed.
 
 ## Constraints

@@ -4,7 +4,7 @@
 
 Cross-cutting infrastructure used by every feature module. Feature modules import from this directory through the `@shared/` path alias — never via relative paths.
 
-Nothing here is domain-specific, with two deliberate exceptions — the product/order money helpers and the recent-orders window. Both are **shared invariants** rather than one module's rule, and both live here for that reason and only for that reason; a rule owned by a single module still belongs to that module. The money calculation must report the same total for the same items across the cart, the customer order response, the admin order listing and the admin customer detail. The window is the same story in time: it decides what counts as recent activity on the admin board, how many deliveries the delivery app shows the entregador for their shift, and the shift figure the admin's delivery-person listing puts next to the lifetime one — the last two are literally the same number on two surfaces, and a copy per module is exactly how they drift apart while nothing fails.
+Nothing here is domain-specific, with two deliberate exceptions — the product/order money helpers and the recent-orders window. Both are **shared invariants**, not one module's rule: the money calculation must report the same total for the same items across the cart, the customer order response, the admin order listing and the admin customer detail; the window decides what counts as recent activity on the admin board, the delivery app's shift count, and the admin delivery-person listing's shift figure — the last two are literally the same number on two surfaces, and a copy per module is how they'd silently drift apart.
 
 ## Subdirectory Roles
 
