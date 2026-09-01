@@ -121,9 +121,6 @@ export class AdminDashboardService {
       (highest, order) => Math.max(highest, computeOrderTotals(order).total),
       0,
     );
-    const redeemedCouponOrdersCount = orders.filter(
-      (order) => order.couponDiscount > 0,
-    ).length;
 
     const firstDeliveries = await this.findFirstDeliveries(orders, dto);
 
@@ -136,7 +133,7 @@ export class AdminDashboardService {
       ),
       averageOrderValue,
       highestOrderValue,
-      redeemedCouponOrdersCount,
+      redeemedCouponOrdersCount: this.countRedeemedCouponOrders(orders),
       firstDeliveredOrdersCount: firstDeliveries.size,
       newCustomersCount,
       averageDeliveryMinutes: averageMinutes(
@@ -221,6 +218,7 @@ export class AdminDashboardService {
         orders,
         firstDeliveries,
       ),
+      redeemedCouponOrdersCount: this.countRedeemedCouponOrders(orders),
       revenue: sums.revenue,
       ...this.buildCouponTotals(sums),
     };
@@ -326,6 +324,10 @@ export class AdminDashboardService {
     }
 
     return customerIds.size;
+  }
+
+  private countRedeemedCouponOrders(orders: OrderTotalsSource[]) {
+    return orders.filter((order) => order.couponDiscount > 0).length;
   }
 
   private sumRevenue(orders: OrderTotalsSource[]): RevenueSums {

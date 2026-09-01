@@ -302,6 +302,7 @@ describe("AdminDashboardService", () => {
           deliveredOrdersCount: 2,
           averageOrderValue: 3150,
           firstDeliveredOrdersCount: 2,
+          redeemedCouponOrdersCount: 1,
           revenue: 6300,
           couponDiscount: 300,
           couponDiscountPercentage: 4.55,
@@ -373,6 +374,7 @@ describe("AdminDashboardService", () => {
           deliveredOrdersCount: 1,
           averageOrderValue: 1000,
           firstDeliveredOrdersCount: 1,
+          redeemedCouponOrdersCount: 0,
           revenue: 1000,
           couponDiscount: 0,
           couponDiscountPercentage: 0,
@@ -404,6 +406,7 @@ describe("AdminDashboardService", () => {
         deliveredOrdersCount: 1,
         averageOrderValue: 1000,
         firstDeliveredOrdersCount: 1,
+        redeemedCouponOrdersCount: 0,
         revenue: 1000,
         couponDiscount: 0,
         couponDiscountPercentage: 0,
@@ -465,6 +468,7 @@ describe("AdminDashboardService", () => {
           deliveredOrdersCount: 2,
           averageOrderValue: 1450,
           firstDeliveredOrdersCount: 2,
+          redeemedCouponOrdersCount: 1,
           revenue: 2900,
           couponDiscount: 100,
           couponDiscountPercentage: 3.33,
@@ -624,6 +628,7 @@ describe("AdminDashboardService", () => {
         couponDiscount,
         deliveredOrdersCount,
         firstDeliveredOrdersCount,
+        redeemedCouponOrdersCount,
       } = await service.findSummary(range);
 
       // Every summable figure lost its aggregate half here and kept it there,
@@ -638,11 +643,39 @@ describe("AdminDashboardService", () => {
       expect(
         series.reduce((sum, point) => sum + point.firstDeliveredOrdersCount, 0),
       ).toBe(firstDeliveredOrdersCount);
+      expect(
+        series.reduce((sum, point) => sum + point.redeemedCouponOrdersCount, 0),
+      ).toBe(redeemedCouponOrdersCount);
       // The count is the one that reconciles only under a range: unranged, the
       // summary counter also takes in the rows carrying no delivery stamp.
       expect(
         series.reduce((sum, point) => sum + point.deliveredOrdersCount, 0),
       ).toBe(deliveredOrdersCount);
+    });
+
+    it("should count a redemption per bucket, so a coupon spanning two buckets counts once in each", async () => {
+      mockReads({
+        deliveredOrders: [
+          deliveredOrder(middayOf("2026-08-26"), [item(2000, 1)], 0, 300),
+          deliveredOrder(middayOf("2026-08-26"), [item(2000, 1)]),
+          deliveredOrder(middayOf("2026-08-28"), [item(2000, 1)], 0, 300),
+        ],
+      });
+
+      const { series } = await service.findSeries({
+        startDate: startOf("2026-08-26"),
+        endDate: endOf("2026-08-28"),
+      });
+
+      expect(
+        series.map(({ label, redeemedCouponOrdersCount }) => [
+          label,
+          redeemedCouponOrdersCount,
+        ]),
+      ).toEqual([
+        ["26/08", 1],
+        ["28/08", 1],
+      ]);
     });
 
     it("should recompute each bucket's share over its own gross, never summing or averaging the points", async () => {
@@ -693,6 +726,7 @@ describe("AdminDashboardService", () => {
           deliveredOrdersCount: 1,
           averageOrderValue: 0,
           firstDeliveredOrdersCount: 1,
+          redeemedCouponOrdersCount: 1,
           revenue: 0,
           couponDiscount: 1000,
           couponDiscountPercentage: 100,
