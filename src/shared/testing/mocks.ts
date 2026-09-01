@@ -113,6 +113,9 @@ export const prismaMock = {
     findMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  inventoryMovementProduct: {
+    findMany: jest.fn(),
+  },
 };
 
 export const cartServiceMock = {

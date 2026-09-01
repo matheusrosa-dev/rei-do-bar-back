@@ -51,34 +51,11 @@ export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findDeliveryPersonsPerformance(dto: FindDeliveryPersonsPerformanceDto) {
-    const where: Prisma.OrderWhereInput = {
-      deliveryPersonId: { not: null },
-      OR: this.buildClosedStatusFilter(dto),
-    };
+    const where = this.buildAssignedClosedFilter(dto);
 
-    const [{ groups, deliveryPersons }, shippedOrders] = await Promise.all([
-      this.findRosterWithCounts(where),
-      this.prisma.order.findMany({
-        where: { ...where, shippedAt: { not: null } },
-        select: {
-          status: true,
-          shippedAt: true,
-          deliveredAt: true,
-          cancelledAt: true,
-        },
-      }),
-    ]);
+    const { groups, deliveryPersons } = await this.findRosterWithCounts(where);
 
     return {
-      totals: {
-        cancelledOrdersCount: this.countByStatus(groups, OrderStatus.CANCELLED),
-        averageDeliveryMinutes: averageMinutes(
-          this.spansSinceShipping(shippedOrders, OrderStatus.DELIVERED),
-        ),
-        averageCancellationAfterShippingMinutes: averageMinutes(
-          this.spansSinceShipping(shippedOrders, OrderStatus.CANCELLED),
-        ),
-      },
       deliveryPersons: this.buildDeliveryPersons(deliveryPersons, groups),
     };
   }
@@ -101,7 +78,16 @@ export class AdminDashboardService {
   }
 
   async findSummary(dto: FindSummaryDto) {
-    const [groups, orders, newCustomersCount, restockCost] = await Promise.all([
+    const assignedWhere = this.buildAssignedClosedFilter(dto);
+
+    const [
+      groups,
+      orders,
+      newCustomersCount,
+      restockCost,
+      assignedGroups,
+      shippedOrders,
+    ] = await Promise.all([
       this.prisma.order.groupBy({
         by: ["status"],
         where: { OR: this.buildClosedStatusFilter(dto) },
@@ -112,6 +98,20 @@ export class AdminDashboardService {
         where: { createdAt: this.buildDateRange(dto) },
       }),
       this.sumRestockCost(dto),
+      this.prisma.order.groupBy({
+        by: ["status"],
+        where: assignedWhere,
+        _count: true,
+      }),
+      this.prisma.order.findMany({
+        where: { ...assignedWhere, shippedAt: { not: null } },
+        select: {
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          cancelledAt: true,
+        },
+      }),
     ]);
 
     const sums = this.sumRevenue(orders);
@@ -130,11 +130,21 @@ export class AdminDashboardService {
     return {
       deliveredOrdersCount: this.countByStatus(groups, OrderStatus.DELIVERED),
       cancelledOrdersCount: this.countByStatus(groups, OrderStatus.CANCELLED),
+      assignedCancelledOrdersCount: this.countByStatus(
+        assignedGroups,
+        OrderStatus.CANCELLED,
+      ),
       averageOrderValue,
       highestOrderValue,
       redeemedCouponOrdersCount,
       firstDeliveredOrdersCount: firstDeliveries.size,
       newCustomersCount,
+      averageDeliveryMinutes: averageMinutes(
+        this.spansSinceShipping(shippedOrders, OrderStatus.DELIVERED),
+      ),
+      averageCancellationAfterShippingMinutes: averageMinutes(
+        this.spansSinceShipping(shippedOrders, OrderStatus.CANCELLED),
+      ),
       revenue: sums.revenue,
       ...this.buildProfitTotals(sums.revenue, restockCost),
       ...this.buildCouponTotals(sums),
@@ -349,6 +359,13 @@ export class AdminDashboardService {
       { status: OrderStatus.DELIVERED, deliveredAt: closedAt },
       { status: OrderStatus.CANCELLED, cancelledAt: closedAt },
     ];
+  }
+
+  private buildAssignedClosedFilter(range: DateRange): Prisma.OrderWhereInput {
+    return {
+      deliveryPersonId: { not: null },
+      OR: this.buildClosedStatusFilter(range),
+    };
   }
 
   private countByStatus(groups: StatusGroup[], status: OrderStatus) {
