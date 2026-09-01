@@ -15,6 +15,7 @@ import {
   OrderTotalsSource,
 } from "@shared/helpers/products-totals";
 import {
+  FindAccountsSeriesDto,
   FindDeliveryPersonsPerformanceDto,
   FindSeriesDto,
   FindSummaryDto,
@@ -49,6 +50,46 @@ type ShippedOrderTiming = {
 @Injectable()
 export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async findAccountsSeries(dto: FindAccountsSeriesDto) {
+    const createdAt = this.buildDateRange(dto);
+
+    const [anonymousCustomers, customers] = await Promise.all([
+      this.prisma.anonymousCustomer.findMany({
+        where: { createdAt },
+        select: { createdAt: true },
+      }),
+      this.prisma.customer.findMany({
+        where: { createdAt },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    const buckets = listDataByDateUnit(
+      [
+        ...anonymousCustomers.map((anonymousCustomer) => ({
+          date: anonymousCustomer.createdAt,
+          data: "ANONYMOUS" as const,
+        })),
+        ...customers.map((customer) => ({
+          date: customer.createdAt,
+          data: "CUSTOMER" as const,
+        })),
+      ],
+      dto,
+    );
+
+    return {
+      series: buckets.map(({ label, data }) => ({
+        label,
+        newAnonymousCustomersCount: data.filter(
+          (origin) => origin === "ANONYMOUS",
+        ).length,
+        newCustomersCount: data.filter((origin) => origin === "CUSTOMER")
+          .length,
+      })),
+    };
+  }
 
   async findDeliveryPersonsPerformance(dto: FindDeliveryPersonsPerformanceDto) {
     const where = this.buildAssignedClosedFilter(dto);

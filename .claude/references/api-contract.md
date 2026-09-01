@@ -171,7 +171,7 @@ All prices and fees are integers in **cents** end-to-end (e.g. `1500` = R$15,00)
 
 ## Admin Dashboard Readings
 
-Three read-only endpoints, none paginated. All take the same two optional, independent params —
+Four read-only endpoints, none paginated. All take the same two optional, independent params —
 `startDate` / `endDate` — parsed as instants and applied **verbatim** (no timezone adjustment, no
 day-boundary snap); omitting both yields lifetime figures. Full semantics, universe per field, and
 the invariants between readings live in `src/apps/admin/dashboard/AGENTS.md` — this is the stable
@@ -179,8 +179,9 @@ shape only.
 
 | Endpoint | Payload | Fields |
 |---|---|---|
-| `GET /admin/dashboard/delivery-persons` | `{ deliveryPersons: [...] }` | Per row: `deliveryPersonId` context fields plus `deliveredOrdersCount`, `cancelledOrdersCount` |
-| `GET /admin/dashboard/series` | `{ series: [...] }` | Per point: `label` (pt-BR, display-ready), `deliveredOrdersCount`, `averageOrderValue`, `firstDeliveredOrdersCount`, `revenue`, `couponDiscount`, `couponDiscountPercentage` — all money in cents |
+| `GET /admin/dashboard/accounts-series` | `{ series: [...] }` | Per point: `label` (pt-BR, display-ready), `newAnonymousCustomersCount`, `newCustomersCount` — accounts created, never money |
+| `GET /admin/dashboard/delivery-persons` | `{ deliveryPersons: [...] }` | Per row: `name` (the delivery person's, and the row's only identifier — no id is returned), `deliveredOrdersCount`, `cancelledOrdersCount` |
+| `GET /admin/dashboard/series` | `{ series: [...] }` | Per point: `label` (pt-BR, display-ready), `deliveredOrdersCount`, `averageOrderValue`, `firstDeliveredOrdersCount`, `redeemedCouponOrdersCount`, `revenue`, `couponDiscount`, `couponDiscountPercentage` — all money in cents |
 | `GET /admin/dashboard/summary` | Flat object, 16 fields at the top level of `data` | `deliveredOrdersCount`, `cancelledOrdersCount`, `assignedCancelledOrdersCount`, `averageOrderValue`, `highestOrderValue`, `redeemedCouponOrdersCount`, `firstDeliveredOrdersCount`, `newCustomersCount`, `averageDeliveryMinutes`, `averageCancellationAfterShippingMinutes`, `revenue`, `restockCost`, `profit`, `profitPercentage`, `couponDiscount`, `couponDiscountPercentage` |
 
 `GET /admin/dashboard/revenue` and `GET /admin/dashboard/orders` do not exist — 404.

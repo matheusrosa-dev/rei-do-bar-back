@@ -2,6 +2,7 @@ import { Controller, Get, Query } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import { AdminDashboardService } from "./dashboard.service";
 import {
+  FindAccountsSeriesDto,
   FindDeliveryPersonsPerformanceDto,
   FindSeriesDto,
   FindSummaryDto,
@@ -11,6 +12,11 @@ import {
 @AdminAuth()
 export class AdminDashboardController {
   constructor(private readonly dashboardService: AdminDashboardService) {}
+
+  @Get("accounts-series")
+  findAccountsSeries(@Query() query: FindAccountsSeriesDto) {
+    return this.dashboardService.findAccountsSeries(query);
+  }
 
   @Get("delivery-persons")
   findDeliveryPersonsPerformance(
