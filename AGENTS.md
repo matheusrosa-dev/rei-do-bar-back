@@ -35,6 +35,7 @@ For the stable API contract (response envelope, error response shape, the error-
 - Never use `process.env` directly in application code — always access config through `ConfigService.get<IType>("namespace")`.
 - Never throw a raw `Error` or the framework `HttpException` — always use `AppException` with a registered error code.
 - All user-facing strings (error messages, logs) must be in **Portuguese (pt-BR)**.
+- **NEVER create, modify, or delete test files** (`__tests__/`, `*.spec.ts`, `test/`, factories/mocks in `shared/testing/`) unless the user explicitly asks for it in that task. Finishing an implementation is not a reason to write or update tests.
 
 ---
 

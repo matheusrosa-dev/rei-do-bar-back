@@ -228,6 +228,8 @@ model Order {
   @@index([customerId])
   @@index([couponId])
   @@index([deliveryPersonId])
+  @@index([status, deliveredAt])
+  @@index([status, cancelledAt])
   @@map("orders")
 }
 

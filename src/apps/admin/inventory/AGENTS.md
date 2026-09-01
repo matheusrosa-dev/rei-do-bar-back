@@ -8,6 +8,7 @@ The inventory ledger and admin stock adjustments: listing stock movements, and i
 
 - Product catalog management (CRUD, ordering, soft-delete) → the products sub-module.
 - The order-flow stock decrement on order creation → owned by the order modules; this sub-module only **records** the resulting movement via its listener.
+- Profit / cost reporting → the admin dashboard's `summary` reading reads the `ADMIN_RESTOCK` movement lines via Prisma (not through this service) and reduces `price × quantity` in memory for its `restockCost` and `profit` figures. The stored unit cost (`Math.round(totalCost / quantity)`) on a restock line is contract for that calculation — see `src/apps/admin/dashboard/AGENTS.md`.
 
 ---
 

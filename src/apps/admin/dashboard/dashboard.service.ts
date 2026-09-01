@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "@shared/database/prisma/generated/client";
-import { OrderStatus } from "@shared/database/prisma/generated/enums";
+import {
+  InventoryMovementOrigin,
+  OrderStatus,
+} from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import {
   averageMinutes,
@@ -18,6 +21,7 @@ import {
 } from "./dtos";
 
 type DeliveredOrder = OrderTotalsSource & {
+  customerId: string;
   deliveredAt: Date | null;
 };
 
@@ -47,34 +51,33 @@ export class AdminDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findDeliveryPersonsPerformance(dto: FindDeliveryPersonsPerformanceDto) {
-    const where = this.buildClosedOrdersWhere(dto);
+    const where: Prisma.OrderWhereInput = {
+      deliveryPersonId: { not: null },
+      OR: this.buildClosedStatusFilter(dto),
+    };
 
-    const groups = await this.prisma.order.groupBy({
-      by: ["deliveryPersonId", "status"],
-      where,
-      _count: true,
-    });
-
-    const deliveryPersons = await this.prisma.deliveryPerson.findMany({
-      where: { id: { in: groups.map((group) => group.deliveryPersonId!) } },
-      select: { id: true, name: true },
-      orderBy: [{ name: "asc" }, { id: "asc" }],
-    });
-
-    const shippedOrders = await this.prisma.order.findMany({
-      where: { ...where, shippedAt: { not: null } },
-      select: {
-        status: true,
-        shippedAt: true,
-        deliveredAt: true,
-        cancelledAt: true,
-      },
-    });
+    const [{ groups, deliveryPersons }, shippedOrders] = await Promise.all([
+      this.findRosterWithCounts(where),
+      this.prisma.order.findMany({
+        where: { ...where, shippedAt: { not: null } },
+        select: {
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          cancelledAt: true,
+        },
+      }),
+    ]);
 
     return {
       totals: {
         cancelledOrdersCount: this.countByStatus(groups, OrderStatus.CANCELLED),
-        ...this.buildAverageTimings(shippedOrders),
+        averageDeliveryMinutes: averageMinutes(
+          this.spansSinceShipping(shippedOrders, OrderStatus.DELIVERED),
+        ),
+        averageCancellationAfterShippingMinutes: averageMinutes(
+          this.spansSinceShipping(shippedOrders, OrderStatus.CANCELLED),
+        ),
       },
       deliveryPersons: this.buildDeliveryPersons(deliveryPersons, groups),
     };
@@ -82,32 +85,80 @@ export class AdminDashboardService {
 
   async findSeries(dto: FindSeriesDto) {
     const orders = await this.findDeliveredOrders(dto);
+    const firstDeliveries = await this.findFirstDeliveries(orders, dto);
+
+    const buckets = listDataByDateUnit(
+      orders.map((order) => ({ date: order.deliveredAt!, data: order })),
+      dto,
+    );
 
     return {
-      series: this.buildSeries(orders, dto),
+      series: buckets.map((bucket) => ({
+        label: bucket.label,
+        ...this.buildSeriesPoint(bucket.data, firstDeliveries),
+      })),
     };
   }
 
   async findSummary(dto: FindSummaryDto) {
-    const groups = await this.prisma.order.groupBy({
-      by: ["status"],
-      where: { OR: this.buildClosedStatusFilter(dto) },
-      _count: true,
-    });
+    const [groups, orders, newCustomersCount, restockCost] = await Promise.all([
+      this.prisma.order.groupBy({
+        by: ["status"],
+        where: { OR: this.buildClosedStatusFilter(dto) },
+        _count: true,
+      }),
+      this.findDeliveredOrders(dto),
+      this.prisma.customer.count({
+        where: { createdAt: this.buildDateRange(dto) },
+      }),
+      this.sumRestockCost(dto),
+    ]);
 
-    const orders = await this.findDeliveredOrders(dto);
     const sums = this.sumRevenue(orders);
     const { averageOrderValue } = this.buildOrdersTotals(orders.length, sums);
+
+    const highestOrderValue = orders.reduce(
+      (highest, order) => Math.max(highest, computeOrderTotals(order).total),
+      0,
+    );
+    const redeemedCouponOrdersCount = orders.filter(
+      (order) => order.couponDiscount > 0,
+    ).length;
+
+    const firstDeliveries = await this.findFirstDeliveries(orders, dto);
 
     return {
       deliveredOrdersCount: this.countByStatus(groups, OrderStatus.DELIVERED),
       cancelledOrdersCount: this.countByStatus(groups, OrderStatus.CANCELLED),
       averageOrderValue,
-      highestOrderValue: this.maxOrderTotal(orders),
-      redeemedCouponOrdersCount: this.countRedeemedCouponOrders(orders),
+      highestOrderValue,
+      redeemedCouponOrdersCount,
+      firstDeliveredOrdersCount: firstDeliveries.size,
+      newCustomersCount,
       revenue: sums.revenue,
+      ...this.buildProfitTotals(sums.revenue, restockCost),
       ...this.buildCouponTotals(sums),
     };
+  }
+
+  private async findRosterWithCounts(where: Prisma.OrderWhereInput) {
+    const groups = await this.prisma.order.groupBy({
+      by: ["deliveryPersonId", "status"],
+      where,
+      _count: true,
+    });
+
+    const deliveryPersonIds = new Set(
+      groups.map((group) => group.deliveryPersonId!),
+    );
+
+    const deliveryPersons = await this.prisma.deliveryPerson.findMany({
+      where: { id: { in: [...deliveryPersonIds] } },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+
+    return { groups, deliveryPersons };
   }
 
   private findDeliveredOrders(range: DateRange) {
@@ -119,6 +170,7 @@ export class AdminDashboardService {
         deliveredAt: deliveredAt ?? { not: null },
       },
       select: {
+        customerId: true,
         deliveredAt: true,
         deliveryFee: true,
         couponDiscount: true,
@@ -129,13 +181,51 @@ export class AdminDashboardService {
     });
   }
 
-  private buildSeriesPoint(orders: OrderTotalsSource[]) {
+  private async sumRestockCost(range: DateRange) {
+    const movementProducts =
+      await this.prisma.inventoryMovementProduct.findMany({
+        where: {
+          inventoryMovement: {
+            origin: InventoryMovementOrigin.ADMIN_RESTOCK,
+            createdAt: this.buildDateRange(range),
+          },
+        },
+        select: { price: true, quantity: true },
+      });
+
+    return movementProducts.reduce(
+      (sum, { price, quantity }) => sum + price * quantity,
+      0,
+    );
+  }
+
+  private buildSeriesPoint(
+    orders: DeliveredOrder[],
+    firstDeliveries: Map<string, number>,
+  ) {
     const sums = this.sumRevenue(orders);
 
     return {
       ...this.buildOrdersTotals(orders.length, sums),
+      firstDeliveredOrdersCount: this.countFirstDeliveries(
+        orders,
+        firstDeliveries,
+      ),
       revenue: sums.revenue,
       ...this.buildCouponTotals(sums),
+    };
+  }
+
+  private buildProfitTotals(revenue: number, restockCost: number) {
+    const profit = revenue - restockCost;
+
+    const profitPercentage =
+      revenue === 0 ? 0 : Math.round((profit / revenue) * 10_000) / 100;
+
+    return {
+      restockCost,
+      profit,
+      profitPercentage,
     };
   }
 
@@ -168,15 +258,64 @@ export class AdminDashboardService {
     };
   }
 
-  private maxOrderTotal(orders: OrderTotalsSource[]) {
-    return orders.reduce(
-      (highest, order) => Math.max(highest, computeOrderTotals(order).total),
-      0,
+  private async findFirstDeliveries(
+    orders: DeliveredOrder[],
+    { startDate }: DateRange,
+  ) {
+    const earliestByCustomer = new Map<string, number>();
+
+    for (const order of orders) {
+      const deliveredAt = order.deliveredAt!.getTime();
+      const current = earliestByCustomer.get(order.customerId);
+
+      if (current === undefined || deliveredAt < current) {
+        earliestByCustomer.set(order.customerId, deliveredAt);
+      }
+    }
+
+    if (!startDate || earliestByCustomer.size === 0) {
+      return earliestByCustomer;
+    }
+
+    const groups = await this.prisma.order.groupBy({
+      by: ["customerId"],
+      where: {
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { not: null },
+        customerId: { in: [...earliestByCustomer.keys()] },
+      },
+      _min: { deliveredAt: true },
+    });
+
+    const firstDeliveries = groups.filter(
+      (group) =>
+        group._min.deliveredAt?.getTime() ===
+        earliestByCustomer.get(group.customerId),
+    );
+
+    return new Map(
+      firstDeliveries.map((group) => [
+        group.customerId,
+        earliestByCustomer.get(group.customerId)!,
+      ]),
     );
   }
 
-  private countRedeemedCouponOrders(orders: OrderTotalsSource[]) {
-    return orders.filter((order) => order.couponDiscount > 0).length;
+  private countFirstDeliveries(
+    orders: DeliveredOrder[],
+    firstDeliveries: Map<string, number>,
+  ) {
+    const customerIds = new Set<string>();
+
+    for (const order of orders) {
+      if (
+        firstDeliveries.get(order.customerId) === order.deliveredAt!.getTime()
+      ) {
+        customerIds.add(order.customerId);
+      }
+    }
+
+    return customerIds.size;
   }
 
   private sumRevenue(orders: OrderTotalsSource[]): RevenueSums {
@@ -189,22 +328,10 @@ export class AdminDashboardService {
     );
   }
 
-  private buildSeries(orders: DeliveredOrder[], range: DateRange) {
-    const series = listDataByDateUnit(
-      orders.map((order) => ({ date: order.deliveredAt!, data: order })),
-      range,
-    );
-
-    return series.map((serie) => ({
-      label: serie.label,
-      ...this.buildSeriesPoint(serie.data),
-    }));
-  }
-
   private buildDateRange({
     startDate,
     endDate,
-  }: DateRange): Prisma.DateTimeNullableFilter | undefined {
+  }: DateRange): { gte?: Date; lte?: Date } | undefined {
     if (!startDate && !endDate) {
       return undefined;
     }
@@ -224,30 +351,10 @@ export class AdminDashboardService {
     ];
   }
 
-  private buildClosedOrdersWhere(
-    dto: FindDeliveryPersonsPerformanceDto,
-  ): Prisma.OrderWhereInput {
-    return {
-      deliveryPersonId: { not: null },
-      OR: this.buildClosedStatusFilter(dto),
-    };
-  }
-
   private countByStatus(groups: StatusGroup[], status: OrderStatus) {
     return groups
       .filter((group) => group.status === status)
       .reduce((sum, group) => sum + group._count, 0);
-  }
-
-  private buildAverageTimings(orders: ShippedOrderTiming[]) {
-    return {
-      averageDeliveryMinutes: averageMinutes(
-        this.spansSinceShipping(orders, OrderStatus.DELIVERED),
-      ),
-      averageCancellationAfterShippingMinutes: averageMinutes(
-        this.spansSinceShipping(orders, OrderStatus.CANCELLED),
-      ),
-    };
   }
 
   private spansSinceShipping(

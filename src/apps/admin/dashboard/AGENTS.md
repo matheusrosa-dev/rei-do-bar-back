@@ -10,7 +10,10 @@ Today it exposes three readings: delivery-person performance, series, and summar
 read the same delivered-orders rows through the same private and are deliberately kept apart —
 see below. **The three do not share one shape**: performance pairs an aggregate half with a
 breakdown half, series is a breakdown and nothing else (`{ series }`, no `totals` key), and
-summary is the aggregate over the rows series plots. That is the module's settled division:
+summary is the aggregate over the rows series plots, plus the figures in the module that
+read a table other than `order` (`newCustomersCount` off `customer`, and `restockCost` —
+subtracted from `revenue` to give `profit` — off `inventory_movement_products`). That is the
+module's settled division:
 **plot it on the series reading, total it on summary.** There were four readings until the
 revenue and orders endpoints — by then both series-only over the same query — were merged into
 the one series endpoint.
@@ -121,7 +124,16 @@ Load-bearing decisions:
   That ordering is what makes "only who has orders" a query rather than a post-filter, and it
   needs no empty-case guard: no groups means an empty `in` list, which Prisma compiles to an
   always-false predicate — an empty roster and zeroed totals, at the cost of one round-trip
-  that returns nothing. Do not swap the two reads back.
+  that returns nothing. Do not swap the two reads back. It is also the reading's one real
+  dependency: the timings read shares neither operand, so it is issued alongside the `groupBy`
+  rather than after the roster.
+- **The ids go through a `Set` before the `in`.** The grouping is by `(deliveryPersonId,
+  status)`, so an entregador with both a delivered and a cancelled order appears in **two**
+  groups and would otherwise be named twice in the same `IN` list. The duplicate changes no
+  result — `IN` is a set membership test — so this is hygiene on what is sent to Postgres, not
+  a fix. The `Set` is also what keeps that list bounded by the roster rather than by the number
+  of statuses counted, which is the thing that would actually grow if a third terminal status
+  were ever added.
 - **A single `groupBy` feeds both counted halves.** The module groups `order` by
   `["deliveryPersonId", "status"]` once; the per-person half keys the result on
   `` `${id}:${status}` ``, and the totals half reduces the same groups per status. That is
@@ -129,9 +141,9 @@ Load-bearing decisions:
   `_count.select` accepts the `orders` relation only once and cannot express several
   differently-filtered counts of it. Adding a status to the panel never costs another
   *count* query — but it is not one edit either: a branch in the `OR`, a counter in the
-  totals builder, a field in the row builder, a branch in the timings builder if the new
-  status is worth timing, and a decision on whether `totals` should report it at all all
-  have to move together. The last one is a genuine choice rather than a formality: `totals`
+  `totals` object, a field in the row builder, another `spansSinceShipping` call in the
+  handler *and* a branch in its closing-stamp ternary if the new status is worth timing, and a
+  decision on whether `totals` should report it at all all have to move together. The last one is a genuine choice rather than a formality: `totals`
   reports one status today and the roster reports two, so a new status is not owed a place in
   both halves.
 - **The assignment filter is `deliveryPersonId: { not: null }`, not an id list.** It
@@ -147,8 +159,10 @@ Load-bearing decisions:
   carries its **own** timestamp column, so the range has to be paired with the matching one.
   With no range the range object is `undefined`, Prisma drops the comparison, and the `OR`
   degrades to exactly the old `in` filter. The single branch on "was a param sent" sits inside
-  the `where` builder, next to the clause it feeds, and resolves to `undefined`; the clause
-  itself is built once and never forks, so one query shape serves both cases.
+  the shared range private, next to the clause it feeds, and resolves to `undefined`; the
+  clause itself is built once and never forks, so one query shape serves both cases. The
+  assignment clause is not built anywhere either — the handler writes the whole `where` literal
+  and calls that filter inside it.
 - **Cancelled orders legitimately carry a `deliveryPersonId`.** The status-transition
   state machine allows `SHIPPED → CANCELLED`, and no write path ever clears the FK
   (`admin/orders/orders.service.ts` only adds fields on transition; admin reassignment
@@ -179,16 +193,27 @@ its own
 The three reads (`groupBy` for the counts, `findMany` for the roster, `findMany` for the
 timings) run **outside** a transaction — the same looseness the sibling listing in
 `admin/delivery-persons/` accepts between its roster and its counts, though that one does
-wrap its roster and its total in a `$transaction` pair.
+wrap its roster and its total in a `$transaction` pair. They are not, however, three serial
+waits. The reading has exactly one data dependency — the roster is built from the group result
+— so it is shaped as that dependency: `findRosterWithCounts` runs the `groupBy` and then the
+roster, and the timings read, which shares no operand with either, is issued alongside the
+**pair** rather than after it. The private exists for that reason alone; putting the `groupBy`
+directly in the `Promise.all` reads the same and is not the same, because it makes the roster
+wait on the timings read too — the heaviest of the three, and the one nothing depends on. What
+was dropped is a round-trip spent waiting, not a dependency.
 
 Both counted halves still come from the one grouping, so they can never contradict each
-other, and under this ordering **no interleaving skews them either** — an invariant worth
-relying on rather than defending against. The **timings read is the one that can drift**: it
-runs last, so an order that closes between it and the `groupBy` is averaged without being
-counted, and the panel can answer a non-zero average beside a count that does not include
-it. Nothing is wrong when that happens — the averages already describe a different set of
-orders than the counters do — and closing the gap would mean wrapping all three in a
-transaction to buy consistency between figures that are not comparable anyway.
+other, and **no interleaving skews them either** — an invariant worth relying on rather than
+defending against. The **timings read is the one that can drift**: it is a read of its own,
+so an order closing between it and the `groupBy` is averaged without being counted, and the
+panel can answer a non-zero average beside a count that does not include it. Issued in
+parallel the skew also runs the other way — counted without being averaged — which is the
+harmless direction: the averages already run over a strict subset of the counted orders (the
+dispatch stamp), so an extra counted order is indistinguishable from the documented normal
+case. Nothing is wrong in either direction — the averages describe a different set of orders
+than the counters do — and closing the gap would mean wrapping all three in a transaction to
+buy consistency between figures that are not comparable anyway. Parallel issue widened no
+window: what opens it is their being two reads, never the order they were sent in.
 
 Every id in the groups has at least one order attached, and such a delivery person cannot
 vanish between the reads: the FK is `onDelete: Restrict` and
@@ -223,11 +248,13 @@ summary reading, and what was left was two endpoints issuing the same query over
 and returning the same labels with different fields hung on them. Merging them halves the cost
 of drawing the panel and removes the possibility of the two disagreeing.
 
-A point carries `deliveredOrdersCount`, `averageOrderValue`, `revenue`, `couponDiscount` and
-`couponDiscountPercentage`, in that order. The summary reading answers those same five names
+A point carries `deliveredOrdersCount`, `averageOrderValue`, `firstDeliveredOrdersCount`,
+`revenue`, `couponDiscount` and `couponDiscountPercentage`, in that order. The summary reading
+answers those same six names
 in the same relative order and with the same arithmetic — both payloads reduce the rows through
-the same `sumRevenue`, read `revenue` off the result, spread the same coupon builder, and take
-the ticket médio out of the same one. **Its `deliveredOrdersCount` is the exception**: that one
+the same `sumRevenue`, read `revenue` off the result, spread the same coupon builder, take
+the ticket médio out of the same one, and resolve the first deliveries through the same
+`findFirstDeliveries`. **Its `deliveredOrdersCount` is the exception**: that one
 comes from a `groupBy` over a wider set, not from these privates at all, which is the whole
 subject of the reconciliation rules below. It takes the
 same two optional params, `startDate` / `endDate`, under the same verbatim-instant rule, and
@@ -318,19 +345,25 @@ Load-bearing decisions:
   written in the same update), and the state is unreachable rather than merely unlikely.
 - **An inverted range returns an empty series, not a 422** — same as the sibling readings, same
   reason.
-- **One read, no `groupBy`.** No aggregate can express the money: it needs
+- **One read for the money, and a second one only when a `startDate` is sent.** No aggregate
+  can express the money: it needs
   `price * quantity` per item, which neither `aggregate` nor `groupBy` multiplies. So the
-  rows are fetched narrow — the delivery stamp, the fee, the coupon snapshot, and the item
-  price/quantity — and reduced in the service, the same shape the admin order listing already
+  rows are fetched narrow — the delivery stamp, the customer id, the fee, the coupon snapshot, and the item
+  price/quantity (the customer id feeds `firstDeliveredOrdersCount`, on this reading and on the
+  summary one) — and reduced in the service, the same shape the admin order listing already
   uses to sort by total. The count comes free from the fetched rows and never earns a query of
-  its own.
+  its own. The one round-trip the reading can add is the first-delivery `groupBy` described on
+  the summary reading, issued by the same private and under the same condition: without a lower
+  bound nothing can precede the period, so the unranged call — the panel's default — still costs
+  exactly one query.
 - **⚠️ That read takes no `take`, and it is heavier than the timings read above.** It pulls
   every delivered order ever **plus all of its item rows**, and unlike the timings read it
   is not gated on the dispatch stamp, so the missing backfill does not hold its volume down
   either. The row count that will hurt is the items, not the orders. Cap it or push the
-  aggregation into the database when the volume justifies it, not before. The series costs
+  aggregation into the database when the volume justifies it, not before. The bucketing costs
   nothing on top of it: it is grouped in memory from the rows already fetched, never a
-  second query. **A panel that draws the whole dashboard now pays for that read twice**, here
+  second query, and `firstDeliveredOrdersCount` is counted off the same rows against a map the
+  first-delivery lookup already built. **A panel that draws the whole dashboard now pays for that read twice**, here
   and on the summary reading — it was three times before the merge, and merging those two would
   not be the same trade: they are split on what they answer, not on what they cost.
 
@@ -435,7 +468,11 @@ Load-bearing decisions:
   builder of its own, and the one it used to have existed only to hide the reduction. The
   summary reading calls the same two privates over the same sums for its period-wide figures,
   which is what makes a point and a period the same computation *by construction* rather than by
-  two implementations agreeing. **Each builder computes its fields once and every call site names
+  two implementations agreeing. **The one field that is not a function of the sums is
+  `firstDeliveredOrdersCount`**: it is a property of *which* rows the bucket holds, not of what
+  they add up to, so `buildSeriesPoint` hands the rows themselves to `countFirstDeliveries`
+  beside the sums. It is the exception the rule allows for, not a licence to pass the rows to a
+  builder that could have taken a sum. **Each builder computes its fields once and every call site names
   what it keeps** — the summary reading keeps the average and discards the count it passed in as
   a divisor. Narrowing happens *after* the arithmetic, never by a second builder or a flag:
   forking a builder to omit a field is how two callers stop being the same computation. The
@@ -447,13 +484,16 @@ Load-bearing decisions:
   the `where` object on the performance reading: restating the sum per caller is how they start
   to drift. The two reductions the summary reading still runs on its own — the priciest order
   and the redemption count — stay separate on purpose: they are different reductions, not the
-  same one repeated.
-- **The bucketing is written once and calls the point builder directly.** It used to take that
-  builder as a parameter, which is what let the revenue and orders readings share one grouping
-  while returning different fields; with those two merged there is one point shape and one
-  caller, so the parameter was removed rather than left standing as generality nothing uses. A
-  second series reading would bring it back — that is a deliberate re-widening, not a
-  restoration, and it needs the same reason the first one had.
+  same one repeated, and they sit inline in that handler rather than in builders of their own,
+  having one caller each and nothing to share.
+- **The bucketing is written once, in the handler, and calls the point builder directly.** It
+  used to be a private of its own taking that builder as a parameter, which is what let the
+  revenue and orders readings share one grouping while returning different fields; with those two
+  merged there is one point shape and one caller, so both the parameter and the private were
+  removed rather than left standing as generality nothing uses — the handler is now the grouping.
+  A second series reading would bring them back — that is a deliberate re-widening, not a
+  restoration, and it needs the same reason the first one had. The **point** builder stays a
+  private regardless: the summary reading shares the two builders underneath it.
 - **The calendar work lives in the shared date helper, not here.** Resolving the unit,
   counting inclusive days, formatting the label and keying an instant to its bucket are
   calendar concerns with no notion of an order, so they sit next to the zone string that
@@ -475,9 +515,12 @@ points, under the conditions spelled out above.
 
 ## Summary
 
-`GET /admin/dashboard/summary` answers eight numbers and nothing else: how many orders the
+`GET /admin/dashboard/summary` answers thirteen numbers and nothing else: how many orders the
 store delivered, how many it cancelled, what a delivered one was worth on average, what the
-priciest one was worth, how many of them redeemed a coupon, what the store took in, how much
+priciest one was worth, how many of them redeemed a coupon, how many of them were the first
+delivery that customer ever received, how many customers signed up, what the store took in,
+what it spent restocking, what it profited after that cost and what share of the take-in that
+profit is, how much
 coupon was given away, and what share of the gross that was. It takes the same two optional params under the same
 verbatim-instant rule. **It is where every aggregate over delivered orders now lives** —
 figures arrived here from the two readings that were later merged into the series one, and the
@@ -491,7 +534,30 @@ line to plot.
 read twice. Adding another aggregate over those rows is free — the rows
 are already in memory, which is why `highestOrderValue` and `redeemedCouponOrdersCount` cost
 nothing on top of the average; adding one that needs a different universe, or a column the
-shared `select` does not carry, is not.
+shared `select` does not carry, is not. `firstDeliveredOrdersCount` is the reading's third
+round-trip and the one figure here that pays both prices: it needed `customerId` added to the
+shared `select` (the series reading reports the figure per bucket off that same column)
+**and** a second `groupBy` of its own — one the series reading now inherits with it, through the
+same private and under the same `startDate` condition. Treat it as the precedent for what such a widening costs,
+not as a licence to keep adding them. `newCustomersCount` is the fourth round-trip and the
+cheapest of the widenings: a `customer.count`, no rows, no join to the orders it does not read.
+`profit`'s cost side is the fifth: a `inventoryMovementProduct.findMany` over the `ADMIN_RESTOCK`
+lines of the period, reduced in memory — restock is low-volume admin input, so the row count
+does not bite, but it is a read of its own because the money it needs is `price × quantity` per
+line, which no aggregate multiplies.
+
+Of those five round-trips only one is serial: the counters' `groupBy`, the delivered-orders
+read, the new-customers `count` and the restock-cost read share no operand and go out together
+in a `Promise.all`, and
+the first-delivery `groupBy` waits because it is bounded by the customers those rows named. That
+is a latency change and nothing else, but not a no-op on drift: serially the `groupBy` always
+resolved first, so a delivery landing mid-request could only reach `revenue` without reaching
+`deliveredOrdersCount`. Issued together the skew is **bidirectional** — same window, one more
+direction. It is worth naming because `averageOrderValue × deliveredOrdersCount ≈ revenue`
+is an in-payload invariant this file and the API contract both promise under a range, and it
+now has one more way to be momentarily off by a single order. Note which read still waits:
+a new aggregate over the rows already in memory costs no round-trip at all, while one that
+needs a second query over them inherits this serial step.
 
 Load-bearing decisions:
 
@@ -552,9 +618,11 @@ Load-bearing decisions:
   module-wide no-nulls rule again, with the counters beside it as the tiebreaker.
   It is a **maximum, not a sum or a mean**, so it is the one figure here that neither adds up
   across periods nor recomposes from them: the priciest order of a year is the priciest of one
-  of its months, never a function of the twelve. It rides its own small reducer rather than
-  `buildOrdersTotals` deliberately — putting it there would spread it into every point of the
-  point of the series reading, which is not what was asked for and would change that payload.
+  of its months, never a function of the twelve. It rides a small reducer of its own, inline at
+  the call site, rather than `buildOrdersTotals` — deliberately: putting it in that builder would
+  spread it into every point of the series reading, which is not what was asked for and would
+  change that payload. Inline is also what keeps it there, since a private is what the other
+  reading could reach for.
 - **`revenue`, `couponDiscount` and `couponDiscountPercentage` came from the aggregate half of
   the reading that is now the series one, and kept their arithmetic exactly.** `revenue` is the full order total, delivery fee
   included, computed by the shared order totals helper rather than restated here — if the
@@ -570,6 +638,48 @@ Load-bearing decisions:
   no ratio to report and answers `0` anyway; a real `0` is the ordinary case of a period that
   sold and used no coupon. An order paid **entirely** by coupon reads `100`, not `0`, because
   the coupon cancels out of the gross.
+- **`restockCost` is the period's restock spend, `profit` is `revenue` minus it, and
+  `profitPercentage` is what share of `revenue` that profit is — the two figures here that can
+  go negative.** `restockCost` is `Σ (price × quantity)` over the
+  `InventoryMovementProduct` lines of every `InventoryMovement` with `origin = ADMIN_RESTOCK`
+  whose `createdAt` falls in the range — verbatim instants, lifetime with no bound, the
+  module's usual range rule applied to a non-order stamp (like `newCustomersCount`, never
+  `NULL`, so its ranged and lifetime answers are comparable). All three are reported:
+  `restockCost` on its own, `profit = revenue - restockCost` beside it, and
+  `profitPercentage = profit / revenue * 100` — so the client never recomputes any of it and
+  they can never disagree. Load-bearing points:
+  - **Different universe from every other figure.** `restockCost` is read from
+    `inventory_movement_products`, not `order` — the one figure in the module whose value comes
+    from outside `order`, alongside `newCustomersCount` off `customer`. `revenue` covers
+    delivered orders carrying a stamp; `restockCost` covers restock movements. `profit` is
+    therefore a **definition, not an invariant** — nothing reconciles `revenue - restockCost`
+    against a counter, and it must not be "fixed" to.
+  - **`restockCost` is always `≥ 0`; `profit` and `profitPercentage` can be negative** — the
+    only fields in the module that are not `≥ 0`. A period that only restocked and delivered
+    nothing returns a negative `profit` and a negative `profitPercentage`, and that is correct.
+    `profitPercentage` is bounded above by `100` (`restockCost` is never negative, so `profit`
+    never exceeds `revenue`) but has no floor. The module-wide no-nulls rule still holds (never
+    `null`); only the zero floor does not, and only for these two.
+  - **`price` is already the rounded unit cost** the inventory module persisted
+    (`Math.round(totalCost / quantity)`), so `price × quantity` reconstructs the line's
+    `totalCost` only up to that rounding — the same imprecision the ledger already carries, not
+    a new one.
+  - **No index for it.** `InventoryMovement (origin, createdAt)` is not added: restock is
+    low-volume manual admin input, so it does not earn one yet — the same call as
+    `newCustomersCount`.
+  - **`profitPercentage` is a derived ratio, not an accumulator.** It is computed once from the
+    finished `revenue` and `restockCost`, exactly like `couponDiscountPercentage` off its own
+    sums — same `Math.round(x * 10_000) / 100`, same raw two-decimal output, same `0` when the
+    denominator is `0`. It rides a small builder (`buildProfitTotals`) beside
+    `buildCouponTotals`, taking `revenue` and `restockCost` and returning all three fields.
+  - **Not series figures.** None of `restockCost`, `profit`, `profitPercentage` decomposes into
+    delivery buckets (the cost has no delivery to bucket by), so they stay summary-only — "plot
+    it on the series, total it on summary" covers only figures that add up across buckets, and a
+    ratio never does.
+  - **The cost read shares no operand**, so it goes out in the same `Promise.all` as the
+    counters, the delivered-orders read and the new-customers `count`; it is the fifth
+    round-trip, not a serial step. One read backs both fields — `profit` is just an arithmetic
+    on its result.
 - **⚠️ `redeemedCouponOrdersCount` counts *orders*, not distinct coupons.** Two orders
   redeeming the same coupon count two, by product decision. The name says `Orders` for that
   reason and should not be shortened to `redeemedCouponsCount`, which would promise a
@@ -579,7 +689,8 @@ Load-bearing decisions:
   in the `select`, rather than `couponId != null`: **an order that carried a coupon worth
   nothing is therefore not counted**. The two only diverge on a coupon that discounted zero
   cents, which no write path produces today; closing that gap means adding `couponId` to the
-  read this and the series reading share, so it is a shared-read change, not a local one.
+  read this and the series reading share, so it is a shared-read change, not a local one — the
+  shape `firstDeliveredOrdersCount` already took when it added `customerId` to that same `select`.
   This is the divisor the removed `averageRedeemedCouponDiscount` used, now reported in its own
   right — and with `couponDiscount` totalled on this same payload, a client that wants that
   average back divides one field of this reading by another and gets exactly the figure that
@@ -590,6 +701,82 @@ Load-bearing decisions:
   many delivered orders paid with one". The counters beside it do not share that universe
   either, so it is **not** comparable to `cancelledOrdersCount` and is bounded by
   `deliveredOrdersCount` only when a range is sent.
+- **`firstDeliveredOrdersCount` counts the delivered orders of the period that were their
+  customer's first delivery ever** — the store's new customers, counted through the order that
+  closed their first purchase. Because a customer has exactly one first delivery, this is
+  simultaneously an order counter and a customer counter, and the name says `Orders` for the same
+  reason `redeemedCouponOrdersCount` does: it is what the rows are.
+  **The lookup only runs when a `startDate` is sent.** Without a lower bound nothing can precede
+  the period, so every customer of the period is a first delivery by construction and the answer is
+  the size of the map already in memory — which is also why an unranged call, the panel's default,
+  issues no second query and never builds an `IN` list of every customer the store has ever
+  delivered to. **⚠️ The guard is the presence of a bound, not the size of the list**, so a
+  `startDate` far enough in the past rebuilds exactly that list: unlike the performance reading's
+  roster `IN`, which is bounded by the registered delivery persons, this one grows with the
+  customer base, and a wide enough period would eventually cross Postgres' parameter ceiling
+  rather than merely get slow. The series reading issues the same lookup under the same
+  condition, so both readings carry it. Chunking the `in` is the fix when that day comes;
+  narrowing the `groupBy` by date is not — see below.
+  When it does run, the lookup is a second `groupBy`, `by: ["customerId"]` with
+  `_min: { deliveredAt: true }`, **carrying no date filter at all** — "first" is first against the customer's whole history, so a
+  range on that query would make every period's earliest order look like a first one. It is bounded
+  instead by `customerId: { in: <the customers of the period> }`, the same shape the performance
+  reading's roster read uses: only the customers already in memory can possibly answer. The service
+  then counts the customers whose historic minimum **equals** their earliest delivery inside the
+  period. Comparing the two minima rather than re-testing the historic one against the bounds is
+  what keeps the two branches one rule: with a lower bound the historic minimum can be older than
+  anything in the period, and without one it never is — which is the right answer when the period
+  reaches back to the store's first order.
+  Three consequences worth stating:
+  - **It shares the money figures' universe, not the counters'** — delivered orders *carrying a
+    stamp*. So it is bounded by `deliveredOrdersCount` only when a range is sent, exactly like
+    `redeemedCouponOrdersCount`, and an empty period answers `0` with no second query issued at all.
+  - **⚠️ A `DELIVERED` row with no `deliveredAt` cannot be ordered, so it does not count as a
+    prior delivery.** SQL's `MIN` skips nulls, so a customer whose real first delivery is one of the
+    rows the 2026-08-18 backfill left unfilled can still be counted as new on a later period. This
+    is the deliberate reading of the module-wide stamp gap, not an oversight — closing it needs the
+    backfill, not a guard here.
+  - **It is a distinct-customer count wearing an order counter's name.** The two coincide except
+    on two orders of the same customer sharing a `deliveredAt` down to the millisecond, which count
+    as one first delivery. Negligible, and the alternative — counting both — would be the wrong
+    answer for the figure the panel asks for.
+  - **The series reading answers it per bucket, and the points sum to this number.** It does
+    decompose, unlike the counters: a customer has exactly one first delivery, that order carries
+    one delivery stamp, and a stamp falls in exactly one bucket — so the figure adds up the way
+    `revenue` and `couponDiscount` do, and the module's "plot it on the series, total it on
+    summary" rule covers it. Both readings resolve it through the same `findFirstDeliveries`,
+    which returns the map (customer → their earliest delivery in the period) rather than a count:
+    this reading answers its size, the series reading counts, per bucket, the distinct customers
+    whose mapped instant is one of that bucket's orders. Counting distinct customers rather than
+    matching rows is what keeps the sum exact when one customer has two orders sharing a
+    `deliveredAt` — the same millisecond is the same bucket, and both readings collapse them to
+    one first delivery.
+
+- **`newCustomersCount` is the one figure in the module that does not read `order` at all.** It
+  counts the `Customer` rows whose `createdAt` falls in the period — a signup, not a purchase —
+  so a customer who registered and never ordered counts, and it is deliberately *not* comparable
+  to `firstDeliveredOrdersCount` beside it: that one counts the customers whose **first delivery**
+  landed in the period, whenever they signed up. The two answer "quantos se cadastraram" and
+  "quantos compraram pela primeira vez", and for the same period either can be the larger.
+  Load-bearing details:
+  - **Anonymous visitors are outside it by construction, not by a filter.** An anonymous session is
+    an `AnonymousCustomer` row in a table of its own, deleted when it converts, so counting
+    `Customer` already counts only real signups. There is nothing here to add an `isActive` or
+    session check to, and adding one would be a different figure.
+  - **Soft-deleted customers still count.** The read carries no `deletedAt: null`, unlike the
+    admin customer listing: the row survives deletion precisely to preserve history, and a person
+    deleting their account today must not retroactively lower a period that already closed. The
+    omission is deliberate here, unlike in the reads that simply never had a reason to filter —
+    deviate from it only by deciding the figure should mean "clientes ativos cadastrados", which
+    is a product decision and a different name.
+  - **It filters `createdAt`, the only column a range is applied to in this module that is not
+    an order stamp**, so the stamp gap the counters carry does not touch it: it is never `NULL`,
+    which makes this the one figure whose ranged and lifetime answers are comparable — the range
+    drops nothing the lifetime count had. It also has no index behind it, unlike the order
+    filters; a count over one date column on the customer table does not earn one yet.
+  - **With no bound it is every customer ever registered**, the same lifetime default the rest of
+    the reading follows, and an inverted range answers `0` like everywhere else.
+
 - **The average reuses the series reading's builder and its read, not a copy of either.**
   `findDeliveredOrders` and `buildOrdersTotals` are the same privates that feed the points next
   door, which is what makes the number here and the points there the same computation. The
@@ -623,6 +810,13 @@ while unranged they diverge by exactly the stamp-less rows. What this reading *d
 `buildClosedStatusFilter` moves this reading and the performance one together, and neither
 payload would show it.
 
+`restockCost`, `profit` and `profitPercentage` reconcile with nothing — the cost read hits
+`inventory_movement_products`, a table no other reading here touches. All three move with
+whatever the inventory module writes into a restock line's `price` (today
+`Math.round(totalCost / quantity)`): a change there silently shifts them and shows up in no
+dashboard test. That coupling is the reason the figures are documented against the
+`ADMIN_RESTOCK` origin and the `price` column, not just the formula.
+
 ## Conventions
 
 | Rule | Detail |
@@ -633,12 +827,15 @@ payload would show it.
 | `dtos/` holds only what a handler receives | The query DTO is where the range params are declared and validated, never in the service. There is still no *response* DTO. **One DTO per handler**, even when all three are field-for-field identical: each is one handler's contract and free to diverge. The base has never been extracted, through a fourth endpoint arriving and two later merging away — deliberately: it would save a handful of lines and couple three panels' query contracts, so what would earn it is a range param that actually has to change everywhere at once, not another endpoint taking the same two dates. The merge is the argument, not a counter-example: two DTOs collapsed into one because their **handlers** collapsed, which is exactly the rule working |
 | Date params are parsed, never adjusted | `@Type(() => Date)` parses and `@IsDate()` rejects what came out `Invalid` (→ 422) — and that is the whole treatment. No `@Transform`, no timezone helper, no day boundary: the instant the client sent is the instant that reaches the query. The nearest thing to a counter-example is the coupon DTOs' *end* bound, which does snap (their start bound only carries a floor), and the difference is intentional — a coupon window is a calendar rule the store owns, a dashboard range is a question the caller is asking |
 | Filtering is zone-blind; bucketing is not | The rule above governs the **`where`** and is unconditional. Grouping rows into named periods is a different problem — a calendar day only exists in some zone — and the series reading resolves it in `America/Sao_Paulo`, in the service, never in the DTO. Keep the two apart: a zone leaking into a bound is a period silently changing meaning, and a bucket without one is an evening plotted on the wrong day |
-| Sums are accumulated; ratios and means are derived from them | A figure that adds up rides the reducer that feeds every caller of it. A figure that does not — the coupon percentage and the ticket médio, per bucket on the series reading and period-wide on the summary one — is computed from the finished sums of that bucket or that period, never accumulated per row and never carried over from one to the other. An empty sample gives them nothing to divide by and they answer `0` like everything else — **no field in this module ever answers `null`**, so a counter is the only thing that separates an empty sample from a real zero, and where a payload no longer reports one (the performance reading's `totals`) that distinction moves elsewhere. A divisor one of them needs (the row count) belongs in the same builder, not at the call site, and stays there even when the payload stops showing it |
+| Sums are accumulated; ratios and means are derived from them | A figure that adds up rides the reducer that feeds every caller of it. A figure that does not — the coupon percentage and the ticket médio, per bucket on the series reading and period-wide on the summary one, plus the summary-only profit percentage — is computed from the finished sums of that bucket or that period, never accumulated per row and never carried over from one to the other. An empty sample gives them nothing to divide by and they answer `0` like everything else — **no field in this module ever answers `null`**, so a counter is the only thing that separates an empty sample from a real zero, and where a payload no longer reports one (the performance reading's `totals`) that distinction moves elsewhere. The profit percentage is also the one derived figure that can come back **negative** (`profit` can), where the others are floored at `0` by construction. A divisor one of them needs (the row count) belongs in the same builder, not at the call site, and stays there even when the payload stops showing it |
 | A formatted label is the exception, not the pattern | Response fields here are raw values the client formats. The series' `label` is the one that ships display-ready, in pt-BR, because it exists to be rendered on an axis — which also makes its format part of the contract. Do not generalize it to other fields, and do not add a second formatted field without deciding it is worth the same lock-in |
 | Counters come from one read; the averages earn a second *(performance reading)* | Never issue a second query for a total that the existing `groupBy` can reduce. The averages are the one thing it cannot: a grouped average needs a numeric column, and the span between two timestamps is not one, so they get a read of their own. That read **reuses the same `where` object** and only narrows it by the dispatch stamp — rebuilding the filter, in another shape or another language, is exactly how the two halves stop describing the same orders |
 | The spans are averaged in the service, not in SQL *(performance reading)* | Raw SQL could aggregate them in the database, but it would restate the two-branch `OR` and the optional range a second time. Sharing the `where` object literally is what makes drift impossible. The price is the row fetch: it takes no `take`, and the default period is lifetime, so it grows with every order ever dispatched — the missing backfill holds the count down today but that bound expires by one day per day, and nothing will signal the crossing. Cap it or move the aggregation into the database when the volume justifies it, not before |
-| Ordering ends on a unique column *(where anything is ordered)* | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. Neither `groupBy` needs one — its result is only ever keyed or reduced, never shown in order. Neither does the delivered-orders read the series and summary readings share: its rows are grouped in memory, and the series is ordered by its own bucket keys, which are unique by construction |
-| The range is built once, in a shared private | All three readings derive their date filter from the same private, which returns `undefined` when neither bound is sent so the key drops from the `where` entirely. Two pairs go further and share more than the range: the series and summary readings share the whole delivered-orders read (one private issues that `findMany` for both), and the performance and summary readings share the terminal-status `OR` (`buildClosedStatusFilter`, which the performance one only adds the assignment clause to). Summary sits in both pairs, which is what makes it the reading that reconciles against the other two. Restating the range — or the read, or the filter — per endpoint is how two panels start disagreeing about what a period means |
-| Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping are private methods fed by the shared query result. Add the file only when something outside the service needs the shape |
+| Ordering ends on a unique column *(where anything is ordered)* | The roster sorts `[{ name: "asc" }, { id: "asc" }]`. Nothing is sliced, but without the tiebreaker equal names reshuffle between requests. None of the three `groupBy`s needs one — its result is only ever keyed or reduced, never shown in order. Neither does the delivered-orders read the series and summary readings share: its rows are grouped in memory, and the series is ordered by its own bucket keys, which are unique by construction |
+| The range is built once, in a shared private | All three readings derive their date filter from the same private, which returns `undefined` when neither bound is sent so the key drops from the `where` entirely — except on the delivered-orders read, which substitutes `{ not: null }` for it (see Series). It returns a bare `{ gte?, lte? }` rather than a `Prisma.DateTimeNullableFilter`, which is what lets the one private feed the nullable order stamps, the non-nullable `customer.createdAt`, and the non-nullable `InventoryMovement.createdAt` the summary reading's `profit` cost filters on; re-narrowing it to a Prisma filter type compiles for the order reads and pushes the customer count into a range of its own. Two pairs go further and share more than the range: the series and summary readings share the whole delivered-orders read (one private issues that `findMany` for both), and the performance and summary readings share the terminal-status `OR` (`buildClosedStatusFilter`, which the performance one only adds the assignment clause to). Summary sits in both pairs, which is what makes it the reading that reconciles against the other two. Restating the range — or the read, or the filter — per endpoint is how two panels start disagreeing about what a period means |
+| Mapping lives in the service | There is no `helpers.ts` here, unlike the sibling resource modules: the aggregation and the row mapping live in the service file — in the handler when a step has one caller, in a private when two readings share it, when the body would crowd the handler, or when the private exists to shape the round-trips (the roster one wraps a dependent pair so it does not wait on an unrelated read). Add the file only when something outside the service needs the shape |
 | `id` is read but not returned | The service selects `id` to key the count map and drops it from the response. Exposing it is a one-line change if a client needs a stable row key |
 | The roster is scoped by the counts, not the reverse | `deliveryPerson.findMany` runs after the `groupBy` and takes its ids. Anything that needs a person absent from the groups needs a second query, not a widened `where` here |
+| Independent reads are issued together | Nothing here is transactional, so a read that shares no operand with another has no reason to wait for it: the performance reading sends its counts `groupBy` and its timings `findMany` in one `Promise.all`, and the summary reading sends its counts `groupBy`, the delivered-orders read, the new-customers `count` and the restock-cost `findMany` in one. What still waits, waits on data — the roster on the group ids, the first-delivery `groupBy` on the customers the rows named. Do **not** read this as licence to reach for `$transaction`: the looseness between the reads is deliberate and documented per reading, and `Promise.all` preserves it exactly |
+| The filters are indexed on `orders`, and the filter shapes are why | Every reading here filters on `status` paired with one of the two closing stamps, so `Order` carries `@@index([status, deliveredAt])` and `@@index([status, cancelledAt])` alongside the FK indexes it already had. The pairing follows the two-branch `OR` of `buildClosedStatusFilter`: a status and *its own* stamp, never a lone `status` index, and never one over both stamps. A new terminal status with a stamp of its own would need a third index and a migration, on top of the edits the `OR` already costs. The summary reading's `profit` also filters `InventoryMovement` on `origin` + `createdAt`, unindexed on purpose — restock is low-volume manual input (see the `profit` bullet) |
+| The indexes are shared, and they cover the **ranged** reads only | They were added for this module but are not its property: `admin/orders/` (the two recent-order listings, `status` + its stamp with a matching `orderBy` and `take: 30` — the best consumer of either index), `admin/delivery-persons/` and `delivery-persons/orders/` all query orders on exactly that shape against the 10-hour window. So the write cost is spread across four modules, and dropping either index is not a decision this module can make alone. What they do **not** cover, deliberately: the unranged `findDeliveredOrders` (`status = DELIVERED AND deliveredAt IS NOT NULL` matches most of the table, so a scan wins anyway) and the first-delivery `groupBy` (its selective predicate is `customerId: { in: … }`, served by the FK index already there). The unbounded delivered-orders read is still the module's heavy one regardless — an index narrows the order scan, never the `order_items` it drags along |
