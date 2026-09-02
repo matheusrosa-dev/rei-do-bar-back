@@ -20,6 +20,7 @@ import {
   FindDeliveryPersonByIdDto,
   RevokeDeliveryPersonAccessDto,
   ToggleStatusDeliveryPersonDto,
+  ToggleVolunteerDeliveryPersonDto,
   UpdateDeliveryPersonBodyDto,
   UpdateDeliveryPersonParamsDto,
   UpdateDeliveryPersonPasswordBodyDto,
@@ -109,6 +110,24 @@ export class AdminDeliveryPersonsController {
     @Param() { deliveryPersonId }: ToggleStatusDeliveryPersonDto,
   ) {
     return this.deliveryPersonsService.deactivateDeliveryPerson(
+      deliveryPersonId,
+    );
+  }
+
+  @Patch(":deliveryPersonId/mark-volunteer")
+  markDeliveryPersonAsVolunteer(
+    @Param() { deliveryPersonId }: ToggleVolunteerDeliveryPersonDto,
+  ) {
+    return this.deliveryPersonsService.markDeliveryPersonAsVolunteer(
+      deliveryPersonId,
+    );
+  }
+
+  @Patch(":deliveryPersonId/unmark-volunteer")
+  unmarkDeliveryPersonAsVolunteer(
+    @Param() { deliveryPersonId }: ToggleVolunteerDeliveryPersonDto,
+  ) {
+    return this.deliveryPersonsService.unmarkDeliveryPersonAsVolunteer(
       deliveryPersonId,
     );
   }

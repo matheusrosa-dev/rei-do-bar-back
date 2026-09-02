@@ -31,3 +31,5 @@ no admin deve ter uma modal de alerta se tentar mover um pedido para entregue(is
 tornar possivel alterar entregador direto na tela de gerenciar pedidos
 remover coluna de entregas(10h) na tela de entregadores
 adicionar campo de preço de comparação na criação de produto
+mostrar valor de entrega e taxa de entrega na tela de pedidos admin
+aumentar tamanho das listagens do admin

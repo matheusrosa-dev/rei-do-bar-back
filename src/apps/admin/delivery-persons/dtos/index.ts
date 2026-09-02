@@ -12,4 +12,5 @@ export {
 } from "./update-delivery-person-password.dto";
 export { RevokeDeliveryPersonAccessDto } from "./revoke-delivery-person-access.dto";
 export { ToggleStatusDeliveryPersonDto } from "./toggle-status-delivery-person.dto";
+export { ToggleVolunteerDeliveryPersonDto } from "./toggle-volunteer-delivery-person.dto";
 export { DeleteDeliveryPersonDto } from "./delete-delivery-person.dto";

@@ -264,6 +264,7 @@ model DeliveryPerson {
   addressNeighborhood String   @map("address_neighborhood")
   addressZipCode      String   @map("address_zip_code")
   isActive            Boolean  @map("is_active")
+  isVolunteer         Boolean  @default(false) @map("is_volunteer")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
