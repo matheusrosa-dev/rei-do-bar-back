@@ -24,3 +24,6 @@ top 5 produtos mais vendidos
 calcular lucro
 guardar valor da entrega no pedido, pra calcular melhor o lucro
 guardar também o valor extra para os entregadores
+deve ser possível editar movimentação de estoque
+criar card de acessos anonimos
+no admin deve ter uma modal de alerta se tentar mover um pedido para entregue(isso deveria ser feito pelo app do entregador)

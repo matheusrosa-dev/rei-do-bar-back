@@ -7,7 +7,6 @@ import {
   seedCoupons,
   seedCustomers,
   seedDeliveryPersons,
-  seedDemoSettings,
   seedInventory,
   seedNotifications,
   seedOrders,
@@ -21,6 +20,7 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   await seedSettings(prisma);
+  await seedCategories(prisma);
 
   if (process.env.NODE_ENV !== "development") {
     return;
@@ -29,9 +29,6 @@ async function main() {
   if (process.env.SEED_RESET === "true") {
     await resetDemoData(prisma);
   }
-
-  await seedCategories(prisma);
-  await seedProducts(prisma);
 
   // O bloco de demonstração é semeado uma vez só: reexecutar não duplica nada.
   // Para recriá-lo, rode com SEED_RESET=true.
@@ -42,7 +39,7 @@ async function main() {
     return;
   }
 
-  await seedDemoSettings(prisma);
+  await seedProducts(prisma);
   await seedCustomers(prisma);
   await seedDeliveryPersons(prisma);
   await seedCoupons(prisma);

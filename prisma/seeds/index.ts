@@ -7,4 +7,4 @@ export { seedNotifications } from "./notifications";
 export { seedOrders } from "./orders";
 export { seedProducts } from "./products";
 export { resetDemoData } from "./reset";
-export { seedDemoSettings, seedSettings } from "./settings";
+export { seedSettings } from "./settings";

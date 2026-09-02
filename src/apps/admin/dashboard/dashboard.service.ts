@@ -29,6 +29,7 @@ type DeliveredOrder = OrderTotalsSource & {
 type RevenueSums = {
   revenue: number;
   couponDiscount: number;
+  deliveryFeeTotal: number;
 };
 
 type StatusGroup = {
@@ -175,7 +176,12 @@ export class AdminDashboardService {
         this.spansSinceShipping(shippedOrders),
       ),
       revenue: sums.revenue,
-      ...this.buildProfitTotals(sums.revenue, restockCost),
+      deliveryFeeTotal: sums.deliveryFeeTotal,
+      ...this.buildProfitTotals(
+        sums.revenue,
+        restockCost,
+        sums.deliveryFeeTotal,
+      ),
       ...this.buildCouponTotals(sums),
     };
   }
@@ -257,8 +263,12 @@ export class AdminDashboardService {
     };
   }
 
-  private buildProfitTotals(revenue: number, restockCost: number) {
-    const profit = revenue - restockCost;
+  private buildProfitTotals(
+    revenue: number,
+    restockCost: number,
+    deliveryFeeTotal: number,
+  ) {
+    const profit = revenue - restockCost - deliveryFeeTotal;
 
     const profitPercentage =
       revenue === 0 ? 0 : Math.round((profit / revenue) * 10_000) / 100;
@@ -368,8 +378,9 @@ export class AdminDashboardService {
       (sums, order) => ({
         revenue: sums.revenue + computeOrderTotals(order).total,
         couponDiscount: sums.couponDiscount + order.couponDiscount,
+        deliveryFeeTotal: sums.deliveryFeeTotal + order.deliveryFee,
       }),
-      { revenue: 0, couponDiscount: 0 },
+      { revenue: 0, couponDiscount: 0, deliveryFeeTotal: 0 },
     );
   }
 

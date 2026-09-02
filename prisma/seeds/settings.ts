@@ -8,14 +8,14 @@ export const settings = [
   {
     key: SettingKey.DELIVERY_FEE,
     type: SettingType.CURRENCY,
-    value: "0",
-    isActive: false,
+    value: "500",
+    isActive: true,
   },
   {
     key: SettingKey.MIN_ORDER_VALUE,
     type: SettingType.CURRENCY,
-    value: "0",
-    isActive: false,
+    value: "4000",
+    isActive: true,
   },
   {
     key: SettingKey.ALERT_MESSAGE,
@@ -47,7 +47,7 @@ export const settings = [
     key: SettingKey.WELCOME_COUPON,
     type: SettingType.CURRENCY,
     value: "500",
-    isActive: false,
+    isActive: true,
   },
 ];
 
@@ -81,27 +81,4 @@ export async function seedSettings(prisma: PrismaClient) {
   console.log(
     `${nonExistingCount} settings seeded (${settingsCount - nonExistingCount} already existed).`,
   );
-}
-
-const demoSettings = [
-  { key: SettingKey.DELIVERY_FEE, value: "700", isActive: true },
-  { key: SettingKey.MIN_ORDER_VALUE, value: "2000", isActive: true },
-  { key: SettingKey.WELCOME_COUPON, value: "500", isActive: true },
-  { key: SettingKey.ALERT_MESSAGE, isActive: true },
-  { key: SettingKey.WHATSAPP_CONTACT, isActive: true },
-  { key: SettingKey.OUTSIDE_BUSINESS_HOURS, isActive: false },
-  { key: SettingKey.ON_BREAK, isActive: false },
-];
-
-export async function seedDemoSettings(prisma: PrismaClient) {
-  console.log("Seeding demo settings...");
-
-  for (const setting of demoSettings) {
-    await prisma.setting.updateMany({
-      where: { key: setting.key },
-      data: { value: setting.value, isActive: setting.isActive },
-    });
-  }
-
-  console.log(`${demoSettings.length} settings updated for the demo store.`);
 }

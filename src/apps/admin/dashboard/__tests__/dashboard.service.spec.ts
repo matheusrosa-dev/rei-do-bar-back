@@ -858,6 +858,20 @@ describe("AdminDashboardService", () => {
       ]);
     });
 
+    it("should not carry the summary's delivery-fee aggregate on a point", async () => {
+      mockReads({
+        deliveredOrders: [
+          deliveredOrder(middayOf("2026-08-27"), [item(2000, 1)], 700),
+        ],
+      });
+
+      const { series } = await service.findSeries({});
+
+      // deliveryFeeTotal is a summary-only breakout — the order series has no
+      // counterpart to sum it from.
+      expect(series[0]).not.toHaveProperty("deliveryFeeTotal");
+    });
+
     it("should keep the money equality with no bound at all", async () => {
       mockReads({
         deliveredOrders: [
@@ -906,6 +920,7 @@ describe("AdminDashboardService", () => {
         newCustomersCount: 0,
         averageDeliveryMinutes: 0,
         revenue: 0,
+        deliveryFeeTotal: 0,
         restockCost: 0,
         profit: 0,
         profitPercentage: 0,
@@ -1285,7 +1300,7 @@ describe("AdminDashboardService", () => {
       });
     });
 
-    it("should discount what restocking cost from what the period invoiced", async () => {
+    it("should discount the restock cost and the delivery fee from what the period invoiced", async () => {
       mockReads({
         deliveredOrders: [
           deliveredOrder(
@@ -1306,15 +1321,39 @@ describe("AdminDashboardService", () => {
         ],
       });
 
-      const { revenue, restockCost, profit, profitPercentage } =
-        await service.findSummary({});
+      const {
+        revenue,
+        deliveryFeeTotal,
+        restockCost,
+        profit,
+        profitPercentage,
+      } = await service.findSummary({});
 
-      // The cost is the movement lines' price times quantity, and the margin is
-      // read over the revenue, never over the gross.
+      // Revenue embeds the two 500 fees; profit nets them back out — they are
+      // handed to the entregador, not kept — along with the restock cost (the
+      // movement lines' price times quantity). The margin still divides by the
+      // revenue, never by the gross or a fee-adjusted base.
       expect(revenue).toBe(6300);
+      expect(deliveryFeeTotal).toBe(1000);
       expect(restockCost).toBe(2500);
-      expect(profit).toBe(3800);
-      expect(profitPercentage).toBe(60.32);
+      expect(profit).toBe(2800);
+      expect(profitPercentage).toBe(44.44);
+    });
+
+    it("should break the delivery-fee slice of the revenue out on its own", async () => {
+      mockReads({
+        deliveredOrders: [
+          deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)], 500),
+          deliveredOrder(middayOf("2026-08-27"), [item(2000, 1)], 700, 200),
+        ],
+      });
+
+      const { revenue, deliveryFeeTotal } = await service.findSummary({});
+
+      // The fee is already inside revenue ((1000 + 500) + (2000 + 700 - 200) =
+      // 4000): deliveryFeeTotal just reports the 500 + 700 slice of it.
+      expect(revenue).toBe(4000);
+      expect(deliveryFeeTotal).toBe(1200);
     });
 
     it("should report a negative profit when restocking cost more than the period invoiced", async () => {
