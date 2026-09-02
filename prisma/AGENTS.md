@@ -35,7 +35,7 @@ After any schema change, regenerate the client and update the Prisma mock used i
 | Sequences | Human-friendly sequential numbers (where present) are backed by a Postgres sequence alongside the UUID id |
 | Secrets | Only ever the **hash** of a credential, never the plaintext, in a column named for the hash it holds. A credential that an operator assigns after the fact is **nullable**, so the row can exist before it has one — and a null hash means "cannot authenticate", not "no password required" |
 | Sessions | A revocable session is its own table holding the token hashes plus an explicit expiry column per token — expiry is data, not something inferred from `createdAt`. Limiting a principal to **one live session** is expressed as a `@unique` on the owner FK, so a new login is an `upsert` that replaces the old row rather than application code deleting the previous one; the FK cascades on delete so removing the owner cannot strand a usable token |
-| Snapshots | Order rows denormalize purchase-time data (item details, delivery address, applied coupon code and discount) into their own columns so later changes never rewrite history; a snapshot may coexist with a nullable live reference to the source row (nulled on deletion) when the reference is needed operationally |
+| Snapshots | Order rows denormalize into their own columns the data a later change must not rewrite: purchase-time data (item details, delivery address, applied coupon code and discount), frozen at creation, and obligation data frozen by the transition that creates the obligation, written by that transition alone and never rewritten — a later correction to the row records who owes or is owed, not a new amount. A snapshot may coexist with a nullable live reference to the source row (nulled on deletion) when the reference is needed operationally |
 
 ---
 
@@ -63,13 +63,13 @@ Either way, the comment says which source was used and why it stops where it doe
 
 The seed entrypoint bootstraps a Prisma client directly (outside NestJS DI) and runs domain seed functions in order. It has to build the driver adapter itself, reading the connection string from the environment: the datasource carries no `url`, so a client constructed without an adapter has nowhere to connect. **Seed functions must be idempotent** — check for existing records and only insert what is missing. When the check compares seed data against rows already in the database, match on the **business key** (a `Set` of names/keys), never on array position: an index-based comparison against a `findMany` result is only correct when the table is empty or fully seeded, and silently duplicates or collides on any partial state. Where the name alone is not unique in the seed data, the key composes the fields that tell the rows apart — and editing one of those fields in the database makes the row miss the `Set` and be inserted again, so compose the key from the fields an operator is least likely to change.
 
-Seeding is **gated by `NODE_ENV`**: the runtime settings seed always runs, while everything else — the demo catalog and the whole demo dataset — runs only in development. Three scripts expose this:
+Seeding is **gated by `NODE_ENV`**: what the app needs in order to boot — the runtime settings and the catalog's categories — always runs, while the demo dataset (products included) runs only in development. Three scripts expose this:
 
 | Script | Behavior |
 |---|---|
-| `seed` | Forces `NODE_ENV=development` — seeds settings, the catalog **and** the demo dataset |
+| `seed` | Forces `NODE_ENV=development` — seeds the bootstrap data **and** the demo dataset |
 | `seed:reset` | Same, plus `SEED_RESET=true` — **wipes the demo data first**, then seeds it again |
-| `seed:production` | Runs without the override — seeds settings only |
+| `seed:production` | Runs without the override — seeds the bootstrap data only |
 
 A new seed that inserts demo/fixture data belongs behind the development gate; one that bootstraps data the app requires to boot belongs outside it.
 
@@ -78,12 +78,12 @@ A new seed that inserts demo/fixture data belongs behind the development gate; o
 Order matters, because each seed re-queries what the previous ones wrote (no seed returns data to the next):
 
 1. `seedSettings` — always.
-2. `resetDemoData` — only with `SEED_RESET=true`, which is what `seed:reset` sets (development only, aborts otherwise). Deletes the demo tables in reverse-FK order, catalog included so stock returns to its catalog value; settings survive.
-3. `seedCategories` → `seedProducts` — the catalog.
-4. Everything below runs only when there is **no customer in the database**. That single guard covers the whole demo block: it is what makes a rerun a no-op instead of a second copy of the dataset — and, if a run fails halfway, what makes `seed:reset` the way back to a clean dataset.
-5. `seedDemoSettings` → `seedCustomers` → `seedDeliveryPersons` → `seedCoupons` → `seedOrders` → `seedInventory` → `seedNotifications`.
+2. `resetDemoData` — only in development with `SEED_RESET=true`, which is what `seed:reset` sets (it aborts outside development). Deletes the demo tables in reverse-FK order, catalog included so stock returns to its catalog value; settings survive. **The wipe runs before anything the bootstrap step writes**: it deletes categories, so seeding them ahead of it would leave the product seed resolving its category names against an empty table.
+3. `seedCategories` — always. Categories are bootstrap data, not demo data: the catalog's spine ships with the app, its products do not.
+4. Everything below the development gate runs only when there is **no customer in the database**. That single guard covers the whole demo block: it is what makes a rerun a no-op instead of a second copy of the dataset — and, if a run fails halfway, what makes `seed:reset` the way back to a clean dataset.
+5. `seedProducts` → `seedCustomers` → `seedDeliveryPersons` → `seedCoupons` → `seedOrders` → `seedInventory` → `seedNotifications`.
 
-`seedDemoSettings` activates the settings the demo store should exercise — the three monetary ones (delivery fee, minimum order value, welcome coupon), whose values it also overwrites, plus the alert and the WhatsApp contact, which it activates while leaving the value `seedSettings` wrote (the entry omits `value`, and Prisma reads `undefined` as "do not touch"). The two "store closed" messages stay inactive — active, either of them blocks order creation.
+The settings seed is **create-only**: it inserts the keys that have no row and never touches one that exists, so values an operator edited through the admin survive every rerun — which is also why a setting's shipped state is a property of its own entry rather than a later activation pass. Every monetary key ships **active**, since the store cannot quote a cart or pay a delivery without one; every text and phone key ships **inactive**, including the two "store closed" messages — active, either of them blocks order creation.
 
 ### Demo data conventions
 

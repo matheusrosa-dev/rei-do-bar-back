@@ -22,12 +22,14 @@ async function main() {
   await seedSettings(prisma);
   await seedCategories(prisma);
 
-  if (process.env.NODE_ENV !== "development") {
-    return;
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  if (isDevelopment && process.env.SEED_RESET === "true") {
+    await resetDemoData(prisma);
   }
 
-  if (process.env.SEED_RESET === "true") {
-    await resetDemoData(prisma);
+  if (!isDevelopment) {
+    return;
   }
 
   // O bloco de demonstração é semeado uma vez só: reexecutar não duplica nada.

@@ -201,23 +201,24 @@ model InventoryMovementProduct {
 }
 
 model Order {
-  id               String      @id @default(uuid())
-  orderNumber      Int         @unique @default(autoincrement()) @map("order_number")
-  customerId       String      @map("customer_id")
-  address          String
-  status           OrderStatus
-  statusReason     String?     @map("status_reason")
-  deliveryFee      Int         @map("delivery_fee")
-  couponId         String?     @map("coupon_id")
-  couponCode       String?     @map("coupon_code")
-  couponDiscount   Int         @map("coupon_discount")
-  paymentType      PaymentType @map("payment_type")
-  deliveryPersonId String?     @map("delivery_person_id")
-  shippedAt        DateTime?   @map("shipped_at")
-  deliveredAt      DateTime?   @map("delivered_at")
-  cancelledAt      DateTime?   @map("cancelled_at")
-  createdAt        DateTime    @default(now()) @map("created_at")
-  updatedAt        DateTime    @updatedAt @map("updated_at")
+  id                  String      @id @default(uuid())
+  orderNumber         Int         @unique @default(autoincrement()) @map("order_number")
+  customerId          String      @map("customer_id")
+  address             String
+  status              OrderStatus
+  statusReason        String?     @map("status_reason")
+  deliveryFee         Int         @map("delivery_fee")
+  deliveryPersonBonus Int         @default(0) @map("delivery_person_bonus")
+  couponId            String?     @map("coupon_id")
+  couponCode          String?     @map("coupon_code")
+  couponDiscount      Int         @map("coupon_discount")
+  paymentType         PaymentType @map("payment_type")
+  deliveryPersonId    String?     @map("delivery_person_id")
+  shippedAt           DateTime?   @map("shipped_at")
+  deliveredAt         DateTime?   @map("delivered_at")
+  cancelledAt         DateTime?   @map("cancelled_at")
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
 
   customer           Customer            @relation(fields: [customerId], references: [id])
   coupon             Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
@@ -369,6 +370,7 @@ enum SettingKey {
   WELCOME_COUPON
   MIN_ORDER_VALUE
   DELIVERY_FEE
+  DELIVERY_PERSON_BONUS
 }
 
 enum SettingType {

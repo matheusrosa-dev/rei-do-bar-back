@@ -26,4 +26,8 @@ guardar valor da entrega no pedido, pra calcular melhor o lucro
 guardar também o valor extra para os entregadores
 deve ser possível editar movimentação de estoque
 criar card de acessos anonimos
+falha na entrega não deve somar no valor a ser pago para o entregador(apenas o bonus do vendedor)
 no admin deve ter uma modal de alerta se tentar mover um pedido para entregue(isso deveria ser feito pelo app do entregador)
+tornar possivel alterar entregador direto na tela de gerenciar pedidos
+remover coluna de entregas(10h) na tela de entregadores
+adicionar campo de preço de comparação na criação de produto

@@ -58,6 +58,7 @@ type Reads = {
   failedDeliveriesCount?: number;
   newCustomersCount?: number;
   restockProducts?: unknown[];
+  deliveryPersonBonusTotal?: number | null;
 };
 
 // The readings issue several reads over the same handful of Prisma methods, so
@@ -74,6 +75,7 @@ const mockReads = ({
   failedDeliveriesCount = 0,
   newCustomersCount = 0,
   restockProducts = [],
+  deliveryPersonBonusTotal = null,
 }: Reads = {}) => {
   prismaMock.order.groupBy.mockImplementation(({ by }) =>
     Promise.resolve(
@@ -90,6 +92,10 @@ const mockReads = ({
   prismaMock.order.findMany.mockImplementation(({ where }) =>
     Promise.resolve(where.shippedAt ? shippedOrders : deliveredOrders),
   );
+
+  prismaMock.order.aggregate.mockResolvedValue({
+    _sum: { deliveryPersonBonus: deliveryPersonBonusTotal },
+  });
 
   prismaMock.deliveryPerson.findMany.mockResolvedValue(deliveryPersons);
   prismaMock.customer.count.mockResolvedValue(newCustomersCount);
@@ -130,13 +136,13 @@ describe("AdminDashboardService", () => {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 4,
-            _sum: { deliveryFee: 2000 },
+            _sum: { deliveryFee: 2000, deliveryPersonBonus: 800 },
           },
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 1,
-            _sum: { deliveryFee: 500 },
+            _sum: { deliveryFee: 500, deliveryPersonBonus: 200 },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
@@ -144,38 +150,42 @@ describe("AdminDashboardService", () => {
 
       // The durations and the summary's failed-deliveries counter live on the
       // summary reading: a totals half here would report the same numbers twice.
-      // The fee total spans both branches — a cancelled order's fee counts the
-      // same as a delivered one.
+      // The fee total is delivered-only (the cancelled 500 is dropped); the
+      // bonus spans both branches (800 + 200); payoutTotal adds the two.
       expect(await service.findDeliveryPersonsPerformance({})).toEqual({
         deliveryPersons: [
           {
             name: "Entregador",
             deliveredOrdersCount: 4,
             cancelledOrdersCount: 1,
-            deliveryFeeTotal: 2500,
+            deliveryFeeTotal: 2000,
+            deliveryPersonBonusTotal: 1000,
+            payoutTotal: 3000,
           },
         ],
       });
     });
 
-    it("should not issue the dispatch-timing read the summary reading owns", async () => {
+    it("should not issue the dispatch-timing read or the summary's bonus aggregate", async () => {
       mockReads();
 
       await service.findDeliveryPersonsPerformance({});
 
       // The roster is a groupBy plus the delivery-person lookup, and nothing
-      // else — the second order read went to the reading that reports averages.
+      // else — the second order read went to the reading that reports averages,
+      // and the bonus rides the same groupBy pass, never a separate aggregate.
       expect(prismaMock.order.findMany).not.toHaveBeenCalled();
+      expect(prismaMock.order.aggregate).not.toHaveBeenCalled();
     });
 
-    it("should answer zero for a status a person has no order in", async () => {
+    it("should count a cancelled order's bonus but not its fee", async () => {
       mockReads({
         rosterGroups: [
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 1,
-            _sum: { deliveryFee: 700 },
+            _sum: { deliveryFee: 700, deliveryPersonBonus: 250 },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
@@ -185,30 +195,34 @@ describe("AdminDashboardService", () => {
         {},
       );
 
+      // No delivered group, so the fee slice is zero even though the cancelled
+      // group carries one; the bonus is already handed over, so it counts.
       expect(deliveryPersons).toEqual([
         {
           name: "Entregador",
           deliveredOrdersCount: 0,
           cancelledOrdersCount: 1,
-          deliveryFeeTotal: 700,
+          deliveryFeeTotal: 0,
+          deliveryPersonBonusTotal: 250,
+          payoutTotal: 250,
         },
       ]);
     });
 
-    it("should sum a person's delivery fee across the delivered and cancelled branches alike", async () => {
+    it("should sum the fee over the delivered branch only and the bonus over both", async () => {
       mockReads({
         rosterGroups: [
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 3,
-            _sum: { deliveryFee: 1500 },
+            _sum: { deliveryFee: 1500, deliveryPersonBonus: 600 },
           },
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 2,
-            _sum: { deliveryFee: 900 },
+            _sum: { deliveryFee: 900, deliveryPersonBonus: 400 },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
@@ -218,19 +232,21 @@ describe("AdminDashboardService", () => {
         {},
       );
 
-      // Not a payout figure — the fee attached to every order that reached the
-      // person, a cancelled one weighing the same as a delivered one.
-      expect(deliveryPersons[0].deliveryFeeTotal).toBe(2400);
+      // Fee: delivered branch alone (900 cancelled dropped). Bonus: both
+      // branches (600 + 400). Payout: the two added.
+      expect(deliveryPersons[0].deliveryFeeTotal).toBe(1500);
+      expect(deliveryPersons[0].deliveryPersonBonusTotal).toBe(1000);
+      expect(deliveryPersons[0].payoutTotal).toBe(2500);
     });
 
-    it("should answer a zero fee total for a person whose groups carry no fee sum", async () => {
+    it("should answer a zero fee and bonus total for a person whose groups carry no sum", async () => {
       mockReads({
         rosterGroups: [
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 1,
-            _sum: { deliveryFee: null },
+            _sum: { deliveryFee: null, deliveryPersonBonus: null },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
@@ -241,6 +257,8 @@ describe("AdminDashboardService", () => {
       );
 
       expect(deliveryPersons[0].deliveryFeeTotal).toBe(0);
+      expect(deliveryPersons[0].deliveryPersonBonusTotal).toBe(0);
+      expect(deliveryPersons[0].payoutTotal).toBe(0);
     });
 
     it("should count only the orders that reached a delivery person, closed in the range", async () => {
@@ -254,8 +272,11 @@ describe("AdminDashboardService", () => {
       const [[groupByArgs]] = prismaMock.order.groupBy.mock.calls;
 
       expect(groupByArgs.by).toEqual(["deliveryPersonId", "status"]);
-      // One pass carries the per-status count and the fee sum together.
-      expect(groupByArgs._sum).toEqual({ deliveryFee: true });
+      // One pass carries the per-status count and both money sums together.
+      expect(groupByArgs._sum).toEqual({
+        deliveryFee: true,
+        deliveryPersonBonus: true,
+      });
       expect(groupByArgs.where).toEqual({
         deliveryPersonId: { not: null },
         OR: [
@@ -858,7 +879,7 @@ describe("AdminDashboardService", () => {
       ]);
     });
 
-    it("should not carry the summary's delivery-fee aggregate on a point", async () => {
+    it("should not carry the summary's payout aggregates on a point", async () => {
       mockReads({
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-27"), [item(2000, 1)], 700),
@@ -867,9 +888,12 @@ describe("AdminDashboardService", () => {
 
       const { series } = await service.findSeries({});
 
-      // deliveryFeeTotal is a summary-only breakout — the order series has no
-      // counterpart to sum it from.
+      // deliveryFeeTotal and deliveryPersonBonusTotal are summary-only breakouts
+      // — the order series has no counterpart to sum them from, and payoutTotal
+      // is a performance-roster figure that never reaches the series.
       expect(series[0]).not.toHaveProperty("deliveryFeeTotal");
+      expect(series[0]).not.toHaveProperty("deliveryPersonBonusTotal");
+      expect(series[0]).not.toHaveProperty("payoutTotal");
     });
 
     it("should keep the money equality with no bound at all", async () => {
@@ -921,6 +945,7 @@ describe("AdminDashboardService", () => {
         averageDeliveryMinutes: 0,
         revenue: 0,
         deliveryFeeTotal: 0,
+        deliveryPersonBonusTotal: 0,
         restockCost: 0,
         profit: 0,
         profitPercentage: 0,
@@ -1324,6 +1349,7 @@ describe("AdminDashboardService", () => {
       const {
         revenue,
         deliveryFeeTotal,
+        deliveryPersonBonusTotal,
         restockCost,
         profit,
         profitPercentage,
@@ -1331,13 +1357,109 @@ describe("AdminDashboardService", () => {
 
       // Revenue embeds the two 500 fees; profit nets them back out — they are
       // handed to the entregador, not kept — along with the restock cost (the
-      // movement lines' price times quantity). The margin still divides by the
-      // revenue, never by the gross or a fee-adjusted base.
+      // movement lines' price times quantity). No bonus in this period. The
+      // margin still divides by the revenue, never by the gross or a
+      // fee-adjusted base.
       expect(revenue).toBe(6300);
       expect(deliveryFeeTotal).toBe(1000);
+      expect(deliveryPersonBonusTotal).toBe(0);
       expect(restockCost).toBe(2500);
       expect(profit).toBe(2800);
       expect(profitPercentage).toBe(44.44);
+    });
+
+    it("should net the delivery-person bonus out of profit as a pure outflow", async () => {
+      mockReads({
+        deliveredOrders: [
+          deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)], 500),
+          deliveredOrder(middayOf("2026-08-27"), [item(2000, 1)], 500),
+        ],
+        restockProducts: [{ price: 500, quantity: 1 }],
+        deliveryPersonBonusTotal: 600,
+      });
+
+      const { revenue, deliveryFeeTotal, deliveryPersonBonusTotal, profit } =
+        await service.findSummary({});
+
+      // The bonus never entered revenue (4000 = 1500 + 2500), so subtracting it
+      // pushes profit below the gross margin: 4000 - 500 restock - 1000 fee -
+      // 600 bonus.
+      expect(revenue).toBe(4000);
+      expect(deliveryFeeTotal).toBe(1000);
+      expect(deliveryPersonBonusTotal).toBe(600);
+      expect(profit).toBe(1900);
+    });
+
+    it("should sum the bonus over assigned closed orders, delivered and cancelled alike", async () => {
+      mockReads({ deliveryPersonBonusTotal: 1200 });
+
+      const { deliveryPersonBonusTotal } = await service.findSummary({
+        startDate: at("00:00:00"),
+        endDate: at("23:59:59"),
+      });
+
+      const [[aggregateArgs]] = prismaMock.order.aggregate.mock.calls;
+
+      expect(deliveryPersonBonusTotal).toBe(1200);
+      // Its own aggregate _sum — the delivered-orders reducer is delivered-only
+      // — over the roster's assigned-and-closed predicate.
+      expect(aggregateArgs._sum).toEqual({ deliveryPersonBonus: true });
+      expect(aggregateArgs.where).toEqual({
+        deliveryPersonId: { not: null },
+        OR: [
+          {
+            status: OrderStatus.DELIVERED,
+            deliveredAt: { gte: at("00:00:00"), lte: at("23:59:59") },
+          },
+          {
+            status: OrderStatus.CANCELLED,
+            cancelledAt: { gte: at("00:00:00"), lte: at("23:59:59") },
+          },
+        ],
+      });
+    });
+
+    it("should reconcile the summary bonus with the roster's per-person sum for the same range", async () => {
+      const range = {
+        startDate: at("00:00:00"),
+        endDate: at("23:59:59"),
+      };
+
+      mockReads({
+        deliveryPersonBonusTotal: 900,
+        rosterGroups: [
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            _count: 2,
+            _sum: { deliveryFee: 1000, deliveryPersonBonus: 500 },
+          },
+          {
+            deliveryPersonId: OTHER_DELIVERY_PERSON_ID,
+            status: OrderStatus.CANCELLED,
+            _count: 1,
+            _sum: { deliveryFee: 400, deliveryPersonBonus: 400 },
+          },
+        ],
+        deliveryPersons: [
+          { id: DELIVERY_PERSON_ID, name: "A" },
+          { id: OTHER_DELIVERY_PERSON_ID, name: "B" },
+        ],
+      });
+
+      const { deliveryPersonBonusTotal } = await service.findSummary(range);
+      const { deliveryPersons } =
+        await service.findDeliveryPersonsPerformance(range);
+
+      // Both reads run buildAssignedClosedFilter over the same predicate, so the
+      // per-person bonuses add up to the summary's figure (the aggregate stub
+      // stands in for that same sum).
+      expect(
+        deliveryPersons.reduce(
+          (sum, person) => sum + person.deliveryPersonBonusTotal,
+          0,
+        ),
+      ).toBe(deliveryPersonBonusTotal);
     });
 
     it("should break the delivery-fee slice of the revenue out on its own", async () => {

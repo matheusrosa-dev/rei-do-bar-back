@@ -39,7 +39,7 @@ type StatusGroup = {
 
 type OrderGroup = StatusGroup & {
   deliveryPersonId: string | null;
-  _sum: { deliveryFee: number | null };
+  _sum: { deliveryFee: number | null; deliveryPersonBonus: number | null };
 };
 
 type ShippedOrderTiming = {
@@ -126,6 +126,7 @@ export class AdminDashboardService {
       restockCost,
       failedDeliveriesCount,
       shippedOrders,
+      deliveryPersonBonusTotal,
     ] = await Promise.all([
       this.prisma.order.count({
         where: this.buildStatusFilter(OrderStatus.DELIVERED, dto),
@@ -152,6 +153,7 @@ export class AdminDashboardService {
           deliveredAt: true,
         },
       }),
+      this.sumDeliveryPersonBonus(dto),
     ]);
 
     const sums = this.sumRevenue(orders);
@@ -177,11 +179,8 @@ export class AdminDashboardService {
       ),
       revenue: sums.revenue,
       deliveryFeeTotal: sums.deliveryFeeTotal,
-      ...this.buildProfitTotals(
-        sums.revenue,
-        restockCost,
-        sums.deliveryFeeTotal,
-      ),
+      deliveryPersonBonusTotal,
+      ...this.buildProfitTotals(sums, restockCost, deliveryPersonBonusTotal),
       ...this.buildCouponTotals(sums),
     };
   }
@@ -191,7 +190,7 @@ export class AdminDashboardService {
       by: ["deliveryPersonId", "status"],
       where,
       _count: true,
-      _sum: { deliveryFee: true },
+      _sum: { deliveryFee: true, deliveryPersonBonus: true },
     });
 
     const deliveryPersonIds = new Set(
@@ -225,6 +224,15 @@ export class AdminDashboardService {
         },
       },
     });
+  }
+
+  private async sumDeliveryPersonBonus(range: DateRange) {
+    const { _sum } = await this.prisma.order.aggregate({
+      where: this.buildAssignedClosedFilter(range),
+      _sum: { deliveryPersonBonus: true },
+    });
+
+    return _sum.deliveryPersonBonus ?? 0;
   }
 
   private async sumRestockCost(range: DateRange) {
@@ -264,11 +272,12 @@ export class AdminDashboardService {
   }
 
   private buildProfitTotals(
-    revenue: number,
+    { revenue, deliveryFeeTotal }: RevenueSums,
     restockCost: number,
-    deliveryFeeTotal: number,
+    deliveryPersonBonusTotal: number,
   ) {
-    const profit = revenue - restockCost - deliveryFeeTotal;
+    const profit =
+      revenue - restockCost - deliveryFeeTotal - deliveryPersonBonusTotal;
 
     const profitPercentage =
       revenue === 0 ? 0 : Math.round((profit / revenue) * 10_000) / 100;
@@ -450,25 +459,43 @@ export class AdminDashboardService {
       ]),
     );
 
-    const deliveryFeeByPerson = new Map<string, number>();
+    const deliveredFeeByPerson = new Map<string, number>();
+    const bonusByPerson = new Map<string, number>();
 
     for (const group of groups) {
       const personId = group.deliveryPersonId!;
-      const current = deliveryFeeByPerson.get(personId) ?? 0;
 
-      deliveryFeeByPerson.set(
+      bonusByPerson.set(
         personId,
-        current + (group._sum.deliveryFee ?? 0),
+        (bonusByPerson.get(personId) ?? 0) +
+          (group._sum.deliveryPersonBonus ?? 0),
+      );
+
+      if (group.status !== OrderStatus.DELIVERED) {
+        continue;
+      }
+
+      deliveredFeeByPerson.set(
+        personId,
+        (deliveredFeeByPerson.get(personId) ?? 0) +
+          (group._sum.deliveryFee ?? 0),
       );
     }
 
-    return deliveryPersons.map(({ id, name }) => ({
-      name,
-      deliveredOrdersCount:
-        countByPersonAndStatus.get(`${id}:${OrderStatus.DELIVERED}`) ?? 0,
-      cancelledOrdersCount:
-        countByPersonAndStatus.get(`${id}:${OrderStatus.CANCELLED}`) ?? 0,
-      deliveryFeeTotal: deliveryFeeByPerson.get(id) ?? 0,
-    }));
+    return deliveryPersons.map(({ id, name }) => {
+      const deliveryFeeTotal = deliveredFeeByPerson.get(id) ?? 0;
+      const deliveryPersonBonusTotal = bonusByPerson.get(id) ?? 0;
+
+      return {
+        name,
+        deliveredOrdersCount:
+          countByPersonAndStatus.get(`${id}:${OrderStatus.DELIVERED}`) ?? 0,
+        cancelledOrdersCount:
+          countByPersonAndStatus.get(`${id}:${OrderStatus.CANCELLED}`) ?? 0,
+        deliveryFeeTotal,
+        deliveryPersonBonusTotal,
+        payoutTotal: deliveryFeeTotal + deliveryPersonBonusTotal,
+      };
+    });
   }
 }

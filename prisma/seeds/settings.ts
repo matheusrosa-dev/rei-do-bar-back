@@ -14,7 +14,7 @@ export const settings = [
   {
     key: SettingKey.MIN_ORDER_VALUE,
     type: SettingType.CURRENCY,
-    value: "4000",
+    value: "3500",
     isActive: true,
   },
   {
@@ -47,6 +47,12 @@ export const settings = [
     key: SettingKey.WELCOME_COUPON,
     type: SettingType.CURRENCY,
     value: "500",
+    isActive: true,
+  },
+  {
+    key: SettingKey.DELIVERY_PERSON_BONUS,
+    type: SettingType.CURRENCY,
+    value: "200",
     isActive: true,
   },
 ];

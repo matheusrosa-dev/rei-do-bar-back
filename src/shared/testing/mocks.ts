@@ -54,6 +54,7 @@ export const prismaMock = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     groupBy: jest.fn(),
+    aggregate: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
   },

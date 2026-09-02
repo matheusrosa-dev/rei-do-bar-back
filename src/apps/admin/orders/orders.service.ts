@@ -25,12 +25,14 @@ import {
   OrderStatusUpdatedEvent,
 } from "@shared/events/order";
 import { computeOrderTotals } from "@shared/helpers/products-totals";
+import { SettingsService } from "../../store/settings/settings.service";
 
 @Injectable()
 export class AdminOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async listOrdersManagement() {
@@ -303,6 +305,11 @@ export class AdminOrdersService {
       );
     }
 
+    const deliveryPersonBonus =
+      dto.status === OrderStatus.SHIPPED
+        ? await this.getCurrentDeliveryPersonBonus()
+        : 0;
+
     try {
       await this.prisma.$transaction(async (tx) => {
         if (dto.status === OrderStatus.SHIPPED) {
@@ -325,6 +332,7 @@ export class AdminOrdersService {
             }),
             ...(dto.status === OrderStatus.SHIPPED && {
               deliveryPersonId: dto.deliveryPersonId,
+              deliveryPersonBonus,
               shippedAt: new Date(),
             }),
             ...(dto.status === OrderStatus.DELIVERED && {
@@ -521,5 +529,11 @@ export class AdminOrdersService {
     status: OrderStatus,
   ) {
     return orders.filter((order) => order.status === status);
+  }
+
+  private async getCurrentDeliveryPersonBonus() {
+    const settings = await this.settingsService.findAll();
+
+    return Number(settings?.DELIVERY_PERSON_BONUS || 0);
   }
 }

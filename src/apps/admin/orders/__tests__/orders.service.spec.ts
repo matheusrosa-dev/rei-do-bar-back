@@ -2,7 +2,8 @@ import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Test, TestingModule } from "@nestjs/testing";
 import { OrderStatus } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { prismaMock } from "@shared/testing/mocks";
+import { prismaMock, settingsServiceMock } from "@shared/testing/mocks";
+import { SettingsService } from "../../../store/settings/settings.service";
 import { AdminOrdersService } from "../orders.service";
 
 const ORDER_ID = "order-id";
@@ -17,6 +18,7 @@ const makeOrder = (overrides?: Partial<Record<string, unknown>>) => ({
   status: OrderStatus.PREPARING,
   statusReason: null,
   deliveryFee: 500,
+  deliveryPersonBonus: 0,
   couponDiscount: 0,
   deliveryPersonId: null,
   shippedAt: null,
@@ -44,6 +46,7 @@ describe("AdminOrdersService", () => {
         AdminOrdersService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
+        { provide: SettingsService, useValue: settingsServiceMock },
       ],
     }).compile();
 
@@ -146,9 +149,12 @@ describe("AdminOrdersService", () => {
       prismaMock.deliveryPerson.findUnique.mockResolvedValue({
         isActive: true,
       });
+      settingsServiceMock.findAll.mockResolvedValue({
+        DELIVERY_PERSON_BONUS: "200",
+      });
     });
 
-    it("should stamp shippedAt alongside the delivery person on the shipped transition", async () => {
+    it("should stamp shippedAt and the bonus snapshot alongside the delivery person on the shipped transition", async () => {
       const now = new Date("2026-08-25T14:00:00.000Z");
       jest.useFakeTimers().setSystemTime(now);
 
@@ -158,12 +164,14 @@ describe("AdminOrdersService", () => {
         await shipOrder();
 
         // Sem o shippedAt aqui a coluna nasce nula e as duas filas — o board e
-        // o app do entregador — voltam a ordenar por hora do pedido.
+        // o app do entregador — voltam a ordenar por hora do pedido. O bônus é
+        // congelado na mesma escrita, com o valor da setting no despacho.
         expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
           where: { id: ORDER_ID, status: OrderStatus.PREPARING },
           data: {
             status: OrderStatus.SHIPPED,
             deliveryPersonId: DELIVERY_PERSON_ID,
+            deliveryPersonBonus: 200,
             shippedAt: now,
           },
         });
@@ -172,7 +180,22 @@ describe("AdminOrdersService", () => {
       }
     });
 
-    it("should not stamp shippedAt on a transition that does not ship the order", async () => {
+    it("should freeze the bonus at zero when the setting is inactive or absent", async () => {
+      settingsServiceMock.findAll.mockResolvedValue({});
+      prismaMock.order.findUnique.mockResolvedValue(makeOrder());
+
+      await shipOrder();
+
+      // `findAll` já descarta as chaves inativas, então a ausência resolve para
+      // zero pelo mesmo idioma da taxa de entrega no checkout.
+      expect(prismaMock.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ deliveryPersonBonus: 0 }),
+        }),
+      );
+    });
+
+    it("should not read or write a bonus on a transition that does not ship the order", async () => {
       prismaMock.order.findUnique.mockResolvedValue(
         makeOrder({ status: OrderStatus.PENDING }),
       );
@@ -181,6 +204,7 @@ describe("AdminOrdersService", () => {
         status: OrderStatus.PREPARING,
       });
 
+      expect(settingsServiceMock.findAll).not.toHaveBeenCalled();
       expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
         where: { id: ORDER_ID, status: OrderStatus.PENDING },
         data: { status: OrderStatus.PREPARING },
@@ -210,11 +234,15 @@ describe("AdminOrdersService", () => {
   });
 
   describe("updateOrderDeliveryPerson", () => {
-    it("should not restamp shippedAt when the delivery person is reassigned", async () => {
+    it("should change only the delivery person, leaving the shippedAt and the bonus snapshot frozen", async () => {
       const shippedAt = new Date("2026-08-25T10:00:00.000Z");
 
       prismaMock.order.findUnique.mockResolvedValue(
-        makeOrder({ status: OrderStatus.SHIPPED, shippedAt }),
+        makeOrder({
+          status: OrderStatus.SHIPPED,
+          shippedAt,
+          deliveryPersonBonus: 200,
+        }),
       );
       prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.deliveryPerson.findUnique.mockResolvedValue({
@@ -225,10 +253,13 @@ describe("AdminOrdersService", () => {
         deliveryPersonId: "another-delivery-person-id",
       });
 
+      // Corrigir quem entregou nunca reprecifica a entrega: nem shippedAt nem
+      // deliveryPersonBonus entram na escrita, e a setting não é consultada.
       expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
         where: { id: ORDER_ID, status: OrderStatus.SHIPPED },
         data: { deliveryPersonId: "another-delivery-person-id" },
       });
+      expect(settingsServiceMock.findAll).not.toHaveBeenCalled();
       // A reatribuição devolve o pedido, não o board — e não pode reordenar a
       // fila de quem já está na rua.
       expect(prismaMock.order.findMany).not.toHaveBeenCalled();

@@ -4,7 +4,7 @@
 
 The client-facing read of configurable runtime settings: a single read-only endpoint that returns the currently **active** settings as a flat key/value map (delivery fee, alert message, minimum order value, WhatsApp contact, break/business-hour flags).
 
-The service is also exported and injected by other feature modules (cart, orders), which fetch the **whole map once** per request and pass it down — including into `CouponsService` for the welcome-coupon calculation. That is the convention: fetch the map at the edge of the flow and thread it through, rather than having each collaborator re-query settings.
+The service is also exported and injected by other feature modules, in both the store and the admin app. The convention for a flow that needs settings is to fetch the **whole map once** at its edge and thread it through — including into `CouponsService` for the welcome-coupon calculation — rather than having each collaborator re-query. A module that consumes a single key for a single write reads it where it writes; what it does with the value is that module's contract, documented there.
 
 ## What does NOT belong here
 
@@ -21,7 +21,7 @@ Values are always stored as strings, in one of two flavors:
 
 | Flavor | Keys | Parsing |
 |---|---|---|
-| Numeric (cents) | delivery fee, minimum order value, welcome coupon (`SettingType.CURRENCY`) | Parsed to an integer by the consumer; a non-numeric value yields `NaN` (not defended against — the admin write path is trusted to keep it valid) |
+| Numeric (cents) | every `SettingType.CURRENCY` key | Parsed to an integer by the consumer; a non-numeric value yields `NaN` (not defended against — the admin write path is trusted to keep it valid) |
 | Plain text | alert message, WhatsApp contact, on-break, outside-business-hours | Used as-is |
 
 ---
@@ -30,7 +30,7 @@ Values are always stored as strings, in one of two flavors:
 
 The response DTO is applied at the controller class level and, because serialization excludes anything not explicitly exposed, it doubles as the **client-visibility allowlist**.
 
-It exposes six of the seven `SettingKey` values. The **welcome coupon is deliberately not exposed** — it is server-side configuration consumed by `CouponsService`, and the client learns about it only indirectly, through the `couponDiscount` / `couponCode` / `isWelcomeCoupon` fields on the cart. Adding a new key to the enum does **not** make it public; it becomes public only when added to this DTO.
+It exposes a subset of the `SettingKey` values. The **welcome coupon and the delivery-person bonus are deliberately not exposed** — they are server-side configuration, and the client learns about the welcome coupon only indirectly, through the `couponDiscount` / `couponCode` / `isWelcomeCoupon` fields on the cart. Adding a new key to the enum does **not** make it public; it becomes public only when added to this DTO.
 
 ---
 
