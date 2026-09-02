@@ -38,13 +38,12 @@ type StatusGroup = {
 
 type OrderGroup = StatusGroup & {
   deliveryPersonId: string | null;
+  _sum: { deliveryFee: number | null };
 };
 
 type ShippedOrderTiming = {
-  status: OrderStatus;
   shippedAt: Date | null;
   deliveredAt: Date | null;
-  cancelledAt: Date | null;
 };
 
 @Injectable()
@@ -119,38 +118,37 @@ export class AdminDashboardService {
   }
 
   async findSummary(dto: FindSummaryDto) {
-    const assignedWhere = this.buildAssignedClosedFilter(dto);
-
     const [
-      groups,
+      deliveredOrdersCount,
       orders,
       newCustomersCount,
       restockCost,
-      assignedGroups,
+      failedDeliveriesCount,
       shippedOrders,
     ] = await Promise.all([
-      this.prisma.order.groupBy({
-        by: ["status"],
-        where: { OR: this.buildClosedStatusFilter(dto) },
-        _count: true,
+      this.prisma.order.count({
+        where: this.buildStatusFilter(OrderStatus.DELIVERED, dto),
       }),
       this.findDeliveredOrders(dto),
       this.prisma.customer.count({
         where: { createdAt: this.buildDateRange(dto) },
       }),
       this.sumRestockCost(dto),
-      this.prisma.order.groupBy({
-        by: ["status"],
-        where: assignedWhere,
-        _count: true,
+      this.prisma.order.count({
+        where: {
+          deliveryPersonId: { not: null },
+          ...this.buildStatusFilter(OrderStatus.CANCELLED, dto),
+        },
       }),
       this.prisma.order.findMany({
-        where: { ...assignedWhere, shippedAt: { not: null } },
+        where: {
+          deliveryPersonId: { not: null },
+          ...this.buildStatusFilter(OrderStatus.DELIVERED, dto),
+          shippedAt: { not: null },
+        },
         select: {
-          status: true,
           shippedAt: true,
           deliveredAt: true,
-          cancelledAt: true,
         },
       }),
     ]);
@@ -166,22 +164,15 @@ export class AdminDashboardService {
     const firstDeliveries = await this.findFirstDeliveries(orders, dto);
 
     return {
-      deliveredOrdersCount: this.countByStatus(groups, OrderStatus.DELIVERED),
-      cancelledOrdersCount: this.countByStatus(groups, OrderStatus.CANCELLED),
-      assignedCancelledOrdersCount: this.countByStatus(
-        assignedGroups,
-        OrderStatus.CANCELLED,
-      ),
+      deliveredOrdersCount,
+      failedDeliveriesCount,
       averageOrderValue,
       highestOrderValue,
       redeemedCouponOrdersCount: this.countRedeemedCouponOrders(orders),
       firstDeliveredOrdersCount: firstDeliveries.size,
       newCustomersCount,
       averageDeliveryMinutes: averageMinutes(
-        this.spansSinceShipping(shippedOrders, OrderStatus.DELIVERED),
-      ),
-      averageCancellationAfterShippingMinutes: averageMinutes(
-        this.spansSinceShipping(shippedOrders, OrderStatus.CANCELLED),
+        this.spansSinceShipping(shippedOrders),
       ),
       revenue: sums.revenue,
       ...this.buildProfitTotals(sums.revenue, restockCost),
@@ -194,6 +185,7 @@ export class AdminDashboardService {
       by: ["deliveryPersonId", "status"],
       where,
       _count: true,
+      _sum: { deliveryFee: true },
     });
 
     const deliveryPersonIds = new Set(
@@ -395,12 +387,21 @@ export class AdminDashboardService {
     };
   }
 
-  private buildClosedStatusFilter(range: DateRange): Prisma.OrderWhereInput[] {
+  private buildStatusFilter(
+    status: typeof OrderStatus.DELIVERED | typeof OrderStatus.CANCELLED,
+    range: DateRange,
+  ): Prisma.OrderWhereInput {
     const closedAt = this.buildDateRange(range);
 
+    return status === OrderStatus.DELIVERED
+      ? { status, deliveredAt: closedAt }
+      : { status, cancelledAt: closedAt };
+  }
+
+  private buildClosedStatusFilter(range: DateRange): Prisma.OrderWhereInput[] {
     return [
-      { status: OrderStatus.DELIVERED, deliveredAt: closedAt },
-      { status: OrderStatus.CANCELLED, cancelledAt: closedAt },
+      this.buildStatusFilter(OrderStatus.DELIVERED, range),
+      this.buildStatusFilter(OrderStatus.CANCELLED, range),
     ];
   }
 
@@ -411,30 +412,16 @@ export class AdminDashboardService {
     };
   }
 
-  private countByStatus(groups: StatusGroup[], status: OrderStatus) {
-    return groups
-      .filter((group) => group.status === status)
-      .reduce((sum, group) => sum + group._count, 0);
-  }
-
-  private spansSinceShipping(
-    orders: ShippedOrderTiming[],
-    status: OrderStatus,
-  ) {
+  private spansSinceShipping(orders: ShippedOrderTiming[]) {
     const spans: number[] = [];
 
     for (const order of orders) {
-      if (order.status !== status || !order.shippedAt) {
+      if (!order.shippedAt) {
         continue;
       }
 
-      const closedAt =
-        status === OrderStatus.DELIVERED
-          ? order.deliveredAt
-          : order.cancelledAt;
-
-      if (closedAt) {
-        spans.push(closedAt.getTime() - order.shippedAt.getTime());
+      if (order.deliveredAt) {
+        spans.push(order.deliveredAt.getTime() - order.shippedAt.getTime());
       }
     }
 
@@ -452,12 +439,25 @@ export class AdminDashboardService {
       ]),
     );
 
+    const deliveryFeeByPerson = new Map<string, number>();
+
+    for (const group of groups) {
+      const personId = group.deliveryPersonId!;
+      const current = deliveryFeeByPerson.get(personId) ?? 0;
+
+      deliveryFeeByPerson.set(
+        personId,
+        current + (group._sum.deliveryFee ?? 0),
+      );
+    }
+
     return deliveryPersons.map(({ id, name }) => ({
       name,
       deliveredOrdersCount:
         countByPersonAndStatus.get(`${id}:${OrderStatus.DELIVERED}`) ?? 0,
       cancelledOrdersCount:
         countByPersonAndStatus.get(`${id}:${OrderStatus.CANCELLED}`) ?? 0,
+      deliveryFeeTotal: deliveryFeeByPerson.get(id) ?? 0,
     }));
   }
 }

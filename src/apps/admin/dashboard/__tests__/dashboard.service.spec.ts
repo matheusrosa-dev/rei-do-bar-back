@@ -12,18 +12,9 @@ const OTHER_DELIVERY_PERSON_ID = "other-delivery-person-id";
 
 const at = (isoTime: string) => new Date(`2026-08-27T${isoTime}.000Z`);
 
-const delivered = (shippedAt: Date | null, deliveredAt: Date | null) => ({
-  status: OrderStatus.DELIVERED,
+const dispatched = (shippedAt: Date | null, deliveredAt: Date | null) => ({
   shippedAt,
   deliveredAt,
-  cancelledAt: null,
-});
-
-const cancelled = (shippedAt: Date | null, cancelledAt: Date | null) => ({
-  status: OrderStatus.CANCELLED,
-  shippedAt,
-  deliveredAt: null,
-  cancelledAt,
 });
 
 const item = (
@@ -58,47 +49,43 @@ const startOf = (isoDate: string) => new Date(`${isoDate}T00:00:00-03:00`);
 const endOf = (isoDate: string) => new Date(`${isoDate}T23:59:59-03:00`);
 
 type Reads = {
-  statusGroups?: unknown[];
-  assignedGroups?: unknown[];
   rosterGroups?: unknown[];
   firstDeliveryGroups?: unknown[];
   deliveredOrders?: unknown[];
   shippedOrders?: unknown[];
   deliveryPersons?: unknown[];
+  deliveredOrdersCount?: number;
+  failedDeliveriesCount?: number;
   newCustomersCount?: number;
   restockProducts?: unknown[];
 };
 
-// The readings issue several reads over the same two Prisma methods, so the
-// stubs answer by what each query asks for instead of by call order — which
+// The readings issue several reads over the same handful of Prisma methods, so
+// the stubs answer by what each query asks for instead of by call order — which
 // keeps a test that exercises two readings at once from depending on the order
 // the two issue their queries in.
 const mockReads = ({
-  statusGroups = [],
-  assignedGroups = [],
   rosterGroups = [],
   firstDeliveryGroups = [],
   deliveredOrders = [],
   shippedOrders = [],
   deliveryPersons = [],
+  deliveredOrdersCount = 0,
+  failedDeliveriesCount = 0,
   newCustomersCount = 0,
   restockProducts = [],
 }: Reads = {}) => {
-  prismaMock.order.groupBy.mockImplementation(({ by, where }) => {
-    if (by.includes("customerId")) {
-      return Promise.resolve(firstDeliveryGroups);
-    }
+  prismaMock.order.groupBy.mockImplementation(({ by }) =>
+    Promise.resolve(
+      by.includes("customerId") ? firstDeliveryGroups : rosterGroups,
+    ),
+  );
 
-    if (by.includes("deliveryPersonId")) {
-      return Promise.resolve(rosterGroups);
-    }
-
-    if (where.deliveryPersonId) {
-      return Promise.resolve(assignedGroups);
-    }
-
-    return Promise.resolve(statusGroups);
-  });
+  prismaMock.order.count.mockImplementation(({ where }) =>
+    Promise.resolve(
+      where.deliveryPersonId ? failedDeliveriesCount : deliveredOrdersCount,
+    ),
+  );
 
   prismaMock.order.findMany.mockImplementation(({ where }) =>
     Promise.resolve(where.shippedAt ? shippedOrders : deliveredOrders),
@@ -143,24 +130,29 @@ describe("AdminDashboardService", () => {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 4,
+            _sum: { deliveryFee: 2000 },
           },
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 1,
+            _sum: { deliveryFee: 500 },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
       });
 
-      // The durations and the assigned cancellation counter live on the summary
-      // reading: a totals half here would report the same numbers twice.
+      // The durations and the summary's failed-deliveries counter live on the
+      // summary reading: a totals half here would report the same numbers twice.
+      // The fee total spans both branches — a cancelled order's fee counts the
+      // same as a delivered one.
       expect(await service.findDeliveryPersonsPerformance({})).toEqual({
         deliveryPersons: [
           {
             name: "Entregador",
             deliveredOrdersCount: 4,
             cancelledOrdersCount: 1,
+            deliveryFeeTotal: 2500,
           },
         ],
       });
@@ -183,6 +175,7 @@ describe("AdminDashboardService", () => {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 1,
+            _sum: { deliveryFee: 700 },
           },
         ],
         deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
@@ -197,8 +190,57 @@ describe("AdminDashboardService", () => {
           name: "Entregador",
           deliveredOrdersCount: 0,
           cancelledOrdersCount: 1,
+          deliveryFeeTotal: 700,
         },
       ]);
+    });
+
+    it("should sum a person's delivery fee across the delivered and cancelled branches alike", async () => {
+      mockReads({
+        rosterGroups: [
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            _count: 3,
+            _sum: { deliveryFee: 1500 },
+          },
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.CANCELLED,
+            _count: 2,
+            _sum: { deliveryFee: 900 },
+          },
+        ],
+        deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
+      });
+
+      const { deliveryPersons } = await service.findDeliveryPersonsPerformance(
+        {},
+      );
+
+      // Not a payout figure — the fee attached to every order that reached the
+      // person, a cancelled one weighing the same as a delivered one.
+      expect(deliveryPersons[0].deliveryFeeTotal).toBe(2400);
+    });
+
+    it("should answer a zero fee total for a person whose groups carry no fee sum", async () => {
+      mockReads({
+        rosterGroups: [
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            _count: 1,
+            _sum: { deliveryFee: null },
+          },
+        ],
+        deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
+      });
+
+      const { deliveryPersons } = await service.findDeliveryPersonsPerformance(
+        {},
+      );
+
+      expect(deliveryPersons[0].deliveryFeeTotal).toBe(0);
     });
 
     it("should count only the orders that reached a delivery person, closed in the range", async () => {
@@ -212,6 +254,8 @@ describe("AdminDashboardService", () => {
       const [[groupByArgs]] = prismaMock.order.groupBy.mock.calls;
 
       expect(groupByArgs.by).toEqual(["deliveryPersonId", "status"]);
+      // One pass carries the per-status count and the fee sum together.
+      expect(groupByArgs._sum).toEqual({ deliveryFee: true });
       expect(groupByArgs.where).toEqual({
         deliveryPersonId: { not: null },
         OR: [
@@ -234,16 +278,19 @@ describe("AdminDashboardService", () => {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 2,
+            _sum: { deliveryFee: 1000 },
           },
           {
             deliveryPersonId: DELIVERY_PERSON_ID,
             status: OrderStatus.CANCELLED,
             _count: 1,
+            _sum: { deliveryFee: 500 },
           },
           {
             deliveryPersonId: OTHER_DELIVERY_PERSON_ID,
             status: OrderStatus.DELIVERED,
             _count: 3,
+            _sum: { deliveryFee: 1500 },
           },
         ],
         deliveryPersons: [],
@@ -613,7 +660,7 @@ describe("AdminDashboardService", () => {
       ];
 
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
+        deliveredOrdersCount: 2,
         deliveredOrders: orders,
         firstDeliveryGroups: orders.map(firstDeliveryOf),
       });
@@ -832,26 +879,18 @@ describe("AdminDashboardService", () => {
   });
 
   describe("findSummary", () => {
-    it("should sum the groups of each terminal status into its own counter", async () => {
-      mockReads({
-        statusGroups: [
-          { status: OrderStatus.DELIVERED, _count: 12 },
-          { status: OrderStatus.CANCELLED, _count: 3 },
-        ],
-        assignedGroups: [{ status: OrderStatus.CANCELLED, _count: 2 }],
-      });
+    it("should report the delivered and failed-deliveries counts off their own filtered reads", async () => {
+      mockReads({ deliveredOrdersCount: 12, failedDeliveriesCount: 2 });
 
-      const {
-        deliveredOrdersCount,
-        cancelledOrdersCount,
-        assignedCancelledOrdersCount,
-      } = await service.findSummary({});
+      const summary = await service.findSummary({});
 
-      expect(deliveredOrdersCount).toBe(12);
-      // The wide counter takes in an order cancelled before anyone was assigned;
-      // the narrow one is the same universe the performance roster counts over.
-      expect(cancelledOrdersCount).toBe(3);
-      expect(assignedCancelledOrdersCount).toBe(2);
+      expect(summary.deliveredOrdersCount).toBe(12);
+      // The summary's only cancelled-order figure — the assigned-and-cancelled
+      // slice the performance roster counts over, not the period's cancellations.
+      expect(summary.failedDeliveriesCount).toBe(2);
+      // The period-wide cancelled counter was dropped, not renamed.
+      expect(summary).not.toHaveProperty("cancelledOrdersCount");
+      expect(summary).not.toHaveProperty("assignedCancelledOrdersCount");
     });
 
     it("should answer zeros when nothing closed in the period", async () => {
@@ -859,15 +898,13 @@ describe("AdminDashboardService", () => {
 
       expect(await service.findSummary({})).toEqual({
         deliveredOrdersCount: 0,
-        cancelledOrdersCount: 0,
-        assignedCancelledOrdersCount: 0,
+        failedDeliveriesCount: 0,
         averageOrderValue: 0,
         highestOrderValue: 0,
         redeemedCouponOrdersCount: 0,
         firstDeliveredOrdersCount: 0,
         newCustomersCount: 0,
         averageDeliveryMinutes: 0,
-        averageCancellationAfterShippingMinutes: 0,
         revenue: 0,
         restockCost: 0,
         profit: 0,
@@ -877,136 +914,75 @@ describe("AdminDashboardService", () => {
       });
     });
 
-    it("should count the assigned cancellations over the performance reading's own universe", async () => {
-      const startDate = at("00:00:00");
-      const endDate = at("23:59:59");
-
-      mockReads();
-
-      await service.findSummary({ startDate, endDate });
-      await service.findDeliveryPersonsPerformance({ startDate, endDate });
-
-      const [assignedArgs] = orderGroupByCalls().filter(
-        ({ by, where }) =>
-          where.deliveryPersonId && !by.includes("deliveryPersonId"),
-      );
-      const [rosterArgs] = orderGroupByCalls().filter(({ by }) =>
-        by.includes("deliveryPersonId"),
-      );
-
-      // Two separate queries sharing one filter builder — the counter here and
-      // the per-person ones next door have to answer over the same rows.
-      expect(assignedArgs.where).toEqual(rosterArgs.where);
-      // Only the status axis: this reading has no per-person half to report.
-      expect(assignedArgs.by).toEqual(["status"]);
-    });
-
-    it("should average each status from the dispatch stamp to its own closing one", async () => {
+    it("should average the dispatch-to-delivery span in whole minutes", async () => {
       mockReads({
         shippedOrders: [
-          delivered(at("10:00:00"), at("10:30:00")),
-          delivered(at("11:00:00"), at("11:50:00")),
-          cancelled(at("12:00:00"), at("12:10:00")),
-        ],
-      });
-
-      const {
-        averageDeliveryMinutes,
-        averageCancellationAfterShippingMinutes,
-      } = await service.findSummary({});
-
-      expect(averageDeliveryMinutes).toBe(40);
-      expect(averageCancellationAfterShippingMinutes).toBe(10);
-    });
-
-    it("should round the average to whole minutes, in both directions", async () => {
-      // 20min and 21min40s average to 20min50s, which truncates to 20 and rounds
-      // to 21; the cancelled pair averages 20min20s and goes the other way.
-      mockReads({
-        shippedOrders: [
-          delivered(at("10:00:00"), at("10:20:00")),
-          delivered(at("11:00:00"), at("11:21:40")),
-          cancelled(at("12:00:00"), at("12:20:00")),
-          cancelled(at("13:00:00"), at("13:20:40")),
-        ],
-      });
-
-      const {
-        averageDeliveryMinutes,
-        averageCancellationAfterShippingMinutes,
-      } = await service.findSummary({});
-
-      expect(averageDeliveryMinutes).toBe(21);
-      expect(averageCancellationAfterShippingMinutes).toBe(20);
-    });
-
-    it("should answer zero when a status has no sample", async () => {
-      mockReads({
-        shippedOrders: [delivered(at("10:00:00"), at("10:30:00"))],
-      });
-
-      const {
-        averageDeliveryMinutes,
-        averageCancellationAfterShippingMinutes,
-        assignedCancelledOrdersCount,
-      } = await service.findSummary({});
-
-      expect(averageDeliveryMinutes).toBe(30);
-      // Nothing was cancelled, and the payload carries no null: the zeroed
-      // counter beside the average is what says the sample was empty.
-      expect(averageCancellationAfterShippingMinutes).toBe(0);
-      expect(assignedCancelledOrdersCount).toBe(0);
-    });
-
-    it("should answer the same zero for a close that took no time at all", async () => {
-      mockReads({
-        assignedGroups: [{ status: OrderStatus.CANCELLED, _count: 1 }],
-        shippedOrders: [cancelled(at("12:00:00"), at("12:00:00"))],
-      });
-
-      const {
-        averageCancellationAfterShippingMinutes,
-        assignedCancelledOrdersCount,
-      } = await service.findSummary({});
-
-      // A real measurement of zero, not an empty sample — only the counter
-      // beside it separates this case from the one above.
-      expect(averageCancellationAfterShippingMinutes).toBe(0);
-      expect(assignedCancelledOrdersCount).toBe(1);
-    });
-
-    it("should skip a row missing its closing stamp instead of averaging NaN", async () => {
-      mockReads({
-        shippedOrders: [
-          delivered(at("10:00:00"), at("10:30:00")),
-          delivered(at("11:00:00"), null),
+          dispatched(at("10:00:00"), at("10:30:00")),
+          dispatched(at("11:00:00"), at("11:50:00")),
         ],
       });
 
       const { averageDeliveryMinutes } = await service.findSummary({});
 
-      // No write path produces this row today, and that is exactly the point:
-      // without the guard, a row like this turns the whole field into NaN.
+      expect(averageDeliveryMinutes).toBe(40);
+    });
+
+    it("should round the delivery average to whole minutes", async () => {
+      // 20min and 21min40s average to 20min50s, which rounds up to 21.
+      mockReads({
+        shippedOrders: [
+          dispatched(at("10:00:00"), at("10:20:00")),
+          dispatched(at("11:00:00"), at("11:21:40")),
+        ],
+      });
+
+      const { averageDeliveryMinutes } = await service.findSummary({});
+
+      expect(averageDeliveryMinutes).toBe(21);
+    });
+
+    it("should answer zero for the delivery average when nothing was dispatched", async () => {
+      mockReads({ shippedOrders: [] });
+
+      const { averageDeliveryMinutes } = await service.findSummary({});
+
+      // The payload carries no null — and its sample is narrower than every
+      // counter here, so nothing on the summary tells an empty sample apart
+      // from a real instant close.
+      expect(averageDeliveryMinutes).toBe(0);
+    });
+
+    it("should answer the same zero for a delivery that took no measurable time", async () => {
+      mockReads({
+        deliveredOrdersCount: 1,
+        shippedOrders: [dispatched(at("12:00:00"), at("12:00:00"))],
+      });
+
+      const { averageDeliveryMinutes, deliveredOrdersCount } =
+        await service.findSummary({});
+
+      // A real measurement of zero, indistinguishable on the summary from an
+      // empty sample.
+      expect(averageDeliveryMinutes).toBe(0);
+      expect(deliveredOrdersCount).toBe(1);
+    });
+
+    it("should skip a dispatched row missing its delivery stamp instead of averaging NaN", async () => {
+      mockReads({
+        shippedOrders: [
+          dispatched(at("10:00:00"), at("10:30:00")),
+          dispatched(at("11:00:00"), null),
+        ],
+      });
+
+      const { averageDeliveryMinutes } = await service.findSummary({});
+
+      // Unranged, this is a backfilled row: without the guard it turns the
+      // whole field into NaN.
       expect(averageDeliveryMinutes).toBe(30);
     });
 
-    it("should keep counting an order cancelled before dispatch that no average can measure", async () => {
-      mockReads({
-        assignedGroups: [{ status: OrderStatus.CANCELLED, _count: 1 }],
-        // Cancelled before it ever left: the averages' where excludes it.
-        shippedOrders: [],
-      });
-
-      const {
-        assignedCancelledOrdersCount,
-        averageCancellationAfterShippingMinutes,
-      } = await service.findSummary({});
-
-      expect(assignedCancelledOrdersCount).toBe(1);
-      expect(averageCancellationAfterShippingMinutes).toBe(0);
-    });
-
-    it("should read the durations over the same universe as the assigned counter, narrowed by the dispatch stamp", async () => {
+    it("should read the dispatch timing over assigned, delivered, dispatched orders in range", async () => {
       const startDate = at("00:00:00");
       const endDate = at("23:59:59");
 
@@ -1014,39 +990,26 @@ describe("AdminDashboardService", () => {
 
       await service.findSummary({ startDate, endDate });
 
-      const [assignedArgs] = orderGroupByCalls().filter(
-        ({ where }) => where.deliveryPersonId,
-      );
       const [shippedArgs] = orderFindManyCalls().filter(
         ({ where }) => where.shippedAt,
       );
 
+      // A narrower slice of the delivered universe — assigned and dispatched —
+      // pairing the range with the delivery stamp, not the closed-status OR.
       expect(shippedArgs.where).toEqual({
-        ...assignedArgs.where,
+        deliveryPersonId: { not: null },
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: startDate, lte: endDate },
         shippedAt: { not: null },
       });
-      // Rebuilding the filter on the second read is how the two halves fall out
-      // of sync, and an equal copy would still pass the assert above — only
-      // identity proves the second read shares the first one's filter.
-      expect(shippedArgs.where.OR).toBe(assignedArgs.where.OR);
-      expect(assignedArgs.where).toEqual({
-        deliveryPersonId: { not: null },
-        OR: [
-          {
-            status: OrderStatus.DELIVERED,
-            deliveredAt: { gte: startDate, lte: endDate },
-          },
-          {
-            status: OrderStatus.CANCELLED,
-            cancelledAt: { gte: startDate, lte: endDate },
-          },
-        ],
+      expect(shippedArgs.select).toEqual({
+        shippedAt: true,
+        deliveredAt: true,
       });
     });
 
     it("should report the revenue the series next door adds up to", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
         deliveredOrders: [
           deliveredOrder(
             middayOf("2026-08-26"),
@@ -1071,7 +1034,6 @@ describe("AdminDashboardService", () => {
 
     it("should sum the coupon discount and divide it by the gross, not by the revenue", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
         deliveredOrders: [
           deliveredOrder(
             middayOf("2026-08-26"),
@@ -1098,7 +1060,6 @@ describe("AdminDashboardService", () => {
 
     it("should answer a hundred percent for an order paid entirely by coupon", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 1 }],
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)], 0, 1000),
         ],
@@ -1116,7 +1077,6 @@ describe("AdminDashboardService", () => {
 
     it("should count one redemption per order, however many orders share the coupon", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 4 }],
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-26"), [item(2000, 1)], 0, 300),
           // The same coupon on a second order: two redemptions, not one. The read
@@ -1135,7 +1095,6 @@ describe("AdminDashboardService", () => {
 
     it("should report the priciest delivered order of the period, on the same total the average uses", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 3 }],
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)], 500),
           // 2x2000 off a compareAtPrice of 2500, plus a 400 fee, less a 900
@@ -1167,7 +1126,6 @@ describe("AdminDashboardService", () => {
 
     it("should divide what the period invoiced by the orders that invoiced it", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
         deliveredOrders: [
           deliveredOrder(
             middayOf("2026-08-26"),
@@ -1191,12 +1149,12 @@ describe("AdminDashboardService", () => {
     });
 
     it("should read the average over the delivered orders carrying a stamp, not over its own counter", async () => {
-      // The counter comes from the groupBy and takes the stamp-less rows in;
+      // The counter comes from a plain count and takes the stamp-less rows in;
       // the average comes from the delivered-orders read, which does not. With
       // no range the two divisors legitimately differ, so averageOrderValue
       // times deliveredOrdersCount is not the period revenue.
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 3 }],
+        deliveredOrdersCount: 3,
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)]),
           deliveredOrder(middayOf("2026-08-27"), [item(3000, 1)]),
@@ -1269,16 +1227,16 @@ describe("AdminDashboardService", () => {
       const { firstDeliveredOrdersCount } = await service.findSummary({});
 
       expect(firstDeliveredOrdersCount).toBe(2);
-      // Two reads only — the counters and the assigned counters. The history
-      // query is not issued when the answer is free.
-      expect(prismaMock.order.groupBy).toHaveBeenCalledTimes(2);
+      // The history groupBy is the only groupBy the summary can issue, and a
+      // start-bound-less call skips it — the counters ride plain counts.
+      expect(prismaMock.order.groupBy).not.toHaveBeenCalled();
     });
 
     it("should count a customer once, however many deliveries they took in the period", async () => {
       const customerId = "customer-served-twice";
 
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
+        deliveredOrdersCount: 2,
         deliveredOrders: [
           deliveredOrder(
             middayOf("2026-08-26"),
@@ -1329,7 +1287,6 @@ describe("AdminDashboardService", () => {
 
     it("should discount what restocking cost from what the period invoiced", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 2 }],
         deliveredOrders: [
           deliveredOrder(
             middayOf("2026-08-26"),
@@ -1362,7 +1319,6 @@ describe("AdminDashboardService", () => {
 
     it("should report a negative profit when restocking cost more than the period invoiced", async () => {
       mockReads({
-        statusGroups: [{ status: OrderStatus.DELIVERED, _count: 1 }],
         deliveredOrders: [
           deliveredOrder(middayOf("2026-08-26"), [item(1000, 1)]),
         ],
@@ -1425,27 +1381,25 @@ describe("AdminDashboardService", () => {
       expect(summaryRead).toEqual(seriesRead);
     });
 
-    it("should count every order, not only the ones that reached a delivery person", async () => {
+    it("should count the delivered orders with a plain count, not narrowed to an assignment", async () => {
       mockReads();
 
       await service.findSummary({});
 
-      const [[groupByArgs]] = prismaMock.order.groupBy.mock.calls;
+      const [deliveredArgs] = prismaMock.order.count.mock.calls
+        .map(([args]) => args)
+        .filter(({ where }) => !where.deliveryPersonId);
 
-      // Grouping by the delivery person too would reduce to the same counters
-      // and pass every assertion below, while silently costing a wider grouping.
-      expect(groupByArgs.by).toEqual(["status"]);
-      // The assignment filter is what narrows the performance reading; this one
-      // counts an order cancelled while still PENDING too.
-      expect(groupByArgs.where).toEqual({
-        OR: [
-          { status: OrderStatus.DELIVERED, deliveredAt: undefined },
-          { status: OrderStatus.CANCELLED, cancelledAt: undefined },
-        ],
+      // One differently-filtered count, not a bucket read out of a wider
+      // grouping — and no assignment clause, so an order cancelled while still
+      // PENDING is out of scope for the failed-deliveries figure alone.
+      expect(deliveredArgs.where).toEqual({
+        status: OrderStatus.DELIVERED,
+        deliveredAt: undefined,
       });
     });
 
-    it("should pair the range with each status own closing stamp", async () => {
+    it("should pair the range with each counter's own closing stamp", async () => {
       const startDate = at("00:00:00");
       const endDate = at("23:59:59");
 
@@ -1453,18 +1407,21 @@ describe("AdminDashboardService", () => {
 
       await service.findSummary({ startDate, endDate });
 
-      const [[groupByArgs]] = prismaMock.order.groupBy.mock.calls;
+      const wheres = prismaMock.order.count.mock.calls.map(
+        ([args]) => args.where,
+      );
+      const deliveredWhere = wheres.find((where) => !where.deliveryPersonId);
+      const failedWhere = wheres.find((where) => where.deliveryPersonId);
 
-      expect(groupByArgs.where.OR).toEqual([
-        {
-          status: OrderStatus.DELIVERED,
-          deliveredAt: { gte: startDate, lte: endDate },
-        },
-        {
-          status: OrderStatus.CANCELLED,
-          cancelledAt: { gte: startDate, lte: endDate },
-        },
-      ]);
+      expect(deliveredWhere).toEqual({
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: startDate, lte: endDate },
+      });
+      expect(failedWhere).toEqual({
+        deliveryPersonId: { not: null },
+        status: OrderStatus.CANCELLED,
+        cancelledAt: { gte: startDate, lte: endDate },
+      });
     });
   });
 });

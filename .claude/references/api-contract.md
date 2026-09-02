@@ -180,9 +180,9 @@ shape only.
 | Endpoint | Payload | Fields |
 |---|---|---|
 | `GET /admin/dashboard/accounts-series` | `{ series: [...] }` | Per point: `label` (pt-BR, display-ready), `newAnonymousCustomersCount`, `newCustomersCount` — accounts created, never money |
-| `GET /admin/dashboard/delivery-persons` | `{ deliveryPersons: [...] }` | Per row: `name` (the delivery person's, and the row's only identifier — no id is returned), `deliveredOrdersCount`, `cancelledOrdersCount` |
+| `GET /admin/dashboard/delivery-persons` | `{ deliveryPersons: [...] }` | Per row: `name` (the delivery person's, and the row's only identifier — no id is returned), `deliveredOrdersCount`, `cancelledOrdersCount`, `deliveryFeeTotal` |
 | `GET /admin/dashboard/series` | `{ series: [...] }` | Per point: `label` (pt-BR, display-ready), `deliveredOrdersCount`, `averageOrderValue`, `firstDeliveredOrdersCount`, `redeemedCouponOrdersCount`, `revenue`, `couponDiscount`, `couponDiscountPercentage` — all money in cents |
-| `GET /admin/dashboard/summary` | Flat object, 16 fields at the top level of `data` | `deliveredOrdersCount`, `cancelledOrdersCount`, `assignedCancelledOrdersCount`, `averageOrderValue`, `highestOrderValue`, `redeemedCouponOrdersCount`, `firstDeliveredOrdersCount`, `newCustomersCount`, `averageDeliveryMinutes`, `averageCancellationAfterShippingMinutes`, `revenue`, `restockCost`, `profit`, `profitPercentage`, `couponDiscount`, `couponDiscountPercentage` |
+| `GET /admin/dashboard/summary` | Flat object, 14 fields at the top level of `data` | `deliveredOrdersCount`, `failedDeliveriesCount`, `averageOrderValue`, `highestOrderValue`, `redeemedCouponOrdersCount`, `firstDeliveredOrdersCount`, `newCustomersCount`, `averageDeliveryMinutes`, `revenue`, `restockCost`, `profit`, `profitPercentage`, `couponDiscount`, `couponDiscountPercentage` |
 
 `GET /admin/dashboard/revenue` and `GET /admin/dashboard/orders` do not exist — 404.
 
