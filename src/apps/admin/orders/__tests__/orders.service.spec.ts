@@ -148,13 +148,14 @@ describe("AdminOrdersService", () => {
       prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.deliveryPerson.findUnique.mockResolvedValue({
         isActive: true,
+        isVolunteer: false,
       });
       settingsServiceMock.findAll.mockResolvedValue({
         DELIVERY_PERSON_BONUS: "200",
       });
     });
 
-    it("should stamp shippedAt and the bonus snapshot alongside the delivery person on the shipped transition", async () => {
+    it("should stamp shippedAt and the snapshot columns alongside the delivery person on the shipped transition", async () => {
       const now = new Date("2026-08-25T14:00:00.000Z");
       jest.useFakeTimers().setSystemTime(now);
 
@@ -164,20 +165,44 @@ describe("AdminOrdersService", () => {
         await shipOrder();
 
         // Sem o shippedAt aqui a coluna nasce nula e as duas filas — o board e
-        // o app do entregador — voltam a ordenar por hora do pedido. O bônus é
-        // congelado na mesma escrita, com o valor da setting no despacho.
+        // o app do entregador — voltam a ordenar por hora do pedido. O bônus e
+        // a flag de voluntário são congelados na mesma escrita, com o valor da
+        // setting e a flag do entregador no despacho.
         expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
           where: { id: ORDER_ID, status: OrderStatus.PREPARING },
           data: {
             status: OrderStatus.SHIPPED,
             deliveryPersonId: DELIVERY_PERSON_ID,
             deliveryPersonBonus: 200,
+            deliveryPersonIsVolunteer: false,
             shippedAt: now,
           },
         });
       } finally {
         jest.useRealTimers();
       }
+    });
+
+    it("should freeze the volunteer flag from the assigned person, not zero the bonus for a volunteer", async () => {
+      prismaMock.deliveryPerson.findUnique.mockResolvedValue({
+        isActive: true,
+        isVolunteer: true,
+      });
+      prismaMock.order.findUnique.mockResolvedValue(makeOrder());
+
+      await shipOrder();
+
+      // O bônus continua sendo carimbado normalmente mesmo para voluntário — é
+      // a flag congelada que deixa um consumidor futuro tratar isso como
+      // economia, não o zero do bônus.
+      expect(prismaMock.order.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            deliveryPersonBonus: 200,
+            deliveryPersonIsVolunteer: true,
+          }),
+        }),
+      );
     });
 
     it("should freeze the bonus at zero when the setting is inactive or absent", async () => {
@@ -228,13 +253,24 @@ describe("AdminOrdersService", () => {
       );
       expect(prismaMock.deliveryPerson.findUnique).toHaveBeenCalledWith({
         where: { id: DELIVERY_PERSON_ID },
-        select: { isActive: true },
+        select: { isActive: true, isVolunteer: true },
       });
     });
   });
 
   describe("updateOrderDeliveryPerson", () => {
-    it("should change only the delivery person, leaving the shippedAt and the bonus snapshot frozen", async () => {
+    beforeEach(() => {
+      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.deliveryPerson.findUnique.mockResolvedValue({
+        isActive: true,
+        isVolunteer: false,
+      });
+      settingsServiceMock.findAll.mockResolvedValue({
+        DELIVERY_PERSON_BONUS: "300",
+      });
+    });
+
+    it("should rewrite the whole snapshot — id, bonus and volunteer flag — leaving the timestamps frozen", async () => {
       const shippedAt = new Date("2026-08-25T10:00:00.000Z");
 
       prismaMock.order.findUnique.mockResolvedValue(
@@ -244,22 +280,26 @@ describe("AdminOrdersService", () => {
           deliveryPersonBonus: 200,
         }),
       );
-      prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
       prismaMock.deliveryPerson.findUnique.mockResolvedValue({
         isActive: true,
+        isVolunteer: true,
       });
 
       await service.updateOrderDeliveryPerson(ORDER_ID, {
         deliveryPersonId: "another-delivery-person-id",
       });
 
-      // Corrigir quem entregou nunca reprecifica a entrega: nem shippedAt nem
-      // deliveryPersonBonus entram na escrita, e a setting não é consultada.
+      // A reatribuição reprecifica: o pedido passa a carregar o bônus do
+      // entregador que entra, à taxa de hoje, e a flag de voluntário dele —
+      // nunca um timestamp.
       expect(prismaMock.order.updateMany).toHaveBeenCalledWith({
         where: { id: ORDER_ID, status: OrderStatus.SHIPPED },
-        data: { deliveryPersonId: "another-delivery-person-id" },
+        data: {
+          deliveryPersonId: "another-delivery-person-id",
+          deliveryPersonBonus: 300,
+          deliveryPersonIsVolunteer: true,
+        },
       });
-      expect(settingsServiceMock.findAll).not.toHaveBeenCalled();
       // A reatribuição devolve o pedido, não o board — e não pode reordenar a
       // fila de quem já está na rua.
       expect(prismaMock.order.findMany).not.toHaveBeenCalled();

@@ -305,15 +305,17 @@ export class AdminOrdersService {
       );
     }
 
-    const deliveryPersonBonus =
+    const currentDeliveryPersonBonus =
       dto.status === OrderStatus.SHIPPED
         ? await this.getCurrentDeliveryPersonBonus()
         : 0;
 
     try {
       await this.prisma.$transaction(async (tx) => {
+        let deliveryPerson: { isVolunteer: boolean } | null = null;
+
         if (dto.status === OrderStatus.SHIPPED) {
-          await this.assertDeliveryPersonIsAssignable(
+          deliveryPerson = await this.assertDeliveryPersonIsAssignable(
             tx,
             dto.deliveryPersonId!,
           );
@@ -332,7 +334,8 @@ export class AdminOrdersService {
             }),
             ...(dto.status === OrderStatus.SHIPPED && {
               deliveryPersonId: dto.deliveryPersonId,
-              deliveryPersonBonus,
+              deliveryPersonBonus: currentDeliveryPersonBonus,
+              deliveryPersonIsVolunteer: deliveryPerson!.isVolunteer,
               shippedAt: new Date(),
             }),
             ...(dto.status === OrderStatus.DELIVERED && {
@@ -425,9 +428,15 @@ export class AdminOrdersService {
       );
     }
 
+    const currentDeliveryPersonBonus =
+      await this.getCurrentDeliveryPersonBonus();
+
     try {
       await this.prisma.$transaction(async (tx) => {
-        await this.assertDeliveryPersonIsAssignable(tx, dto.deliveryPersonId);
+        const deliveryPerson = await this.assertDeliveryPersonIsAssignable(
+          tx,
+          dto.deliveryPersonId,
+        );
 
         const result = await tx.order.updateMany({
           where: {
@@ -436,6 +445,8 @@ export class AdminOrdersService {
           },
           data: {
             deliveryPersonId: dto.deliveryPersonId,
+            deliveryPersonBonus: currentDeliveryPersonBonus,
+            deliveryPersonIsVolunteer: deliveryPerson.isVolunteer,
           },
         });
 
@@ -493,7 +504,7 @@ export class AdminOrdersService {
 
     const deliveryPerson = await tx.deliveryPerson.findUnique({
       where: { id: deliveryPersonId },
-      select: { isActive: true },
+      select: { isActive: true, isVolunteer: true },
     });
 
     if (!deliveryPerson) {
@@ -511,6 +522,8 @@ export class AdminOrdersService {
         AppException.HttpStatus.BAD_REQUEST,
       );
     }
+
+    return deliveryPerson;
   }
 
   private calculateOrdersTotals<T extends OrderWithItems>(orders: T[]) {

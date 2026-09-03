@@ -11,6 +11,7 @@ describe("DeliveryPersonFactory", () => {
       expect(deliveryPerson.cpf).toMatch(/^\d{11}$/);
       expect(deliveryPerson.addressZipCode).toMatch(/^\d{8}$/);
       expect(deliveryPerson.isActive).toBe(true);
+      expect(deliveryPerson.isVolunteer).toBe(false);
       expect(deliveryPerson.createdAt).toBeInstanceOf(Date);
       expect(deliveryPerson.updatedAt).toBeInstanceOf(Date);
     });
@@ -33,6 +34,7 @@ describe("DeliveryPersonFactory", () => {
         addressNeighborhood: "Centro",
         addressZipCode: "01001000",
         isActive: false,
+        isVolunteer: true,
       };
 
       expect(DeliveryPersonFactory.createOne(props)).toMatchObject(props);

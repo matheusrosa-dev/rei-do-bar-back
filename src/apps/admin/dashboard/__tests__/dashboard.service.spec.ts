@@ -37,7 +37,15 @@ const deliveredOrder = (
   // Each order belongs to its own customer unless a test says otherwise, so the
   // first-delivery figure reads as "one per order" without extra setup.
   customerId = `customer-${++customerSequence}`,
-) => ({ customerId, deliveredAt, items, deliveryFee, couponDiscount });
+  deliveryPersonIsVolunteer = false,
+) => ({
+  customerId,
+  deliveredAt,
+  items,
+  deliveryFee,
+  couponDiscount,
+  deliveryPersonIsVolunteer,
+});
 
 const firstDeliveryOf = (order: ReturnType<typeof deliveredOrder>) => ({
   customerId: order.customerId,
@@ -59,6 +67,7 @@ type Reads = {
   newCustomersCount?: number;
   restockProducts?: unknown[];
   deliveryPersonBonusTotal?: number | null;
+  volunteeredBonusTotal?: number | null;
 };
 
 // The readings issue several reads over the same handful of Prisma methods, so
@@ -76,12 +85,40 @@ const mockReads = ({
   newCustomersCount = 0,
   restockProducts = [],
   deliveryPersonBonusTotal = null,
+  volunteeredBonusTotal = null,
 }: Reads = {}) => {
-  prismaMock.order.groupBy.mockImplementation(({ by }) =>
-    Promise.resolve(
-      by.includes("customerId") ? firstDeliveryGroups : rosterGroups,
-    ),
-  );
+  // The summary's bonus sum is a groupBy on the volunteer flag alone; a group
+  // is emitted only for a side that was asked for.
+  const bonusGroups = [
+    ...(deliveryPersonBonusTotal === null
+      ? []
+      : [
+          {
+            deliveryPersonIsVolunteer: false,
+            _sum: { deliveryPersonBonus: deliveryPersonBonusTotal },
+          },
+        ]),
+    ...(volunteeredBonusTotal === null
+      ? []
+      : [
+          {
+            deliveryPersonIsVolunteer: true,
+            _sum: { deliveryPersonBonus: volunteeredBonusTotal },
+          },
+        ]),
+  ];
+
+  prismaMock.order.groupBy.mockImplementation(({ by }) => {
+    if (by.includes("customerId")) {
+      return Promise.resolve(firstDeliveryGroups);
+    }
+
+    if (by.includes("deliveryPersonId")) {
+      return Promise.resolve(rosterGroups);
+    }
+
+    return Promise.resolve(bonusGroups);
+  });
 
   prismaMock.order.count.mockImplementation(({ where }) =>
     Promise.resolve(
@@ -92,10 +129,6 @@ const mockReads = ({
   prismaMock.order.findMany.mockImplementation(({ where }) =>
     Promise.resolve(where.shippedAt ? shippedOrders : deliveredOrders),
   );
-
-  prismaMock.order.aggregate.mockResolvedValue({
-    _sum: { deliveryPersonBonus: deliveryPersonBonusTotal },
-  });
 
   prismaMock.deliveryPerson.findMany.mockResolvedValue(deliveryPersons);
   prismaMock.customer.count.mockResolvedValue(newCustomersCount);
@@ -157,25 +190,81 @@ describe("AdminDashboardService", () => {
           {
             name: "Entregador",
             deliveredOrdersCount: 4,
+            volunteeredDeliveriesCount: 0,
             cancelledOrdersCount: 1,
             deliveryFeeTotal: 2000,
             deliveryPersonBonusTotal: 1000,
             payoutTotal: 3000,
+            volunteeredSavingsTotal: 0,
           },
         ],
       });
     });
 
-    it("should not issue the dispatch-timing read or the summary's bonus aggregate", async () => {
+    it("should not issue the dispatch-timing read or a separate bonus groupBy", async () => {
       mockReads();
 
       await service.findDeliveryPersonsPerformance({});
 
-      // The roster is a groupBy plus the delivery-person lookup, and nothing
-      // else — the second order read went to the reading that reports averages,
-      // and the bonus rides the same groupBy pass, never a separate aggregate.
+      // The roster is one groupBy (its own, keyed by delivery person) plus the
+      // delivery-person lookup, and nothing else — the second order read went to
+      // the reading that reports averages, and the bonus rides the roster's
+      // groupBy pass, never the summary's flag-only bonus groupBy.
       expect(prismaMock.order.findMany).not.toHaveBeenCalled();
-      expect(prismaMock.order.aggregate).not.toHaveBeenCalled();
+      expect(prismaMock.order.groupBy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.order.groupBy.mock.calls[0][0].by).toContain(
+        "deliveryPersonId",
+      );
+    });
+
+    it("should split a volunteer's deliveries and route their fee and bonus into the savings total", async () => {
+      mockReads({
+        rosterGroups: [
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            deliveryPersonIsVolunteer: false,
+            _count: 3,
+            _sum: { deliveryFee: 1500, deliveryPersonBonus: 600 },
+          },
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.DELIVERED,
+            deliveryPersonIsVolunteer: true,
+            _count: 2,
+            _sum: { deliveryFee: 900, deliveryPersonBonus: 400 },
+          },
+          {
+            deliveryPersonId: DELIVERY_PERSON_ID,
+            status: OrderStatus.CANCELLED,
+            deliveryPersonIsVolunteer: true,
+            _count: 1,
+            _sum: { deliveryFee: 500, deliveryPersonBonus: 200 },
+          },
+        ],
+        deliveryPersons: [{ id: DELIVERY_PERSON_ID, name: "Entregador" }],
+      });
+
+      const { deliveryPersons } = await service.findDeliveryPersonsPerformance(
+        {},
+      );
+
+      // Paid fields see the non-volunteer group only. The savings total is the
+      // volunteer bonus over both terminal statuses (400 + 200) plus the
+      // volunteer fee over the delivered group alone (900). The volunteer
+      // cancelled order still counts in cancelledOrdersCount.
+      expect(deliveryPersons).toEqual([
+        {
+          name: "Entregador",
+          deliveredOrdersCount: 3,
+          volunteeredDeliveriesCount: 2,
+          cancelledOrdersCount: 1,
+          deliveryFeeTotal: 1500,
+          deliveryPersonBonusTotal: 600,
+          payoutTotal: 2100,
+          volunteeredSavingsTotal: 1500,
+        },
+      ]);
     });
 
     it("should count a cancelled order's bonus but not its fee", async () => {
@@ -201,10 +290,12 @@ describe("AdminDashboardService", () => {
         {
           name: "Entregador",
           deliveredOrdersCount: 0,
+          volunteeredDeliveriesCount: 0,
           cancelledOrdersCount: 1,
           deliveryFeeTotal: 0,
           deliveryPersonBonusTotal: 250,
           payoutTotal: 250,
+          volunteeredSavingsTotal: 0,
         },
       ]);
     });
@@ -271,7 +362,11 @@ describe("AdminDashboardService", () => {
 
       const [[groupByArgs]] = prismaMock.order.groupBy.mock.calls;
 
-      expect(groupByArgs.by).toEqual(["deliveryPersonId", "status"]);
+      expect(groupByArgs.by).toEqual([
+        "deliveryPersonId",
+        "status",
+        "deliveryPersonIsVolunteer",
+      ]);
       // One pass carries the per-status count and both money sums together.
       expect(groupByArgs._sum).toEqual({
         deliveryFee: true,
@@ -894,6 +989,7 @@ describe("AdminDashboardService", () => {
       expect(series[0]).not.toHaveProperty("deliveryFeeTotal");
       expect(series[0]).not.toHaveProperty("deliveryPersonBonusTotal");
       expect(series[0]).not.toHaveProperty("payoutTotal");
+      expect(series[0]).not.toHaveProperty("volunteeredSavingsTotal");
     });
 
     it("should keep the money equality with no bound at all", async () => {
@@ -946,6 +1042,7 @@ describe("AdminDashboardService", () => {
         revenue: 0,
         deliveryFeeTotal: 0,
         deliveryPersonBonusTotal: 0,
+        volunteeredSavingsTotal: 0,
         restockCost: 0,
         profit: 0,
         profitPercentage: 0,
@@ -1267,9 +1364,12 @@ describe("AdminDashboardService", () => {
       const { firstDeliveredOrdersCount } = await service.findSummary({});
 
       expect(firstDeliveredOrdersCount).toBe(2);
-      // The history groupBy is the only groupBy the summary can issue, and a
-      // start-bound-less call skips it — the counters ride plain counts.
-      expect(prismaMock.order.groupBy).not.toHaveBeenCalled();
+      // A start-bound-less call skips the customer-history groupBy — the first
+      // delivery is free. The bonus groupBy still goes out (it does not depend
+      // on the range), so only the customerId one is absent.
+      expect(
+        orderGroupByCalls().filter(({ by }) => by.includes("customerId")),
+      ).toHaveLength(0);
     });
 
     it("should count a customer once, however many deliveries they took in the period", async () => {
@@ -1398,13 +1498,16 @@ describe("AdminDashboardService", () => {
         endDate: at("23:59:59"),
       });
 
-      const [[aggregateArgs]] = prismaMock.order.aggregate.mock.calls;
+      const [bonusGroupBy] = orderGroupByCalls().filter(
+        ({ by }) => by.length === 1 && by[0] === "deliveryPersonIsVolunteer",
+      );
 
       expect(deliveryPersonBonusTotal).toBe(1200);
-      // Its own aggregate _sum — the delivered-orders reducer is delivered-only
-      // — over the roster's assigned-and-closed predicate.
-      expect(aggregateArgs._sum).toEqual({ deliveryPersonBonus: true });
-      expect(aggregateArgs.where).toEqual({
+      // Its own groupBy _sum, split on the volunteer flag — the delivered-orders
+      // reducer is delivered-only — over the roster's assigned-and-closed
+      // predicate.
+      expect(bonusGroupBy._sum).toEqual({ deliveryPersonBonus: true });
+      expect(bonusGroupBy.where).toEqual({
         deliveryPersonId: { not: null },
         OR: [
           {
@@ -1417,6 +1520,41 @@ describe("AdminDashboardService", () => {
           },
         ],
       });
+    });
+
+    it("should split the bonus sum into the paid total and the volunteered savings", async () => {
+      mockReads({
+        deliveryPersonBonusTotal: 800,
+        volunteeredBonusTotal: 300,
+        deliveredOrders: [
+          // A volunteer's delivered order: its fee is kept in revenue and feeds
+          // the savings total, never deliveryFeeTotal.
+          deliveredOrder(
+            middayOf("2026-08-26"),
+            [item(1000, 1)],
+            500,
+            0,
+            undefined,
+            true,
+          ),
+          deliveredOrder(middayOf("2026-08-27"), [item(2000, 1)], 700),
+        ],
+      });
+
+      const {
+        revenue,
+        deliveryFeeTotal,
+        deliveryPersonBonusTotal,
+        volunteeredSavingsTotal,
+      } = await service.findSummary({});
+
+      // revenue keeps both fees (1500 + 2700). deliveryFeeTotal drops the
+      // volunteer's 500. volunteeredSavingsTotal is the volunteer bonus (300)
+      // plus the volunteer delivered fee (500).
+      expect(revenue).toBe(4200);
+      expect(deliveryFeeTotal).toBe(700);
+      expect(deliveryPersonBonusTotal).toBe(800);
+      expect(volunteeredSavingsTotal).toBe(800);
     });
 
     it("should reconcile the summary bonus with the roster's per-person sum for the same range", async () => {
@@ -1452,8 +1590,8 @@ describe("AdminDashboardService", () => {
         await service.findDeliveryPersonsPerformance(range);
 
       // Both reads run buildAssignedClosedFilter over the same predicate, so the
-      // per-person bonuses add up to the summary's figure (the aggregate stub
-      // stands in for that same sum).
+      // per-person bonuses add up to the summary's figure (the bonus groupBy
+      // stub stands in for that same non-volunteer sum).
       expect(
         deliveryPersons.reduce(
           (sum, person) => sum + person.deliveryPersonBonusTotal,

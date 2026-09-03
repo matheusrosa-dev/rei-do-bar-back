@@ -24,12 +24,14 @@ import {
 type DeliveredOrder = OrderTotalsSource & {
   customerId: string;
   deliveredAt: Date | null;
+  deliveryPersonIsVolunteer: boolean;
 };
 
 type RevenueSums = {
   revenue: number;
   couponDiscount: number;
   deliveryFeeTotal: number;
+  volunteeredDeliveryFeeTotal: number;
 };
 
 type StatusGroup = {
@@ -39,6 +41,7 @@ type StatusGroup = {
 
 type OrderGroup = StatusGroup & {
   deliveryPersonId: string | null;
+  deliveryPersonIsVolunteer: boolean;
   _sum: { deliveryFee: number | null; deliveryPersonBonus: number | null };
 };
 
@@ -126,7 +129,7 @@ export class AdminDashboardService {
       restockCost,
       failedDeliveriesCount,
       shippedOrders,
-      deliveryPersonBonusTotal,
+      deliveryPersonBonuses,
     ] = await Promise.all([
       this.prisma.order.count({
         where: this.buildStatusFilter(OrderStatus.DELIVERED, dto),
@@ -153,7 +156,7 @@ export class AdminDashboardService {
           deliveredAt: true,
         },
       }),
-      this.sumDeliveryPersonBonus(dto),
+      this.sumDeliveryPersonBonuses(dto),
     ]);
 
     const sums = this.sumRevenue(orders);
@@ -179,15 +182,17 @@ export class AdminDashboardService {
       ),
       revenue: sums.revenue,
       deliveryFeeTotal: sums.deliveryFeeTotal,
-      deliveryPersonBonusTotal,
-      ...this.buildProfitTotals(sums, restockCost, deliveryPersonBonusTotal),
+      deliveryPersonBonusTotal: deliveryPersonBonuses.paid,
+      volunteeredSavingsTotal:
+        deliveryPersonBonuses.volunteered + sums.volunteeredDeliveryFeeTotal,
+      ...this.buildProfitTotals(sums, restockCost, deliveryPersonBonuses.paid),
       ...this.buildCouponTotals(sums),
     };
   }
 
   private async findRosterWithCounts(where: Prisma.OrderWhereInput) {
     const groups = await this.prisma.order.groupBy({
-      by: ["deliveryPersonId", "status"],
+      by: ["deliveryPersonId", "status", "deliveryPersonIsVolunteer"],
       where,
       _count: true,
       _sum: { deliveryFee: true, deliveryPersonBonus: true },
@@ -218,6 +223,7 @@ export class AdminDashboardService {
         customerId: true,
         deliveredAt: true,
         deliveryFee: true,
+        deliveryPersonIsVolunteer: true,
         couponDiscount: true,
         items: {
           select: { price: true, compareAtPrice: true, quantity: true },
@@ -226,13 +232,28 @@ export class AdminDashboardService {
     });
   }
 
-  private async sumDeliveryPersonBonus(range: DateRange) {
-    const { _sum } = await this.prisma.order.aggregate({
+  private async sumDeliveryPersonBonuses(range: DateRange) {
+    const groups = await this.prisma.order.groupBy({
+      by: ["deliveryPersonIsVolunteer"],
       where: this.buildAssignedClosedFilter(range),
       _sum: { deliveryPersonBonus: true },
     });
 
-    return _sum.deliveryPersonBonus ?? 0;
+    let paid = 0;
+    let volunteered = 0;
+
+    for (const group of groups) {
+      const bonus = group._sum.deliveryPersonBonus ?? 0;
+
+      if (group.deliveryPersonIsVolunteer) {
+        volunteered += bonus;
+        continue;
+      }
+
+      paid += bonus;
+    }
+
+    return { paid, volunteered };
   }
 
   private async sumRestockCost(range: DateRange) {
@@ -382,14 +403,26 @@ export class AdminDashboardService {
     return orders.filter((order) => order.couponDiscount > 0).length;
   }
 
-  private sumRevenue(orders: OrderTotalsSource[]): RevenueSums {
+  private sumRevenue(orders: DeliveredOrder[]): RevenueSums {
     return orders.reduce(
       (sums, order) => ({
         revenue: sums.revenue + computeOrderTotals(order).total,
         couponDiscount: sums.couponDiscount + order.couponDiscount,
-        deliveryFeeTotal: sums.deliveryFeeTotal + order.deliveryFee,
+        // The fee is split so `profit` only nets out what was handed over: a
+        // volunteer's fee is charged to the customer and kept by the store.
+        deliveryFeeTotal:
+          sums.deliveryFeeTotal +
+          (order.deliveryPersonIsVolunteer ? 0 : order.deliveryFee),
+        volunteeredDeliveryFeeTotal:
+          sums.volunteeredDeliveryFeeTotal +
+          (order.deliveryPersonIsVolunteer ? order.deliveryFee : 0),
       }),
-      { revenue: 0, couponDiscount: 0, deliveryFeeTotal: 0 },
+      {
+        revenue: 0,
+        couponDiscount: 0,
+        deliveryFeeTotal: 0,
+        volunteeredDeliveryFeeTotal: 0,
+      },
     );
   }
 
@@ -452,33 +485,62 @@ export class AdminDashboardService {
     deliveryPersons: { id: string; name: string }[],
     groups: OrderGroup[],
   ) {
-    const countByPersonAndStatus = new Map(
-      groups.map((group) => [
-        `${group.deliveryPersonId}:${group.status}`,
-        group._count,
-      ]),
-    );
-
+    const deliveredCountByPerson = new Map<string, number>();
+    const volunteeredCountByPerson = new Map<string, number>();
+    const cancelledCountByPerson = new Map<string, number>();
     const deliveredFeeByPerson = new Map<string, number>();
     const bonusByPerson = new Map<string, number>();
+    const volunteeredSavingsByPerson = new Map<string, number>();
 
     for (const group of groups) {
       const personId = group.deliveryPersonId!;
+      const fee = group._sum.deliveryFee ?? 0;
+      const bonus = group._sum.deliveryPersonBonus ?? 0;
+      const isDelivered = group.status === OrderStatus.DELIVERED;
 
-      bonusByPerson.set(
-        personId,
-        (bonusByPerson.get(personId) ?? 0) +
-          (group._sum.deliveryPersonBonus ?? 0),
-      );
+      if (group.deliveryPersonIsVolunteer) {
+        // What the volunteer's orders would have cost: bonus on every closed
+        // order, delivery fee only on the delivered ones — mirroring how the
+        // paid fields below are scoped.
+        volunteeredSavingsByPerson.set(
+          personId,
+          (volunteeredSavingsByPerson.get(personId) ?? 0) +
+            bonus +
+            (isDelivered ? fee : 0),
+        );
 
-      if (group.status !== OrderStatus.DELIVERED) {
+        if (isDelivered) {
+          volunteeredCountByPerson.set(
+            personId,
+            (volunteeredCountByPerson.get(personId) ?? 0) + group._count,
+          );
+          continue;
+        }
+
+        cancelledCountByPerson.set(
+          personId,
+          (cancelledCountByPerson.get(personId) ?? 0) + group._count,
+        );
         continue;
       }
 
+      bonusByPerson.set(personId, (bonusByPerson.get(personId) ?? 0) + bonus);
+
+      if (!isDelivered) {
+        cancelledCountByPerson.set(
+          personId,
+          (cancelledCountByPerson.get(personId) ?? 0) + group._count,
+        );
+        continue;
+      }
+
+      deliveredCountByPerson.set(
+        personId,
+        (deliveredCountByPerson.get(personId) ?? 0) + group._count,
+      );
       deliveredFeeByPerson.set(
         personId,
-        (deliveredFeeByPerson.get(personId) ?? 0) +
-          (group._sum.deliveryFee ?? 0),
+        (deliveredFeeByPerson.get(personId) ?? 0) + fee,
       );
     }
 
@@ -488,13 +550,13 @@ export class AdminDashboardService {
 
       return {
         name,
-        deliveredOrdersCount:
-          countByPersonAndStatus.get(`${id}:${OrderStatus.DELIVERED}`) ?? 0,
-        cancelledOrdersCount:
-          countByPersonAndStatus.get(`${id}:${OrderStatus.CANCELLED}`) ?? 0,
+        deliveredOrdersCount: deliveredCountByPerson.get(id) ?? 0,
+        volunteeredDeliveriesCount: volunteeredCountByPerson.get(id) ?? 0,
+        cancelledOrdersCount: cancelledCountByPerson.get(id) ?? 0,
         deliveryFeeTotal,
         deliveryPersonBonusTotal,
         payoutTotal: deliveryFeeTotal + deliveryPersonBonusTotal,
+        volunteeredSavingsTotal: volunteeredSavingsByPerson.get(id) ?? 0,
       };
     });
   }

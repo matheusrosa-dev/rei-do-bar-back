@@ -14,6 +14,7 @@ type Props = {
   addressNeighborhood?: string;
   addressZipCode?: string;
   isActive?: boolean;
+  isVolunteer?: boolean;
 };
 
 const makeDeliveryPerson = (props?: Props): DeliveryPerson => ({
@@ -29,6 +30,7 @@ const makeDeliveryPerson = (props?: Props): DeliveryPerson => ({
   addressZipCode:
     props?.addressZipCode ?? chance.string({ length: 8, pool: "0123456789" }),
   isActive: props?.isActive ?? true,
+  isVolunteer: props?.isVolunteer ?? false,
   createdAt: new Date(),
   updatedAt: new Date(),
 });

@@ -209,6 +209,7 @@ model Order {
   statusReason        String?     @map("status_reason")
   deliveryFee         Int         @map("delivery_fee")
   deliveryPersonBonus Int         @default(0) @map("delivery_person_bonus")
+  deliveryPersonIsVolunteer Boolean @default(false) @map("delivery_person_is_volunteer")
   couponId            String?     @map("coupon_id")
   couponCode          String?     @map("coupon_code")
   couponDiscount      Int         @map("coupon_discount")
