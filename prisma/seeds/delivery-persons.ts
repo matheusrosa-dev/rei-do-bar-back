@@ -1,6 +1,6 @@
 import { PrismaClient } from "../../src/shared/database/prisma/generated/client";
 import { hashPassword } from "../../src/shared/helpers/password";
-import { digits, neighborhoodName, streetName, uniqueDigits } from "./helpers";
+import { uniqueDigits } from "./helpers";
 
 export const DEMO_DELIVERY_PERSON_PASSWORD = "entregador123";
 
@@ -26,10 +26,6 @@ export async function seedDeliveryPersons(prisma: PrismaClient) {
     phone: `11${uniqueDigits(9, usedPhones)}`,
     cpf: uniqueDigits(11, usedCpfs),
     hashedPassword: deliveryPerson.hasPassword ? hashedPassword : null,
-    addressStreet: streetName(),
-    addressNumber: digits(3),
-    addressNeighborhood: neighborhoodName(),
-    addressZipCode: digits(8),
     isActive: deliveryPerson.isActive,
   }));
 

@@ -201,25 +201,25 @@ model InventoryMovementProduct {
 }
 
 model Order {
-  id                  String      @id @default(uuid())
-  orderNumber         Int         @unique @default(autoincrement()) @map("order_number")
-  customerId          String      @map("customer_id")
-  address             String
-  status              OrderStatus
-  statusReason        String?     @map("status_reason")
-  deliveryFee         Int         @map("delivery_fee")
-  deliveryPersonBonus Int         @default(0) @map("delivery_person_bonus")
-  deliveryPersonIsVolunteer Boolean @default(false) @map("delivery_person_is_volunteer")
-  couponId            String?     @map("coupon_id")
-  couponCode          String?     @map("coupon_code")
-  couponDiscount      Int         @map("coupon_discount")
-  paymentType         PaymentType @map("payment_type")
-  deliveryPersonId    String?     @map("delivery_person_id")
-  shippedAt           DateTime?   @map("shipped_at")
-  deliveredAt         DateTime?   @map("delivered_at")
-  cancelledAt         DateTime?   @map("cancelled_at")
-  createdAt           DateTime    @default(now()) @map("created_at")
-  updatedAt           DateTime    @updatedAt @map("updated_at")
+  id                        String      @id @default(uuid())
+  orderNumber               Int         @unique @default(autoincrement()) @map("order_number")
+  customerId                String      @map("customer_id")
+  address                   String
+  status                    OrderStatus
+  statusReason              String?     @map("status_reason")
+  deliveryFee               Int         @map("delivery_fee")
+  deliveryPersonBonus       Int         @default(0) @map("delivery_person_bonus")
+  deliveryPersonIsVolunteer Boolean     @default(false) @map("delivery_person_is_volunteer")
+  couponId                  String?     @map("coupon_id")
+  couponCode                String?     @map("coupon_code")
+  couponDiscount            Int         @map("coupon_discount")
+  paymentType               PaymentType @map("payment_type")
+  deliveryPersonId          String?     @map("delivery_person_id")
+  shippedAt                 DateTime?   @map("shipped_at")
+  deliveredAt               DateTime?   @map("delivered_at")
+  cancelledAt               DateTime?   @map("cancelled_at")
+  createdAt                 DateTime    @default(now()) @map("created_at")
+  updatedAt                 DateTime    @updatedAt @map("updated_at")
 
   customer           Customer            @relation(fields: [customerId], references: [id])
   coupon             Coupon?             @relation(fields: [couponId], references: [id], onDelete: SetNull)
@@ -255,19 +255,15 @@ model OrderItem {
 }
 
 model DeliveryPerson {
-  id                  String   @id @default(uuid())
-  name                String
-  phone               String   @unique
-  cpf                 String   @unique
-  hashedPassword      String?  @map("hashed_password")
-  addressStreet       String   @map("address_street")
-  addressNumber       String   @map("address_number")
-  addressNeighborhood String   @map("address_neighborhood")
-  addressZipCode      String   @map("address_zip_code")
-  isActive            Boolean  @map("is_active")
-  isVolunteer         Boolean  @default(false) @map("is_volunteer")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  name           String
+  phone          String   @unique
+  cpf            String   @unique
+  hashedPassword String?  @map("hashed_password")
+  isActive       Boolean  @map("is_active")
+  isVolunteer    Boolean  @default(false) @map("is_volunteer")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   orders  Order[]
   session DeliveryPersonSession?

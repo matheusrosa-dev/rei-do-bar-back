@@ -1,6 +1,4 @@
-import { Type } from "class-transformer";
-import { IsString, Length, Matches, ValidateNested } from "class-validator";
-import { DeliveryPersonAddressDto } from "./delivery-person-address.dto";
+import { IsString, Length, Matches } from "class-validator";
 
 export class CreateDeliveryPersonDto {
   @IsString()
@@ -16,8 +14,4 @@ export class CreateDeliveryPersonDto {
   @Length(11, 11)
   @Matches(/^\d+$/)
   cpf!: string;
-
-  @Type(() => DeliveryPersonAddressDto)
-  @ValidateNested()
-  address!: DeliveryPersonAddressDto;
 }

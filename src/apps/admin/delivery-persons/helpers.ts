@@ -8,29 +8,11 @@ export type DeliveryPersonListItem = DeliveryPersonWithCount & {
   session: { refreshTokenExpiresAt: Date } | null;
 };
 
-export function mapDeliveryPerson({
-  addressStreet,
-  addressNumber,
-  addressNeighborhood,
-  addressZipCode,
-  ...deliveryPerson
-}: DeliveryPerson) {
-  return {
-    ...deliveryPerson,
-    address: {
-      street: addressStreet,
-      number: addressNumber,
-      neighborhood: addressNeighborhood,
-      zipCode: addressZipCode,
-    },
-  };
-}
-
 export function mapDeliveryPersonWithCount({
   _count,
   ...deliveryPerson
 }: DeliveryPersonWithCount) {
-  return { ...mapDeliveryPerson(deliveryPerson), ordersCount: _count.orders };
+  return { ...deliveryPerson, ordersCount: _count.orders };
 }
 
 export function mapDeliveryPersonListItem(

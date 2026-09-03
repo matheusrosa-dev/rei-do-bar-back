@@ -9,7 +9,6 @@ describe("DeliveryPersonFactory", () => {
       expect(deliveryPerson.name).toEqual(expect.any(String));
       expect(deliveryPerson.phone).toMatch(/^\d{11}$/);
       expect(deliveryPerson.cpf).toMatch(/^\d{11}$/);
-      expect(deliveryPerson.addressZipCode).toMatch(/^\d{8}$/);
       expect(deliveryPerson.isActive).toBe(true);
       expect(deliveryPerson.isVolunteer).toBe(false);
       expect(deliveryPerson.createdAt).toBeInstanceOf(Date);
@@ -29,10 +28,6 @@ describe("DeliveryPersonFactory", () => {
         phone: "11999999999",
         cpf: "12345678901",
         hashedPassword: "hashed-password",
-        addressStreet: "Rua A",
-        addressNumber: "10",
-        addressNeighborhood: "Centro",
-        addressZipCode: "01001000",
         isActive: false,
         isVolunteer: true,
       };

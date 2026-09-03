@@ -13,7 +13,6 @@ import { FindAllDeliveryPersonsDto } from "./dtos/find-all-delivery-persons.dto"
 import { UpdateDeliveryPersonPasswordBodyDto } from "./dtos/update-delivery-person-password.dto";
 import { UpdateDeliveryPersonBodyDto } from "./dtos/update-delivery-person.dto";
 import {
-  mapDeliveryPerson,
   mapDeliveryPersonListItem,
   mapDeliveryPersonWithCount,
 } from "./helpers";
@@ -78,7 +77,7 @@ export class AdminDeliveryPersonsService {
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
-    return deliveryPersons.map((item) => mapDeliveryPerson(item));
+    return deliveryPersons;
   }
 
   async hasDeliveryPersonsWithAccess() {
@@ -125,14 +124,10 @@ export class AdminDeliveryPersonsService {
           phone: dto.phone,
           cpf: dto.cpf,
           isActive: true,
-          addressStreet: dto.address.street,
-          addressNumber: dto.address.number,
-          addressNeighborhood: dto.address.neighborhood,
-          addressZipCode: dto.address.zipCode,
         },
       });
 
-      return mapDeliveryPerson(deliveryPerson);
+      return deliveryPerson;
     } catch (error) {
       if (isUniqueConstraintViolation(error)) {
         throw new AppException(
@@ -158,14 +153,10 @@ export class AdminDeliveryPersonsService {
           name: dto.name,
           phone: dto.phone,
           cpf: dto.cpf,
-          addressStreet: dto.address.street,
-          addressNumber: dto.address.number,
-          addressNeighborhood: dto.address.neighborhood,
-          addressZipCode: dto.address.zipCode,
         },
       });
 
-      return mapDeliveryPerson(deliveryPerson);
+      return deliveryPerson;
     } catch (error) {
       if (isRecordNotFound(error)) {
         throw new AppException(
@@ -299,7 +290,7 @@ export class AdminDeliveryPersonsService {
         data,
       });
 
-      return mapDeliveryPerson(deliveryPerson);
+      return deliveryPerson;
     } catch (error) {
       if (isRecordNotFound(error)) {
         throw this.deliveryPersonNotFound();
@@ -324,7 +315,7 @@ export class AdminDeliveryPersonsService {
         }),
       ]);
 
-      return mapDeliveryPerson(deliveryPerson);
+      return deliveryPerson;
     } catch (error) {
       if (isRecordNotFound(error)) {
         throw this.deliveryPersonNotFound();

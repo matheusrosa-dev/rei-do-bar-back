@@ -1,5 +1,4 @@
 export { FindAllDeliveryPersonsDto } from "./find-all-delivery-persons.dto";
-export { DeliveryPersonAddressDto } from "./delivery-person-address.dto";
 export { FindDeliveryPersonByIdDto } from "./find-delivery-person-by-id.dto";
 export { CreateDeliveryPersonDto } from "./create-delivery-person.dto";
 export {
