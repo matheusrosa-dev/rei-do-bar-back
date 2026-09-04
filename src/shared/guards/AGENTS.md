@@ -106,7 +106,7 @@ Both delivery-person token guards check `isActive` on every request as belt-and-
 
 A route whose credential differs from its audience's ordinary one becomes a **level** of that audience's composite (as the delivery-person refresh guard did), never a bare `@UseGuards` — that stays reserved for a guard outside every audience's credential story.
 
-A composite gates a whole controller at class level, moving to the handler only when one controller mixes levels (store `auth/`, three levels; delivery `auth/`, `login` at `basic` and `refresh` at `refreshToken`).
+A composite gates a whole controller at class level, moving to the handler only when one controller mixes levels (store `auth/`, three levels; store `cart/`, `deviceId` on every route but `reorder` at `accessToken`; delivery `auth/`, `login` at `basic` and `refresh` at `refreshToken`).
 
 ---
 

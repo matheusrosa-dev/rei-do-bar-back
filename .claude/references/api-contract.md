@@ -64,6 +64,7 @@ Codes are namespaced by domain on the application exception's static registry. A
 | cart | `COUPON_REQUIRES_AUTH` | `CART_015` |
 | cart | `COUPON_NOT_ASSIGNED` | `CART_016` |
 | cart | `COUPON_NOT_ELIGIBLE` | `CART_017` |
+| cart | `REORDER_NO_AVAILABLE_PRODUCTS` | `CART_018` |
 | auth | `ANONYMOUS_CUSTOMER_NOT_FOUND` | `AUTH_001` |
 | auth | `INVALID_VERIFICATION_CODE` | `AUTH_002` |
 | auth | `INVALID_REFRESH_TOKEN` | `AUTH_004` |

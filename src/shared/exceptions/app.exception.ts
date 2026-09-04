@@ -31,6 +31,7 @@ export class AppException extends HttpException {
       COUPON_REQUIRES_AUTH: "CART_015",
       COUPON_NOT_ASSIGNED: "CART_016",
       COUPON_NOT_ELIGIBLE: "CART_017",
+      REORDER_NO_AVAILABLE_PRODUCTS: "CART_018",
     },
     auth: {
       ANONYMOUS_CUSTOMER_NOT_FOUND: "AUTH_001",

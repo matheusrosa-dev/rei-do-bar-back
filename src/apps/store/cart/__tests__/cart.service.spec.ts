@@ -1457,4 +1457,177 @@ describe("CartService", () => {
       });
     });
   });
+
+  describe("reorder", () => {
+    const customerId = "customer-123";
+    const orderId = "order-uuid";
+
+    it("should throw ORDER_NOT_FOUND without querying the order when session has no customerId", async () => {
+      prismaMock.anonymousCustomer.findUnique.mockResolvedValue(
+        AnonymousCustomerFactory.createOne({
+          cart: CartFactory.createOne({ items: [] }),
+        }),
+      );
+
+      await expect(
+        service.reorder({ deviceId: "device-123" }, { orderId }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ORDER_NOT_FOUND,
+        message: "Pedido não encontrado",
+        httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.order.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("should throw ORDER_NOT_FOUND when the order does not exist or does not belong to the customer", async () => {
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({
+          cart: CartFactory.createOne({ items: [] }),
+        }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.reorder({ customerId }, { orderId }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.order.ORDER_NOT_FOUND,
+        message: "Pedido não encontrado",
+        httpStatus: AppException.HttpStatus.NOT_FOUND,
+      });
+
+      expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
+        where: { id: orderId, customerId },
+        select: {
+          items: {
+            where: { product: { deletedAt: null } },
+            select: { productId: true, quantity: true },
+          },
+        },
+      });
+      expect(prismaMock.cart.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw REORDER_NO_AVAILABLE_PRODUCTS when every product of the order was deleted", async () => {
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({
+          cart: CartFactory.createOne({ items: [] }),
+        }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue({ items: [] });
+
+      await expect(
+        service.reorder({ customerId }, { orderId }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.REORDER_NO_AVAILABLE_PRODUCTS,
+        message: "Nenhum produto deste pedido está mais disponível",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+
+      expect(prismaMock.cart.update).not.toHaveBeenCalled();
+    });
+
+    it("should create items absent from the cart with the order's quantity", async () => {
+      const cart = CartFactory.createOne({ items: [] });
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({ cart }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue({
+        items: [{ productId: "product-1", quantity: 3 }],
+      });
+      prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+      await service.reorder({ customerId }, { orderId });
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith({
+        where: { id: cart.id },
+        data: {
+          items: {
+            create: [{ productId: "product-1", quantity: 3 }],
+            update: [],
+          },
+        },
+        select: {
+          items: {
+            include: { product: true },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+          coupon: true,
+        },
+      });
+      expect(formatCartSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("should raise the cart quantity to the order's when the cart has less", async () => {
+      const product = ProductFactory.createOne({ stockQuantity: 20 });
+      const cartItem = CartItemFactory.createOne({ product, quantity: 1 });
+      const cart = CartFactory.createOne({ items: [cartItem] });
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({ cart }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue({
+        items: [{ productId: product.id, quantity: 4 }],
+      });
+      prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+      await service.reorder({ customerId }, { orderId });
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            items: {
+              create: [],
+              update: [{ where: { id: cartItem.id }, data: { quantity: 4 } }],
+            },
+          },
+        }),
+      );
+    });
+
+    it("should keep the cart quantity when it is equal to or greater than the order's", async () => {
+      const product = ProductFactory.createOne({ stockQuantity: 20 });
+      const cartItem = CartItemFactory.createOne({ product, quantity: 5 });
+      const cart = CartFactory.createOne({ items: [cartItem] });
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({ cart }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue({
+        items: [{ productId: product.id, quantity: 5 }],
+      });
+      prismaMock.cart.update.mockResolvedValue({ items: [] });
+
+      await service.reorder({ customerId }, { orderId });
+
+      expect(prismaMock.cart.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { items: { create: [], update: [] } },
+        }),
+      );
+    });
+
+    it("should throw PRODUCT_ALREADY_IN_CART when a concurrent request already added the product", async () => {
+      prismaMock.customer.findFirst.mockResolvedValue(
+        CustomerFactory.createOne({
+          cart: CartFactory.createOne({ items: [] }),
+        }),
+      );
+      prismaMock.order.findFirst.mockResolvedValue({
+        items: [{ productId: "product-1", quantity: 1 }],
+      });
+      prismaMock.cart.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+          code: "P2002",
+          clientVersion: "test",
+        }),
+      );
+
+      await expect(
+        service.reorder({ customerId }, { orderId }),
+      ).rejects.toMatchObject({
+        code: AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+        message: "Produto já existe no carrinho",
+        httpStatus: AppException.HttpStatus.BAD_REQUEST,
+      });
+    });
+  });
 });

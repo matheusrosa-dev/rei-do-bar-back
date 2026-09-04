@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
-import { AddToCartDto, AssignCouponToCartDto, RemoveFromCartDto } from "./dtos";
+import {
+  AddToCartDto,
+  AssignCouponToCartDto,
+  RemoveFromCartDto,
+  ReorderDto,
+} from "./dtos";
 import {
   CartItem,
   Coupon,
@@ -419,6 +424,101 @@ export class CartService {
     });
 
     return this.formatCart(updatedCart, session);
+  }
+
+  async reorder(session: ICurrentSession, dto: ReorderDto) {
+    const customerOrAnonymous =
+      await this.findAnonymousOrCustomerWithCartOrThrow(session);
+
+    const { customerId } = session;
+
+    const order = customerId
+      ? await this.prisma.order.findFirst({
+          where: { id: dto.orderId, customerId },
+          select: {
+            items: {
+              where: { product: { deletedAt: null } },
+              select: {
+                productId: true,
+                quantity: true,
+              },
+            },
+          },
+        })
+      : null;
+
+    if (!order) {
+      throw new AppException(
+        AppException.errorCodes.order.ORDER_NOT_FOUND,
+        "Pedido não encontrado",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (!order.items.length) {
+      throw new AppException(
+        AppException.errorCodes.cart.REORDER_NO_AVAILABLE_PRODUCTS,
+        "Nenhum produto deste pedido está mais disponível",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const cartItemsByProductId = new Map(
+      customerOrAnonymous.cart.items.map((item) => [item.productId, item]),
+    );
+
+    const itemsToCreate = order.items
+      .filter((item) => !cartItemsByProductId.has(item.productId))
+      .map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      }));
+
+    const itemsToUpdate = order.items
+      .filter((item) => {
+        const cartItem = cartItemsByProductId.get(item.productId);
+
+        return !!cartItem && cartItem.quantity < item.quantity;
+      })
+      .map((item) => ({
+        where: { id: cartItemsByProductId.get(item.productId)!.id },
+        data: { quantity: item.quantity },
+      }));
+
+    try {
+      const updatedCart = await this.prisma.cart.update({
+        where: { id: customerOrAnonymous.cart.id },
+        data: {
+          items: {
+            create: itemsToCreate,
+            update: itemsToUpdate,
+          },
+        },
+        select: {
+          items: {
+            include: {
+              product: true,
+            },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+          coupon: true,
+        },
+      });
+
+      return this.formatCart(updatedCart, session);
+    } catch (error) {
+      // Mesmo motivo de addToCart: entre a leitura do carrinho e a escrita, um
+      // add concorrente pode criar o item, violando a constraint (cartId, productId).
+      if (isUniqueConstraintViolation(error)) {
+        throw new AppException(
+          AppException.errorCodes.cart.PRODUCT_ALREADY_IN_CART,
+          "Produto já existe no carrinho",
+          AppException.HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async findAnonymousOrCustomerWithCartOrThrow(

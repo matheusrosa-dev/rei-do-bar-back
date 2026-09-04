@@ -7,6 +7,7 @@ import {
   DecrementProductQuantityDto,
   IncrementProductQuantityDto,
   RemoveFromCartDto,
+  ReorderDto,
 } from "./dtos";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
@@ -14,17 +15,18 @@ import type { ICurrentSession } from "@shared/types/jwt";
 import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("cart")
-@StoreAuth("deviceId")
 @Serialize(CartDto)
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
   @Get()
+  @StoreAuth("deviceId")
   async getCart(@CurrentSession() session: ICurrentSession) {
     return this.cartService.getCart(session);
   }
 
   @Post("product/:productId")
+  @StoreAuth("deviceId")
   async addToCart(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: AddToCartDto,
@@ -33,6 +35,7 @@ export class CartController {
   }
 
   @Post("coupon/:couponCode")
+  @StoreAuth("deviceId")
   async assignCouponToCart(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: AssignCouponToCartDto,
@@ -41,11 +44,13 @@ export class CartController {
   }
 
   @Delete("coupon")
+  @StoreAuth("deviceId")
   async removeCouponFromCart(@CurrentSession() session: ICurrentSession) {
     return this.cartService.removeCouponFromCart(session);
   }
 
   @Put("product/:productId/increment")
+  @StoreAuth("deviceId")
   async incrementProductQuantity(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: IncrementProductQuantityDto,
@@ -54,6 +59,7 @@ export class CartController {
   }
 
   @Put("product/:productId/decrement")
+  @StoreAuth("deviceId")
   async decrementProductQuantity(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: DecrementProductQuantityDto,
@@ -62,10 +68,20 @@ export class CartController {
   }
 
   @Delete("product/:productId")
+  @StoreAuth("deviceId")
   async removeFromCart(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: RemoveFromCartDto,
   ) {
     return this.cartService.removeFromCart(session, dto);
+  }
+
+  @Post("reorder/:orderId")
+  @StoreAuth("accessToken")
+  async reorder(
+    @CurrentSession() session: ICurrentSession,
+    @Param() dto: ReorderDto,
+  ) {
+    return this.cartService.reorder(session, dto);
   }
 }

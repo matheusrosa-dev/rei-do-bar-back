@@ -23,8 +23,8 @@ That gives the store **four credential levels**, and each route declares its own
 | Level | Guards | Where it is used |
 |---|---|---|
 | `@StoreAuth("basic")` | store basic-auth | `categories/`, `settings/`, and the `sync-device-id` route in `auth/` |
-| `@StoreAuth("deviceId")` | store basic-auth → device-id | `cart/`, `products/`, and the OTP send/login routes in `auth/` |
-| `@StoreAuth("accessToken")` | store basic-auth → device-id → access-token | `me/` (both controllers), `orders/`, `coupons/`, `notifications/` |
+| `@StoreAuth("deviceId")` | store basic-auth → device-id | `cart/` (except its reorder route), `products/`, and the OTP send/login routes in `auth/` |
+| `@StoreAuth("accessToken")` | store basic-auth → device-id → access-token | `me/` (both controllers), `orders/`, `coupons/`, `notifications/`, and the reorder route in `cart/` |
 | `@StoreAuth("refreshToken")` | store basic-auth → device-id → refresh-token | the `refresh` and `logout` routes in `auth/` |
 
 The app credential sits inside all four levels because it is unconditional. The device-id guard sits inside the other three because an authenticated request still resolves its cart and catalog by device id. The access and refresh levels are **siblings**, not rungs on a ladder — a refresh token is a different credential from an access token, not a stronger one. Picking a level is a choice of **which session credential the route consumes on top of the app credential**, never a choice between them.
@@ -36,6 +36,8 @@ The app credential sits inside all four levels because it is unconditional. The 
 | `POST auth/sync-device-id` | It *mints* the device id, so it cannot require one. Rate-limited per IP on top |
 | `GET categories` | The same list for every visitor; nothing session-specific |
 | `GET settings` | The client needs the delivery fee, alerts, and business hours before it has a session |
+
+Where the level is declared varies: most controllers state it once on the class, while `auth/` and `cart/` state it per handler — `auth/` because its routes sit at four different levels, `cart/` because its reorder route needs a customer while the rest of the module also serves anonymous sessions. Class- and handler-level guards are **additive** when both are present, so stacking a class-level decorator with a stronger handler-level one re-runs the lower level's guards rather than replacing them; reach for that combination only when a single route genuinely needs a stronger session credential than the rest of its module.
 
 Since no guard is registered globally, a controller without `StoreAuth` reaches its handler with no credential at all — there is nothing left to catch an omission. **A new store controller must state its level explicitly**, and `basic` is the floor: a session-less route says so in its own `AGENTS.md`, but no store route is ever left undecorated.
 

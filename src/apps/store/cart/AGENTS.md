@@ -6,6 +6,7 @@ All cart operations for both anonymous and authenticated customers:
 - Fetching cart contents.
 - Adding, removing, incrementing, and decrementing products.
 - Assigning or removing a coupon from the cart (assigning is authenticated-customers only; removing has no route param, since a cart holds at most one coupon).
+- Reordering one of the customer's past orders, merging its items into the current cart.
 - Cart formatting (products total, delivery fee, discount, total, product count).
 
 ## What does NOT belong here
@@ -18,7 +19,7 @@ All cart operations for both anonymous and authenticated customers:
 
 ## The Anonymous/Customer Duality
 
-Every cart operation resolves the owner from the current session. The session always carries a device id — `@StoreAuth("deviceId")` on the controller guarantees it, so the resolver never re-checks for a session with no identifier at all — and *additionally* a customer id once authenticated — so the resolver branches on **whether a `customerId` is present**, not on an either/or. (That same decorator also enforces the store app credential every route requires, but the app credential carries no identity and never reaches the resolver.) A single private resolver encapsulates that branching (anonymous lookup by device id vs. customer lookup by id) and always loads the cart with its items and their products. It throws a domain error when the owner or cart is missing.
+Every cart operation resolves the owner from the current session. The session always carries a device id — `@StoreAuth("deviceId")` on every handler guarantees it, so the resolver never re-checks for a session with no identifier at all — and *additionally* a customer id once authenticated — so the resolver branches on **whether a `customerId` is present**, not on an either/or. (That same decorator also enforces the store app credential every route requires, but the app credential carries no identity and never reaches the resolver.) A single private resolver encapsulates that branching (anonymous lookup by device id vs. customer lookup by id) and always loads the cart with its items and their products. It throws a domain error when the owner or cart is missing.
 
 The customer lookup deliberately does **not** filter on `isActive` or the soft-delete timestamp — an inactive customer can still load and edit a cart. That gate lives at order placement, not here, so a deactivated customer is blocked at checkout rather than silently losing their cart.
 
@@ -58,6 +59,18 @@ The gross/net split itself is not derived here: `productsTotal`, `productsDiscou
 **Empty cart**: `deliveryFee` and `total` are forced to `0` — an empty cart never shows a delivery charge.
 
 **Monetary values are returned in cents, unconverted.** This module never divides by 100; formatting to currency is entirely the client's responsibility.
+
+---
+
+## Reordering a past order
+
+The operation takes an order id from the route param and merges that order's items into the current cart. It is the **only route in the module that requires an authenticated customer**: the auth decorator is applied per handler (never at class level, so no handler inherits a level it does not want), every other route carries `@StoreAuth("deviceId")` and this one carries `@StoreAuth("accessToken")` — an anonymous session has no past orders to reorder.
+
+Ownership goes into the query's `where` (`{ id, customerId }`), never into a comparison after the read — a non-existent order and another customer's order produce the same response (`order.ORDER_NOT_FOUND`, 404), so the endpoint is not an existence oracle for someone else's orders. The code comes from the `order` namespace, not `cart`: a namespace is keyed by audience + resource, not by the module that throws.
+
+Items are filtered by **`deletedAt: null` only** — an inactive or out-of-stock product is added anyway, and the customer resolves it on the cart screen (`remainingStock` already signals both cases). That is a deliberate exception to the rest of the module, where adding and incrementing do validate `isActive` and stock. If **no** product of the order survives the filter, the operation fails with `REORDER_NO_AVAILABLE_PRODUCTS`.
+
+The merge is per product and never shrinks the cart: a product not yet in the cart is created with the order's quantity; a product already there with a **smaller** quantity is raised to the order's; with an equal or larger quantity it is left untouched. An order fully covered by the cart is an empty write — valid, and it returns the cart unchanged. Like every other mutation, it all happens in a single nested `cart.update` (`create` + `update` under the same `data.items`), with the same `isUniqueConstraintViolation` catch as `addToCart`.
 
 ---
 

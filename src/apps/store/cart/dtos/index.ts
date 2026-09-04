@@ -4,3 +4,4 @@ export { RemoveFromCartDto } from "./remove-from-cart";
 export { IncrementProductQuantityDto } from "./increment-product-quantity";
 export { DecrementProductQuantityDto } from "./decrement-product-quantity";
 export { AssignCouponToCartDto } from "./assign-coupon-to-cart.dto";
+export { ReorderDto } from "./reorder";
