@@ -28,6 +28,8 @@ One deliberate difference from the cart resolver: this one **never throws** — 
 
 The query always returns active, non-deleted products. Category and search-term filters are additive and optional — either, both, or neither may be present; a search term matches product name, description, or category name (case-insensitive). Results are always ordered by an explicit sort field, and each product's response includes its compare-at price alongside the current price.
 
+The `category` value `"Promoção"` is a **reserved pseudo-category**, not a real category name: instead of matching `category.name`, it returns products with a non-null `compareAtPrice`. There is no actual "Promoção" category row in the database — do not add one to make this work.
+
 ---
 
 ## DTOs

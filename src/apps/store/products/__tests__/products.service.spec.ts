@@ -189,6 +189,36 @@ describe("ProductsService", () => {
           );
         });
 
+        it("should filter by compareAtPrice not null when category is Promoção", async () => {
+          prismaMock.product.findMany.mockResolvedValue([]);
+          mockWithCart(customerWithEmptyCart);
+
+          await service.findBestSellers(session, { category: "Promoção" });
+
+          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: expect.objectContaining({
+                compareAtPrice: { not: null },
+              }),
+            }),
+          );
+        });
+
+        it("should not filter by category name when category is Promoção", async () => {
+          prismaMock.product.findMany.mockResolvedValue([]);
+          mockWithCart(customerWithEmptyCart);
+
+          await service.findBestSellers(session, { category: "Promoção" });
+
+          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+              where: expect.not.objectContaining({
+                category: expect.anything(),
+              }),
+            }),
+          );
+        });
+
         it("should not filter by category when category is not provided", async () => {
           prismaMock.product.findMany.mockResolvedValue([]);
           mockWithCart(customerWithEmptyCart);

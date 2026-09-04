@@ -14,7 +14,7 @@ export class ProductsService {
         where: {
           isActive: true,
           deletedAt: null,
-          ...(dto?.category ? { category: { name: dto.category } } : {}),
+          ...this.buildCategoryFilter(dto?.category),
           ...(dto?.searchTerm
             ? {
                 OR: [
@@ -65,6 +65,18 @@ export class ProductsService {
           product.stockQuantity <= 10 ? product.stockQuantity : null,
       };
     });
+  }
+
+  private buildCategoryFilter(category?: string) {
+    if (!category) {
+      return {};
+    }
+
+    if (category === "Promoção") {
+      return { compareAtPrice: { not: null } };
+    }
+
+    return { category: { name: category } };
   }
 
   private findAnonymousOrCustomerWithCart(session: ICurrentSession) {
