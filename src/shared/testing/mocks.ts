@@ -58,6 +58,9 @@ export const prismaMock = {
     update: jest.fn(),
     updateMany: jest.fn(),
   },
+  orderItem: {
+    groupBy: jest.fn(),
+  },
   setting: {
     findUnique: jest.fn(),
     findMany: jest.fn(),

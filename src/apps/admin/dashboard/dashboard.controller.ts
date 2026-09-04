@@ -4,6 +4,7 @@ import { AdminDashboardService } from "./dashboard.service";
 import {
   FindAccountsSeriesDto,
   FindDeliveryPersonsPerformanceDto,
+  FindRankingsDto,
   FindSeriesDto,
   FindSummaryDto,
 } from "./dtos";
@@ -23,6 +24,11 @@ export class AdminDashboardController {
     @Query() query: FindDeliveryPersonsPerformanceDto,
   ) {
     return this.dashboardService.findDeliveryPersonsPerformance(query);
+  }
+
+  @Get("rankings")
+  findRankings(@Query() query: FindRankingsDto) {
+    return this.dashboardService.findRankings(query);
   }
 
   @Get("series")

@@ -1,4 +1,5 @@
 export { FindAccountsSeriesDto } from "./find-accounts-series.dto";
 export { FindDeliveryPersonsPerformanceDto } from "./find-delivery-persons-performance.dto";
+export { FindRankingsDto } from "./find-rankings.dto";
 export { FindSeriesDto } from "./find-series.dto";
 export { FindSummaryDto } from "./find-summary.dto";

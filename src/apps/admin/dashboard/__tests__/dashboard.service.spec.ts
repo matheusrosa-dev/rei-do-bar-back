@@ -9,6 +9,8 @@ import { AdminDashboardService } from "../dashboard.service";
 
 const DELIVERY_PERSON_ID = "delivery-person-id";
 const OTHER_DELIVERY_PERSON_ID = "other-delivery-person-id";
+const PRODUCT_ID = "product-id";
+const OTHER_PRODUCT_ID = "other-product-id";
 
 const at = (isoTime: string) => new Date(`2026-08-27T${isoTime}.000Z`);
 
@@ -52,6 +54,26 @@ const firstDeliveryOf = (order: ReturnType<typeof deliveredOrder>) => ({
   _min: { deliveredAt: order.deliveredAt },
 });
 
+const productGroup = (
+  productId: string,
+  soldQuantity: number | null,
+  ordersCount: number,
+) => ({
+  productId,
+  _count: ordersCount,
+  _sum: { quantity: soldQuantity },
+});
+
+const couponGroup = (
+  couponCode: string,
+  ordersCount: number,
+  discountTotal: number | null,
+) => ({
+  couponCode,
+  _count: ordersCount,
+  _sum: { couponDiscount: discountTotal },
+});
+
 const middayOf = (isoDate: string) => new Date(`${isoDate}T12:00:00-03:00`);
 const startOf = (isoDate: string) => new Date(`${isoDate}T00:00:00-03:00`);
 const endOf = (isoDate: string) => new Date(`${isoDate}T23:59:59-03:00`);
@@ -68,6 +90,9 @@ type Reads = {
   restockProducts?: unknown[];
   deliveryPersonBonusTotal?: number | null;
   volunteeredBonusTotal?: number | null;
+  productGroups?: unknown[];
+  couponGroups?: unknown[];
+  products?: unknown[];
 };
 
 // The readings issue several reads over the same handful of Prisma methods, so
@@ -86,6 +111,9 @@ const mockReads = ({
   restockProducts = [],
   deliveryPersonBonusTotal = null,
   volunteeredBonusTotal = null,
+  productGroups = [],
+  couponGroups = [],
+  products = [],
 }: Reads = {}) => {
   // The summary's bonus sum is a groupBy on the volunteer flag alone; a group
   // is emitted only for a side that was asked for.
@@ -117,8 +145,15 @@ const mockReads = ({
       return Promise.resolve(rosterGroups);
     }
 
+    if (by.includes("couponCode")) {
+      return Promise.resolve(couponGroups);
+    }
+
     return Promise.resolve(bonusGroups);
   });
+
+  prismaMock.orderItem.groupBy.mockResolvedValue(productGroups);
+  prismaMock.product.findMany.mockResolvedValue(products);
 
   prismaMock.order.count.mockImplementation(({ where }) =>
     Promise.resolve(
@@ -431,6 +466,184 @@ describe("AdminDashboardService", () => {
       expect(await service.findDeliveryPersonsPerformance({})).toEqual({
         deliveryPersons: [],
       });
+    });
+  });
+
+  describe("findRankings", () => {
+    it("should answer two empty lists when nothing sold or redeemed in the period", async () => {
+      mockReads();
+
+      expect(await service.findRankings({})).toEqual({
+        products: [],
+        coupons: [],
+      });
+    });
+
+    it("should map each product group to its current name and image, keyed by id", async () => {
+      mockReads({
+        productGroups: [productGroup(PRODUCT_ID, 128, 74)],
+        products: [
+          {
+            id: PRODUCT_ID,
+            name: "Cerveja Long Neck",
+            imageUrl: "https://cdn.example.com/long-neck.png",
+          },
+        ],
+      });
+
+      expect(await service.findRankings({})).toEqual({
+        products: [
+          {
+            name: "Cerveja Long Neck",
+            imageUrl: "https://cdn.example.com/long-neck.png",
+            soldQuantity: 128,
+            ordersCount: 74,
+          },
+        ],
+        coupons: [],
+      });
+    });
+
+    it("should map each coupon group to its code, order count and discount total", async () => {
+      mockReads({
+        couponGroups: [couponGroup("BEMVINDO", 31, 45_900)],
+      });
+
+      expect(await service.findRankings({})).toEqual({
+        products: [],
+        coupons: [{ code: "BEMVINDO", ordersCount: 31, discountTotal: 45_900 }],
+      });
+    });
+
+    it("should default a null sum to zero on both lists", async () => {
+      mockReads({
+        productGroups: [productGroup(PRODUCT_ID, null, 3)],
+        products: [{ id: PRODUCT_ID, name: "Produto", imageUrl: "img" }],
+        couponGroups: [couponGroup("CODE10", 2, null)],
+      });
+
+      expect(await service.findRankings({})).toEqual({
+        products: [
+          { name: "Produto", imageUrl: "img", soldQuantity: 0, ordersCount: 3 },
+        ],
+        coupons: [{ code: "CODE10", ordersCount: 2, discountTotal: 0 }],
+      });
+    });
+
+    it("should narrow both lists to delivered orders carrying a stamp, in the given range", async () => {
+      const startDate = at("00:00:00");
+      const endDate = at("23:59:59");
+
+      mockReads();
+
+      await service.findRankings({ startDate, endDate });
+
+      const [[productArgs]] = prismaMock.orderItem.groupBy.mock.calls;
+      const couponArgs = prismaMock.order.groupBy.mock.calls
+        .map(([args]) => args)
+        .find((args) => args.by.includes("couponCode"));
+
+      expect(productArgs.where).toEqual({
+        order: {
+          status: OrderStatus.DELIVERED,
+          deliveredAt: { gte: startDate, lte: endDate },
+        },
+      });
+      expect(couponArgs.where).toEqual({
+        status: OrderStatus.DELIVERED,
+        deliveredAt: { gte: startDate, lte: endDate },
+        couponCode: { not: null },
+      });
+    });
+
+    it("should substitute a not-null delivery stamp for an absent range", async () => {
+      mockReads();
+
+      await service.findRankings({});
+
+      const [[productArgs]] = prismaMock.orderItem.groupBy.mock.calls;
+      const couponArgs = prismaMock.order.groupBy.mock.calls
+        .map(([args]) => args)
+        .find((args) => args.by.includes("couponCode"));
+
+      expect(productArgs.where.order.deliveredAt).toEqual({ not: null });
+      expect(couponArgs.where.deliveredAt).toEqual({ not: null });
+    });
+
+    it("should order products by quantity sold, tie-broken by id, capped at five", async () => {
+      mockReads();
+
+      await service.findRankings({});
+
+      const [[productArgs]] = prismaMock.orderItem.groupBy.mock.calls;
+
+      expect(productArgs.orderBy).toEqual([
+        { _sum: { quantity: "desc" } },
+        { productId: "asc" },
+      ]);
+      expect(productArgs.take).toBe(5);
+    });
+
+    it("should order coupons by redemption count, tie-broken by code, capped at five", async () => {
+      mockReads();
+
+      await service.findRankings({});
+
+      const couponArgs = prismaMock.order.groupBy.mock.calls
+        .map(([args]) => args)
+        .find((args) => args.by.includes("couponCode"));
+
+      expect(couponArgs.orderBy).toEqual([
+        { _count: { couponCode: "desc" } },
+        { couponCode: "asc" },
+      ]);
+      expect(couponArgs.take).toBe(5);
+    });
+
+    it("should look product names up by the ids the groups produced, never by active/deleted state", async () => {
+      mockReads({
+        productGroups: [
+          productGroup(PRODUCT_ID, 10, 5),
+          productGroup(OTHER_PRODUCT_ID, 4, 3),
+        ],
+        products: [
+          { id: PRODUCT_ID, name: "Primeiro", imageUrl: "img-1" },
+          { id: OTHER_PRODUCT_ID, name: "Segundo", imageUrl: "img-2" },
+        ],
+      });
+
+      await service.findRankings({});
+
+      const [[findManyArgs]] = prismaMock.product.findMany.mock.calls;
+
+      expect(findManyArgs.where).toEqual({
+        id: { in: [PRODUCT_ID, OTHER_PRODUCT_ID] },
+      });
+      expect(findManyArgs.select).toEqual({
+        id: true,
+        name: true,
+        imageUrl: true,
+      });
+    });
+
+    it("should keep the groupBy's order regardless of the order the names come back in", async () => {
+      mockReads({
+        productGroups: [
+          productGroup(PRODUCT_ID, 10, 5),
+          productGroup(OTHER_PRODUCT_ID, 4, 3),
+        ],
+        products: [
+          { id: OTHER_PRODUCT_ID, name: "Segundo", imageUrl: "img-2" },
+          { id: PRODUCT_ID, name: "Primeiro", imageUrl: "img-1" },
+        ],
+      });
+
+      const { products } = await service.findRankings({});
+
+      expect(products.map((product) => product.name)).toEqual([
+        "Primeiro",
+        "Segundo",
+      ]);
     });
   });
 

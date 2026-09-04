@@ -17,6 +17,7 @@ import {
 import {
   FindAccountsSeriesDto,
   FindDeliveryPersonsPerformanceDto,
+  FindRankingsDto,
   FindSeriesDto,
   FindSummaryDto,
 } from "./dtos";
@@ -45,10 +46,18 @@ type OrderGroup = StatusGroup & {
   _sum: { deliveryFee: number | null; deliveryPersonBonus: number | null };
 };
 
+type ProductGroup = {
+  productId: string;
+  _count: number;
+  _sum: { quantity: number | null };
+};
+
 type ShippedOrderTiming = {
   shippedAt: Date | null;
   deliveredAt: Date | null;
 };
+
+const RANKING_SIZE = 5;
 
 @Injectable()
 export class AdminDashboardService {
@@ -101,6 +110,43 @@ export class AdminDashboardService {
 
     return {
       deliveryPersons: this.buildDeliveryPersons(deliveryPersons, groups),
+    };
+  }
+
+  async findRankings(dto: FindRankingsDto) {
+    const delivered = this.buildDeliveredFilter(dto);
+
+    const [productGroups, couponGroups] = await Promise.all([
+      this.prisma.orderItem.groupBy({
+        by: ["productId"],
+        where: { order: delivered },
+        _count: true,
+        _sum: { quantity: true },
+        orderBy: [{ _sum: { quantity: "desc" } }, { productId: "asc" }],
+        take: RANKING_SIZE,
+      }),
+      this.prisma.order.groupBy({
+        by: ["couponCode"],
+        where: { ...delivered, couponCode: { not: null } },
+        _count: true,
+        _sum: { couponDiscount: true },
+        orderBy: [{ _count: { couponCode: "desc" } }, { couponCode: "asc" }],
+        take: RANKING_SIZE,
+      }),
+    ]);
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productGroups.map((group) => group.productId) } },
+      select: { id: true, name: true, imageUrl: true },
+    });
+
+    return {
+      products: this.buildRankedProducts(productGroups, products),
+      coupons: couponGroups.map((group) => ({
+        code: group.couponCode!,
+        ordersCount: group._count,
+        discountTotal: group._sum.couponDiscount ?? 0,
+      })),
     };
   }
 
@@ -212,13 +258,8 @@ export class AdminDashboardService {
   }
 
   private findDeliveredOrders(range: DateRange) {
-    const deliveredAt = this.buildDateRange(range);
-
     return this.prisma.order.findMany({
-      where: {
-        status: OrderStatus.DELIVERED,
-        deliveredAt: deliveredAt ?? { not: null },
-      },
+      where: this.buildDeliveredFilter(range),
       select: {
         customerId: true,
         deliveredAt: true,
@@ -440,6 +481,13 @@ export class AdminDashboardService {
     };
   }
 
+  private buildDeliveredFilter(range: DateRange): Prisma.OrderWhereInput {
+    return {
+      status: OrderStatus.DELIVERED,
+      deliveredAt: this.buildDateRange(range) ?? { not: null },
+    };
+  }
+
   private buildStatusFilter(
     status: typeof OrderStatus.DELIVERED | typeof OrderStatus.CANCELLED,
     range: DateRange,
@@ -479,6 +527,28 @@ export class AdminDashboardService {
     }
 
     return spans;
+  }
+
+  private buildRankedProducts(
+    groups: ProductGroup[],
+    products: { id: string; name: string; imageUrl: string }[],
+  ) {
+    const productById = new Map(
+      products.map((product) => [product.id, product] as const),
+    );
+
+    return groups.map((group) => {
+      const product = productById.get(group.productId)!;
+
+      return {
+        name: product.name,
+        imageUrl: product.imageUrl,
+        soldQuantity: group._sum.quantity ?? 0,
+        // `@@unique([orderId, productId])` keeps one line per product per
+        // order, so the group's row count is how many orders it appeared in.
+        ordersCount: group._count,
+      };
+    });
   }
 
   private buildDeliveryPersons(
