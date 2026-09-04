@@ -8,13 +8,13 @@ export const settings = [
   {
     key: SettingKey.DELIVERY_FEE,
     type: SettingType.CURRENCY,
-    value: "500",
+    value: "499",
     isActive: true,
   },
   {
     key: SettingKey.MIN_ORDER_VALUE,
     type: SettingType.CURRENCY,
-    value: "3500",
+    value: "3490",
     isActive: true,
   },
   {
