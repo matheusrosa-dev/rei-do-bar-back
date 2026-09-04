@@ -21,6 +21,7 @@ export class DeliveryPersonsOrdersService {
         status: OrderStatus.SHIPPED,
       },
       include: {
+        customer: { select: { name: true } },
         items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
       orderBy: [
@@ -31,6 +32,7 @@ export class DeliveryPersonsOrdersService {
 
     return orders.map((order) => ({
       ...order,
+      customerName: order.customer.name,
       ...computeOrderTotals(order),
     }));
   }

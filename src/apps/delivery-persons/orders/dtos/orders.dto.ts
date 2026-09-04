@@ -9,6 +9,9 @@ export class DeliveryPersonsOrdersDto {
   orderNumber!: number;
 
   @Expose()
+  customerName!: string | null;
+
+  @Expose()
   address!: string;
 
   @Expose()

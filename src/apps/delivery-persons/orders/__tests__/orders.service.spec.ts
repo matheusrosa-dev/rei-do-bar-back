@@ -15,6 +15,7 @@ const eventEmitterMock = { emit: jest.fn() };
 const makeOrder = (overrides?: Partial<Record<string, unknown>>) => ({
   id: ORDER_ID,
   customerId: "customer-id",
+  customer: { name: "Maria Souza" },
   orderNumber: 1042,
   address: "Rua A, 10 - Centro",
   status: OrderStatus.SHIPPED,
@@ -60,6 +61,7 @@ describe("DeliveryPersonsOrdersService", () => {
           // Sem os itens, computeOrderTotals quebra em produção — o mock os
           // devolve de qualquer jeito, então só este assert protege o include.
           include: {
+            customer: { select: { name: true } },
             items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
           },
         }),
@@ -104,6 +106,26 @@ describe("DeliveryPersonsOrdersService", () => {
         productsDiscount: 0,
         total: 3500, // 3000 + 500 de entrega
       });
+    });
+
+    it("should flatten the customer's name onto the order", async () => {
+      prismaMock.order.findMany.mockResolvedValue([
+        makeOrder({ customer: { name: "João Pereira" } }),
+      ]);
+
+      const [order] = await service.findShippedOrders(DELIVERY_PERSON_ID);
+
+      expect(order).toMatchObject({ customerName: "João Pereira" });
+    });
+
+    it("should pass through a null customer name instead of throwing", async () => {
+      prismaMock.order.findMany.mockResolvedValue([
+        makeOrder({ customer: { name: null } }),
+      ]);
+
+      const [order] = await service.findShippedOrders(DELIVERY_PERSON_ID);
+
+      expect(order).toMatchObject({ customerName: null });
     });
 
     it("should derive the totals from the item snapshots, charging the compare-at price of a discounted item", async () => {
