@@ -5,7 +5,7 @@ import {
 } from "@shared/database/prisma/generated/enums";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
-import { CancelOrderDto, CreateOrderDto } from "./dtos";
+import { CancelOrderDto, CreateOrderDto, GetOrdersDto } from "./dtos";
 import {
   Cart,
   CartItem,
@@ -47,10 +47,37 @@ export class OrdersService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async getOrders(customerId: string) {
-    const orders = await this.findAndFormatOrders(customerId);
+  async getOrders(customerId: string, dto: GetOrdersDto) {
+    const page = dto.page ?? 1;
+    const limit = dto.limit ?? 20;
+    const skip = (page - 1) * limit;
+    const where = { customerId };
 
-    return orders;
+    const [orders, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        include: {
+          items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+        },
+        orderBy: [{ createdAt: "desc" }, { orderNumber: "desc" }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      items: orders.map((order) => ({
+        ...order,
+        ...computeOrderTotals(order),
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async createOrder(customerId: string, dto: CreateOrderDto) {
@@ -307,9 +334,7 @@ export class OrdersService {
       }),
     );
 
-    const orders = await this.findAndFormatOrders(customerId);
-
-    return orders;
+    return this.findAndFormatOrder(customerId, order!.id);
   }
 
   async cancelOrder(customerId: string, dto: CancelOrderDto) {
@@ -372,26 +397,18 @@ export class OrdersService {
       }),
     );
 
-    const orders = await this.findAndFormatOrders(customerId);
-
-    return orders;
+    return this.findAndFormatOrder(customerId, order.id);
   }
 
-  private async findAndFormatOrders(customerId: string) {
-    const orders = await this.prisma.order.findMany({
-      where: { customerId },
+  private async findAndFormatOrder(customerId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, customerId },
       include: {
         items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
       },
-      orderBy: { createdAt: "desc" },
     });
 
-    const formattedOrders = orders.map((order) => ({
-      ...order,
-      ...computeOrderTotals(order),
-    }));
-
-    return formattedOrders;
+    return { ...order!, ...computeOrderTotals(order!) };
   }
 
   private assertCustomerIsAptToCreateOrder(

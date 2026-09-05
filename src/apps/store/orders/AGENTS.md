@@ -14,7 +14,7 @@ The order lifecycle for authenticated customers: creating an order from the curr
 
 ## Auth Requirement
 
-The entire controller carries `@StoreAuth("accessToken")` at class level — store app credential, then device-id, then bearer JWT. The authenticated customer id comes from the current session. All endpoints return the customer's full, freshly computed order list rather than just the affected order.
+The entire controller carries `@StoreAuth("accessToken")` at class level — store app credential, then device-id, then bearer JWT. The authenticated customer id comes from the current session. The list endpoint returns a **paginated page** of the customer's freshly computed orders (newest-first, `page`/`limit` query params, the normalized `{ items, meta }` shape from the API contract reference); create and cancel return only the single order they affected, freshly re-read and formatted. `@Serialize` is declared per handler — `OrdersDto` on create and cancel, `PaginatedOrdersDto` on the list — not once at class level, because the list response shape differs.
 
 ---
 
@@ -44,7 +44,7 @@ The same transaction restores stock for each item (a plain increment — unlike 
 
 ## Emitted Events
 
-Order creation and cancellation emit lifecycle events through the event emitter rather than calling other modules directly. Listeners elsewhere react to them — order movements are recorded in the inventory ledger and customer push notifications are sent. The cancellation event carries the movement origin so the ledger does not have to infer it. These side effects are fire-and-forget from this module's perspective; the response is the freshly computed order list regardless.
+Order creation and cancellation emit lifecycle events through the event emitter rather than calling other modules directly. Listeners elsewhere react to them — order movements are recorded in the inventory ledger and customer push notifications are sent. The cancellation event carries the movement origin so the ledger does not have to infer it. These side effects are fire-and-forget from this module's perspective; the response is the freshly re-read single order regardless.
 
 ---
 
@@ -67,6 +67,8 @@ That helper carries the `compareAtPrice > price` guard: a snapshot with `compare
 
 Unlike the cart response, the order response carries **no `isWelcomeCoupon` flag** and does not expose `couponId` — a client distinguishes a welcome discount from a real coupon solely by the `couponCode` matching the welcome code.
 
+**The list wraps this DTO.** `GET /orders` returns `PaginatedOrdersDto` — `{ items: OrdersDto[], meta: { total, page, limit, totalPages } }`, the same normalized page the admin listings use (see `.claude/references/api-contract.md`). `page` defaults to 1, `limit` to 20 (max 100); both are validated on `GetOrdersDto`. Rows are ordered `createdAt desc` then `orderNumber desc` — the unique tiebreaker keeps paging deterministic (no row seen twice or skipped across pages) when several orders share a `createdAt`. Create and cancel are unchanged: each returns a bare `OrdersDto`.
+
 ---
 
 ## Conventions
@@ -76,6 +78,7 @@ Unlike the cart response, the order response carries **no `isWelcomeCoupon` flag
 | Validate before writing | All cheap validations run before the transaction |
 | Serialize concurrency | Per-customer order creation is serialized with a row-level lock on the customer; globally-limited coupon redemption with a row-level lock on the coupon |
 | Items come ordered | Every read of an order's items sorts oldest-first and breaks the tie on the id — they share one `createdAt` from the batch insert, so without it the line order is arbitrary |
+| List is paginated | `GET /orders` takes `page`/`limit` and returns the `{ items, meta }` page; orders sort `createdAt desc` then `orderNumber desc` so paging never repeats or skips a row |
 | Snapshots | Item details (including `compareAtPrice`), the address, and the applied coupon (code + discount) are snapshotted at purchase time and never back-filled |
 | Money from the net total | The coupon base, the minimum-order check, and `total` all run on `productsTotal - productsDiscount` — the gross `productsTotal` is display-only |
 | Customers cancel only while pending | Any later status is the admin's to transition |

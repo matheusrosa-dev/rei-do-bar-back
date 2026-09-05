@@ -79,7 +79,16 @@ describe("OrdersService", () => {
   describe("createOrder", () => {
     const dto = { paymentType: PaymentType.CASH };
 
-    it("should create the order, decrement stockQuantity, clear the cart and return the orders", async () => {
+    beforeEach(() => {
+      prismaMock.order.findFirst.mockResolvedValue({
+        id: "order-uuid",
+        deliveryFee: 0,
+        couponDiscount: 0,
+        items: [],
+      });
+    });
+
+    it("should create the order, decrement stockQuantity, clear the cart and return the created order", async () => {
       const assertCustomerSpy = jest.spyOn(
         service as any,
         "assertCustomerIsAptToCreateOrder",
@@ -88,9 +97,9 @@ describe("OrdersService", () => {
         service as any,
         "assertThereAreInvalidItemsInCart",
       );
-      const findAndFormatOrdersSpy = jest.spyOn(
+      const findAndFormatOrderSpy = jest.spyOn(
         service as any,
-        "findAndFormatOrders",
+        "findAndFormatOrder",
       );
 
       const product1 = ProductFactory.createOne({
@@ -130,7 +139,7 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.create.mockResolvedValue(createdOrder);
-      prismaMock.order.findMany.mockResolvedValue([createdOrder]);
+      prismaMock.order.findFirst.mockResolvedValue(createdOrder);
 
       const result = await service.createOrder(customerId, dto);
 
@@ -197,14 +206,20 @@ describe("OrdersService", () => {
       });
       expect(assertCustomerSpy).toHaveBeenCalled();
       expect(assertItemsSpy).toHaveBeenCalled();
-      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+      expect(findAndFormatOrderSpy).toHaveBeenCalledWith(
+        customerId,
+        "order-uuid",
+      );
       expect(eventEmitterMock.emit).toHaveBeenCalledWith(
         OrderCreatedEvent.NAME,
         new OrderCreatedEvent({ order: createdOrder }),
       );
-      expect(result).toEqual([
-        { ...createdOrder, productsTotal: 80, productsDiscount: 0, total: 280 },
-      ]);
+      expect(result).toEqual({
+        ...createdOrder,
+        productsTotal: 80,
+        productsDiscount: 0,
+        total: 280,
+      });
     });
 
     it("should snapshot the product's compareAtPrice on the order item and keep the coupon base at the price total", async () => {
@@ -223,7 +238,6 @@ describe("OrdersService", () => {
         id: "order-uuid",
         items: [],
       });
-      prismaMock.order.findMany.mockResolvedValue([]);
 
       await service.createOrder(customerId, dto);
 
@@ -453,7 +467,7 @@ describe("OrdersService", () => {
           items: [{ price: 1000, quantity: 2, productId: product.id }],
         };
         prismaMock.order.create.mockResolvedValue(createdOrder);
-        prismaMock.order.findMany.mockResolvedValue([createdOrder]);
+        prismaMock.order.findFirst.mockResolvedValue(createdOrder);
 
         const result = await service.createOrder(customerId, dto);
 
@@ -477,14 +491,12 @@ describe("OrdersService", () => {
           where: { id: "cart-uuid" },
           data: { couponId: null, items: { deleteMany: {} } },
         });
-        expect(result).toEqual([
-          {
-            ...createdOrder,
-            productsTotal: 2000,
-            productsDiscount: 0,
-            total: 1900,
-          },
-        ]);
+        expect(result).toEqual({
+          ...createdOrder,
+          productsTotal: 2000,
+          productsDiscount: 0,
+          total: 1900,
+        });
       });
 
       it("should compute the coupon discount from the products' price total, not from their compareAtPrice", async () => {
@@ -505,7 +517,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         await service.createOrder(customerId, dto);
 
@@ -908,7 +919,7 @@ describe("OrdersService", () => {
           items: [{ price: 1000, quantity: 2, productId: product.id }],
         };
         prismaMock.order.create.mockResolvedValue(createdOrder);
-        prismaMock.order.findMany.mockResolvedValue([createdOrder]);
+        prismaMock.order.findFirst.mockResolvedValue(createdOrder);
 
         const result = await service.createOrder(customerId, dto);
 
@@ -922,14 +933,12 @@ describe("OrdersService", () => {
           }),
         );
         expect(prismaMock.couponUsage.create).not.toHaveBeenCalled();
-        expect(result).toEqual([
-          {
-            ...createdOrder,
-            productsTotal: 2000,
-            productsDiscount: 0,
-            total: 1700,
-          },
-        ]);
+        expect(result).toEqual({
+          ...createdOrder,
+          productsTotal: 2000,
+          productsDiscount: 0,
+          total: 1700,
+        });
       });
 
       it("should compute the welcome discount from the products' price total, not from their compareAtPrice", async () => {
@@ -948,7 +957,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         await service.createOrder(customerId, dto);
 
@@ -973,7 +981,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         await service.createOrder(customerId, dto);
 
@@ -1002,7 +1009,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         await service.createOrder(customerId, dto);
 
@@ -1032,7 +1038,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         await service.createOrder(customerId, dto);
 
@@ -1069,7 +1074,6 @@ describe("OrdersService", () => {
           id: "order-uuid",
           items: [],
         });
-        prismaMock.order.findMany.mockResolvedValue([]);
         prismaMock.couponUsage.create.mockResolvedValue({
           id: "usage-uuid",
           couponId: coupon.id,
@@ -1141,11 +1145,7 @@ describe("OrdersService", () => {
   });
 
   describe("getOrders", () => {
-    it("should return the orders with computed productsTotal and total", async () => {
-      const findAndFormatOrdersSpy = jest.spyOn(
-        service as any,
-        "findAndFormatOrders",
-      );
+    it("should return a paginated page with the query params passed through and computed totals", async () => {
       const order = {
         id: "order-uuid",
         orderNumber: 1000,
@@ -1157,18 +1157,66 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(findAndFormatOrdersSpy).toHaveBeenCalled();
       expect(prismaMock.order.findMany).toHaveBeenCalledWith({
         where: { customerId },
         include: { items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] } },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { orderNumber: "desc" }],
+        skip: 0,
+        take: 20,
       });
-      expect(result).toEqual([
-        { ...order, productsTotal: 40, productsDiscount: 0, total: 240 },
-      ]);
+      expect(prismaMock.order.count).toHaveBeenCalledWith({
+        where: { customerId },
+      });
+      expect(result).toEqual({
+        items: [
+          { ...order, productsTotal: 40, productsDiscount: 0, total: 240 },
+        ],
+        meta: { total: 1, page: 1, limit: 20, totalPages: 1 },
+      });
+    });
+
+    it("should default to page 1 and limit 20 when the DTO carries no pagination", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
+      prismaMock.order.count.mockResolvedValue(0);
+
+      const result = await service.getOrders(customerId, {});
+
+      expect(prismaMock.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 20 }),
+      );
+      expect(result.meta).toEqual({
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+      });
+    });
+
+    it("should skip the previous pages and report totalPages for a later page", async () => {
+      prismaMock.order.findMany.mockResolvedValue([]);
+      prismaMock.order.count.mockResolvedValue(25);
+
+      const result = await service.getOrders(customerId, {
+        page: 3,
+        limit: 10,
+      });
+
+      expect(prismaMock.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
+      );
+      expect(result.meta).toEqual({
+        total: 25,
+        page: 3,
+        limit: 10,
+        totalPages: 3,
+      });
     });
 
     it("should subtract the applied coupon discount from the total", async () => {
@@ -1181,10 +1229,14 @@ describe("OrdersService", () => {
         items: [{ price: 300, quantity: 2 }],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([
+      expect(result.items).toEqual([
         { ...order, productsTotal: 600, productsDiscount: 0, total: 300 },
       ]);
     });
@@ -1200,10 +1252,14 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([
+      expect(result.items).toEqual([
         { ...order, productsTotal: 2500, productsDiscount: 400, total: 2300 },
       ]);
     });
@@ -1219,10 +1275,14 @@ describe("OrdersService", () => {
         ],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([
+      expect(result.items).toEqual([
         { ...order, productsTotal: 2000, productsDiscount: 0, total: 2000 },
       ]);
     });
@@ -1235,10 +1295,14 @@ describe("OrdersService", () => {
         items: [{ price: 1000, compareAtPrice: null, quantity: 2 }],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([
+      expect(result.items).toEqual([
         { ...order, productsTotal: 2000, productsDiscount: 0, total: 2100 },
       ]);
     });
@@ -1252,34 +1316,45 @@ describe("OrdersService", () => {
         items: [{ price: 800, compareAtPrice: 1000, quantity: 2 }],
       };
       prismaMock.order.findMany.mockResolvedValue([order]);
+      prismaMock.order.count.mockResolvedValue(1);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([
+      expect(result.items).toEqual([
         { ...order, productsTotal: 2000, productsDiscount: 400, total: 1300 },
       ]);
     });
 
-    it("should return an empty array when the customer has no orders", async () => {
+    it("should return an empty page when the customer has no orders", async () => {
       prismaMock.order.findMany.mockResolvedValue([]);
+      prismaMock.order.count.mockResolvedValue(0);
 
-      const result = await service.getOrders(customerId);
+      const result = await service.getOrders(customerId, {
+        page: 1,
+        limit: 20,
+      });
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({
+        items: [],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+      });
     });
   });
 
   describe("cancelOrder", () => {
     const dto = { orderId: "order-uuid" };
 
-    it("should cancel the order, restore stockQuantity, set the status to CANCELLED and return the orders", async () => {
+    it("should cancel the order, restore stockQuantity, set the status to CANCELLED and return the cancelled order", async () => {
       const now = new Date("2026-08-18T14:00:00.000Z");
       jest.useFakeTimers().setSystemTime(now);
 
       try {
-        const findAndFormatOrdersSpy = jest.spyOn(
+        const findAndFormatOrderSpy = jest.spyOn(
           service as any,
-          "findAndFormatOrders",
+          "findAndFormatOrder",
         );
         const order = {
           id: "order-uuid",
@@ -1287,6 +1362,7 @@ describe("OrdersService", () => {
           orderNumber: 1000,
           status: OrderStatus.PENDING,
           statusReason: null,
+          deliveryFee: 200,
           couponId: null,
           couponDiscount: 0,
           items: [
@@ -1296,7 +1372,6 @@ describe("OrdersService", () => {
         };
         prismaMock.order.findFirst.mockResolvedValue(order);
         prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
-        prismaMock.order.findMany.mockResolvedValue([]);
 
         const result = await service.cancelOrder(customerId, dto);
 
@@ -1326,14 +1401,10 @@ describe("OrdersService", () => {
           data: { stockQuantity: { increment: 3 } },
         });
         expect(prismaMock.couponUsage.deleteMany).not.toHaveBeenCalled();
-        expect(prismaMock.order.findMany).toHaveBeenCalledWith({
-          where: { customerId },
-          include: {
-            items: { orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
-          },
-          orderBy: { createdAt: "desc" },
-        });
-        expect(findAndFormatOrdersSpy).toHaveBeenCalled();
+        expect(findAndFormatOrderSpy).toHaveBeenCalledWith(
+          customerId,
+          "order-uuid",
+        );
         expect(eventEmitterMock.emit).toHaveBeenCalledWith(
           OrderCancelledEvent.NAME,
           new OrderCancelledEvent({
@@ -1341,7 +1412,12 @@ describe("OrdersService", () => {
             origin: InventoryMovementOrigin.ORDER_CANCELLATION,
           }),
         );
-        expect(result).toEqual([]);
+        expect(result).toEqual({
+          ...order,
+          productsTotal: 80,
+          productsDiscount: 0,
+          total: 280,
+        });
       } finally {
         jest.useRealTimers();
       }
@@ -1354,13 +1430,13 @@ describe("OrdersService", () => {
         orderNumber: 1000,
         status: OrderStatus.PENDING,
         statusReason: null,
+        deliveryFee: 200,
         couponId: "coupon-uuid",
         couponDiscount: 500,
         items: [{ productId: "product-1", price: 10, quantity: 2 }],
       };
       prismaMock.order.findFirst.mockResolvedValue(order);
       prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
-      prismaMock.order.findMany.mockResolvedValue([]);
 
       await service.cancelOrder(customerId, dto);
 

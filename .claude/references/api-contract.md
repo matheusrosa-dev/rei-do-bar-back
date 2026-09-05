@@ -14,6 +14,8 @@ Every successful response is wrapped as:
 
 Passthrough rules: a falsy body, or a body that already contains a `data` key, is returned unchanged (no double-wrapping). When a controller applies a response DTO, the serialized DTO is what ends up inside `data`.
 
+A mutation returns the resource it changed, not a collection: the store's `POST /orders` and `PUT /orders/:orderId/cancel` answer only the created or cancelled order (serialized with the same DTO as the list's rows). The order list, `GET /orders`, is paginated — see the Pagination Contract below.
+
 ## Error Response Shape
 
 The global filter emits **three** shapes. Only the first comes from `AppException`; clients must handle all three.
@@ -163,6 +165,8 @@ The response is a normalized page:
 ```
 
 **Exceptions**: the admin categories and settings listings are not paginated — they return a flat array with no `meta`. No admin dashboard endpoint is a listing (see "Admin Dashboard Readings" below): none carries `meta` or a top-level array, and none accepts a pagination param.
+
+**Store surface**: the store's `GET /orders` is the one non-admin listing on this contract. It returns the same normalized page for the calling customer's own orders, but accepts **only `page` and `limit`** (same defaults and range) — no `searchTerm`, `sortKey`, `sortDirection`, or `simple`. Rows are newest-first (`createdAt desc`, then `orderNumber desc` as the unique tiebreaker), and paging is deterministic the same way.
 
 ---
 

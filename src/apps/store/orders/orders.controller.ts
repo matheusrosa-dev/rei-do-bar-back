@@ -1,18 +1,24 @@
-import { Body, Controller, Get, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Query } from "@nestjs/common";
 import { OrdersService } from "./orders.service";
 import { type ICurrentSession } from "@shared/types/jwt";
 import { CurrentSession } from "@shared/decorators/current-session.decorator";
-import { CancelOrderDto, CreateOrderDto, OrdersDto } from "./dtos";
+import {
+  CancelOrderDto,
+  CreateOrderDto,
+  GetOrdersDto,
+  OrdersDto,
+  PaginatedOrdersDto,
+} from "./dtos";
 import { Serialize } from "@shared/interceptors/serialize.interceptor";
 import { StoreAuth } from "@shared/decorators/store-auth.decorator";
 
 @Controller("orders")
-@Serialize(OrdersDto)
 @StoreAuth("accessToken")
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
+  @Serialize(OrdersDto)
   createOrder(
     @CurrentSession() session: ICurrentSession,
     @Body() dto: CreateOrderDto,
@@ -21,11 +27,16 @@ export class OrdersController {
   }
 
   @Get()
-  getOrders(@CurrentSession() session: ICurrentSession) {
-    return this.ordersService.getOrders(session.customerId!);
+  @Serialize(PaginatedOrdersDto)
+  getOrders(
+    @CurrentSession() session: ICurrentSession,
+    @Query() dto: GetOrdersDto,
+  ) {
+    return this.ordersService.getOrders(session.customerId!, dto);
   }
 
   @Put(":orderId/cancel")
+  @Serialize(OrdersDto)
   async cancelOrder(
     @CurrentSession() session: ICurrentSession,
     @Param() dto: CancelOrderDto,
