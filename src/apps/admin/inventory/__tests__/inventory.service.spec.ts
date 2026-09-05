@@ -282,9 +282,14 @@ describe("AdminInventoryService", () => {
     });
   });
 
-  describe("revertRestockMovement", () => {
+  describe("revertMovement", () => {
     beforeEach(() => {
       prismaMock.$queryRaw.mockResolvedValue(undefined);
+      prismaMock.inventoryMovement.findFirst.mockResolvedValue(null);
+      prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("should take the full restocked quantity back out of stock and delete the movement", async () => {
       prismaMock.inventoryMovement.findUnique.mockResolvedValue(
         restockMovement({
           products: [
@@ -293,12 +298,8 @@ describe("AdminInventoryService", () => {
           ],
         }),
       );
-      prismaMock.inventoryMovement.findFirst.mockResolvedValue(null);
-      prismaMock.product.updateMany.mockResolvedValue({ count: 1 });
-    });
 
-    it("should take the full restocked quantity back out of stock and delete the movement", async () => {
-      await service.revertRestockMovement(MOVEMENT_ID);
+      await service.revertMovement(MOVEMENT_ID);
 
       expect(prismaMock.product.updateMany).toHaveBeenNthCalledWith(1, {
         where: {
@@ -322,16 +323,101 @@ describe("AdminInventoryService", () => {
     });
 
     it("should throw MOVEMENT_NOT_EDITABLE instead of deleting once stock has moved since the restock", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(
+        restockMovement({
+          products: [{ productId: PRODUCT_A, quantity: 5, price: 1000 }],
+        }),
+      );
       prismaMock.inventoryMovement.findFirst.mockResolvedValue({
         createdAt: at("10:00:01"),
       });
 
-      await expect(
-        service.revertRestockMovement(MOVEMENT_ID),
-      ).rejects.toMatchObject({
+      await expect(service.revertMovement(MOVEMENT_ID)).rejects.toMatchObject({
         code: AppException.errorCodes.adminInventory.MOVEMENT_NOT_EDITABLE,
       });
       expect(prismaMock.inventoryMovement.delete).not.toHaveBeenCalled();
+    });
+
+    it("should return the removed quantity to stock and delete the movement, with no floor guard", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(
+        restockMovement({
+          origin: InventoryMovementOrigin.ADMIN_REMOVAL,
+          products: [
+            { productId: PRODUCT_A, quantity: 5, price: 1500 },
+            { productId: PRODUCT_B, quantity: 3, price: 900 },
+          ],
+        }),
+      );
+
+      await service.revertMovement(MOVEMENT_ID);
+
+      // Delta positivo: sem `stockQuantity: { gte }` no where — devolver
+      // estoque nunca esbarra em saldo.
+      expect(prismaMock.product.updateMany).toHaveBeenNthCalledWith(1, {
+        where: { id: PRODUCT_A, deletedAt: null },
+        data: { stockQuantity: { increment: 5 } },
+      });
+      expect(prismaMock.product.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { id: PRODUCT_B, deletedAt: null },
+        data: { stockQuantity: { increment: 3 } },
+      });
+      expect(prismaMock.inventoryMovement.delete).toHaveBeenCalledWith({
+        where: { id: MOVEMENT_ID },
+      });
+    });
+
+    it("should revert a removal without checking for a disqualifying movement, unlike a restock", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(
+        restockMovement({
+          origin: InventoryMovementOrigin.ADMIN_REMOVAL,
+          products: [{ productId: PRODUCT_A, quantity: 5, price: 1500 }],
+        }),
+      );
+      prismaMock.inventoryMovement.findFirst.mockResolvedValue({
+        createdAt: at("10:00:01"),
+      });
+
+      await service.revertMovement(MOVEMENT_ID);
+
+      // Remoção não tem janela de elegibilidade: o findFirst do último
+      // movimento desqualificante nem chega a ser consultado.
+      expect(prismaMock.inventoryMovement.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.inventoryMovement.delete).toHaveBeenCalledWith({
+        where: { id: MOVEMENT_ID },
+      });
+    });
+
+    it("should throw MOVEMENT_NOT_FOUND when the movement does not exist", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(null);
+
+      await expect(service.revertMovement(MOVEMENT_ID)).rejects.toMatchObject({
+        code: AppException.errorCodes.adminInventory.MOVEMENT_NOT_FOUND,
+      });
+    });
+
+    it("should throw MOVEMENT_NOT_EDITABLE for an order-driven origin", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(
+        restockMovement({ origin: InventoryMovementOrigin.ORDER_CREATION }),
+      );
+
+      await expect(service.revertMovement(MOVEMENT_ID)).rejects.toMatchObject({
+        code: AppException.errorCodes.adminInventory.MOVEMENT_NOT_EDITABLE,
+      });
+    });
+
+    it("should map a zero-row stock update on a removal revert to product not found, never insufficient stock", async () => {
+      prismaMock.inventoryMovement.findUnique.mockResolvedValue(
+        restockMovement({
+          origin: InventoryMovementOrigin.ADMIN_REMOVAL,
+          products: [{ productId: PRODUCT_A, quantity: 5, price: 1500 }],
+        }),
+      );
+      prismaMock.product.updateMany.mockResolvedValueOnce({ count: 0 });
+      prismaMock.product.findFirst.mockResolvedValue(null);
+
+      await expect(service.revertMovement(MOVEMENT_ID)).rejects.toMatchObject({
+        code: AppException.errorCodes.adminInventory.PRODUCT_NOT_FOUND,
+      });
     });
   });
 });

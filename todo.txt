@@ -1,6 +1,5 @@
 Baixa prioridade:
 futuramente: substituir os N updates individuais de estoque (createOrder/cancelOrder) por um único UPDATE via $executeRaw se carrinhos grandes se tornarem comuns
-futuramente adicionar opção para alterar número do usuario
 o ExpoNotificationsService não trata tickets/receipts, então tokens DeviceNotRegistered nunca são removidos de push_tokens. Conforme a base envelhece, todo segmento vai carregar tokens mortos. Não é problema deste plano, mas é a próxima dívida do canal.
 adicionar logs para alterações em produtos e categorias
 implementar retornável
@@ -11,10 +10,9 @@ Em produção:
 substituir placeholders nos arquivos lgpd
 fazer cnpj
 adicionar as settings
-remover log de endpoints chamados
 gerar migration unica de init
 
 Importante:
 corrigir o menu na barra de navegação no android
 adicionar taxa de maquininha nos pedidos
-deve ser possível editar movimentação de estoque
+melhorar estrutura do arquivo app.exception.ts

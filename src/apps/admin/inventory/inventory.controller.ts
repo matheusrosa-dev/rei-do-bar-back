@@ -38,8 +38,8 @@ export class AdminInventoryController {
   }
 
   @Delete("movements/:movementId")
-  revertRestockMovement(@Param() { movementId }: MovementParamsDto) {
-    return this.adminInventoryService.revertRestockMovement(movementId);
+  revertMovement(@Param() { movementId }: MovementParamsDto) {
+    return this.adminInventoryService.revertMovement(movementId);
   }
 
   @Post("increment")

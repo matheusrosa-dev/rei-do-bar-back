@@ -70,8 +70,9 @@ export class AdminInventoryService {
       items: items.map((item) => ({
         ...item,
         editable:
-          item.origin === InventoryMovementOrigin.ADMIN_RESTOCK &&
-          this.isRestockStillEditable(item, lastDisqualifyingMovement),
+          item.origin === InventoryMovementOrigin.ADMIN_REMOVAL ||
+          (item.origin === InventoryMovementOrigin.ADMIN_RESTOCK &&
+            this.isRestockStillEditable(item, lastDisqualifyingMovement)),
       })),
       meta: {
         total,
@@ -173,7 +174,9 @@ export class AdminInventoryService {
     this.assertUniqueMovementProducts(productIds);
 
     await this.prisma.$transaction(async (tx) => {
-      const movement = await this.loadEditableRestockMovement(tx, movementId);
+      const movement = await this.loadMovementForWrite(tx, movementId, [
+        InventoryMovementOrigin.ADMIN_RESTOCK,
+      ]);
 
       const quantityDeltaByProductId = new Map<string, number>();
 
@@ -220,15 +223,21 @@ export class AdminInventoryService {
     });
   }
 
-  async revertRestockMovement(movementId: string) {
+  async revertMovement(movementId: string) {
     await this.prisma.$transaction(async (tx) => {
-      const movement = await this.loadEditableRestockMovement(tx, movementId);
+      const movement = await this.loadMovementForWrite(tx, movementId, [
+        InventoryMovementOrigin.ADMIN_RESTOCK,
+        InventoryMovementOrigin.ADMIN_REMOVAL,
+      ]);
+
+      const direction =
+        movement.origin === InventoryMovementOrigin.ADMIN_RESTOCK ? -1 : 1;
 
       for (const movementProduct of movement.products) {
         await this.applyStockDelta(
           tx,
           movementProduct.productId,
-          -movementProduct.quantity,
+          direction * movementProduct.quantity,
         );
       }
 
@@ -248,9 +257,10 @@ export class AdminInventoryService {
     );
   }
 
-  private async loadEditableRestockMovement(
+  private async loadMovementForWrite(
     tx: Prisma.TransactionClient,
     movementId: string,
+    allowedOrigins: InventoryMovementOrigin[],
   ) {
     // Bloqueia a linha da movimentação para serializar edições e reversões
     // concorrentes: a alteração de estoque é derivada das linhas lidas aqui, e
@@ -273,25 +283,29 @@ export class AdminInventoryService {
       );
     }
 
-    if (movement.origin !== InventoryMovementOrigin.ADMIN_RESTOCK) {
+    if (!allowedOrigins.includes(movement.origin)) {
       throw this.buildMovementNotEditableError();
     }
 
-    const lastDisqualifyingMovement = await tx.inventoryMovement.findFirst({
-      where: {
-        origin: {
-          in: [
-            InventoryMovementOrigin.ORDER_CREATION,
-            InventoryMovementOrigin.ADMIN_REMOVAL,
-          ],
+    // Só a reposição tem janela: devolver o estoque de uma remoção nunca
+    // esbarra no saldo, então uma remoção continua reversível indefinidamente.
+    if (movement.origin === InventoryMovementOrigin.ADMIN_RESTOCK) {
+      const lastDisqualifyingMovement = await tx.inventoryMovement.findFirst({
+        where: {
+          origin: {
+            in: [
+              InventoryMovementOrigin.ORDER_CREATION,
+              InventoryMovementOrigin.ADMIN_REMOVAL,
+            ],
+          },
         },
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { createdAt: true },
-    });
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { createdAt: true },
+      });
 
-    if (!this.isRestockStillEditable(movement, lastDisqualifyingMovement)) {
-      throw this.buildMovementNotEditableError();
+      if (!this.isRestockStillEditable(movement, lastDisqualifyingMovement)) {
+        throw this.buildMovementNotEditableError();
+      }
     }
 
     return movement;
