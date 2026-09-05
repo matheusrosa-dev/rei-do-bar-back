@@ -1,4 +1,5 @@
 export { seedCategories } from "./categories";
+export { seedCategoryGroups } from "./category-groups";
 export { seedCoupons } from "./coupons";
 export { seedCustomers } from "./customers";
 export { seedDeliveryPersons } from "./delivery-persons";

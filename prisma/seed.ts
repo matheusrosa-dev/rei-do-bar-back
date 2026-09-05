@@ -4,6 +4,7 @@ import { PrismaClient } from "../src/shared/database/prisma/generated/client";
 import {
   resetDemoData,
   seedCategories,
+  seedCategoryGroups,
   seedCoupons,
   seedCustomers,
   seedDeliveryPersons,
@@ -20,6 +21,7 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   await seedSettings(prisma);
+  await seedCategoryGroups(prisma);
   await seedCategories(prisma);
 
   const isDevelopment = process.env.NODE_ENV === "development";

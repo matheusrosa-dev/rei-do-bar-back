@@ -1,2 +1,0 @@
--- AlterEnum
-ALTER TYPE "SettingKey" ADD VALUE 'DELIVERY_PERSON_BONUS';

@@ -133,18 +133,34 @@ model CartItem {
   @@map("cart_items")
 }
 
-model Category {
+model CategoryGroup {
   id         String   @id @default(uuid())
   name       String   @unique
-  pluralName String   @map("plural_name")
-  imageUrl   String   @map("image_url")
-  isActive   Boolean  @map("is_active")
   sortOrder  Int      @map("sort_order")
+  isActive   Boolean  @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  products Product[]
+  categories Category[]
 
+  @@map("category_groups")
+}
+
+model Category {
+  id              String   @id @default(uuid())
+  categoryGroupId String   @map("category_group_id")
+  name            String   @unique
+  pluralName      String   @map("plural_name")
+  imageUrl        String   @map("image_url")
+  isActive        Boolean  @map("is_active")
+  sortOrder       Int      @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  categoryGroup CategoryGroup @relation(fields: [categoryGroupId], references: [id])
+  products      Product[]
+
+  @@index([categoryGroupId])
   @@map("categories")
 }
 

@@ -7,6 +7,7 @@ export const categories = [
     sortOrder: 1,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/beer.png",
+    categoryGroup: "Bebidas",
   },
   {
     name: "Vinho",
@@ -14,6 +15,7 @@ export const categories = [
     sortOrder: 2,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/wine.png",
+    categoryGroup: "Bebidas",
   },
   {
     name: "Destilado",
@@ -21,6 +23,7 @@ export const categories = [
     sortOrder: 3,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/spirit.png",
+    categoryGroup: "Bebidas",
   },
   {
     name: "Energético",
@@ -28,6 +31,7 @@ export const categories = [
     sortOrder: 4,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/energy.png",
+    categoryGroup: "Bebidas",
   },
   {
     name: "Refrigerante",
@@ -35,6 +39,7 @@ export const categories = [
     sortOrder: 5,
     imageUrl:
       "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/soda.png",
+    categoryGroup: "Bebidas",
   },
 ];
 
@@ -55,6 +60,18 @@ export async function seedCategories(prisma: PrismaClient) {
     (category) => !existingNames.has(category.name),
   );
 
+  const categoryGroups = await prisma.categoryGroup.findMany();
+
+  const areAllCategoryGroupsFound = categories.every((category) =>
+    categoryGroups.some(
+      (categoryGroup) => categoryGroup.name === category.categoryGroup,
+    ),
+  );
+
+  if (!areAllCategoryGroupsFound) {
+    throw new Error("Some category groups for the categories were not found.");
+  }
+
   await prisma.category.createMany({
     data: nonExistingCategories.map((category) => ({
       name: category.name,
@@ -62,6 +79,9 @@ export async function seedCategories(prisma: PrismaClient) {
       isActive: true,
       sortOrder: category.sortOrder,
       imageUrl: category.imageUrl,
+      categoryGroupId: categoryGroups.find(
+        (categoryGroup) => categoryGroup.name === category.categoryGroup,
+      )!.id,
     })),
   });
 
