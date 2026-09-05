@@ -7,7 +7,7 @@ Four interceptors live here — three global, one per-controller.
 | Interceptor | Registration | Effect |
 |---|---|---|
 | Response wrapper | Global (`applyGlobalConfig`) | Wraps every response in a `data` envelope |
-| Logging | Global (`applyGlobalConfig`) | Logs `METHOD path status ms` for every request |
+| Logging | Global (`applyGlobalConfig`) | Logs `METHOD path status ms` for requests that fail |
 | Artificial delay | Global (`APP_INTERCEPTOR` factory in `AppModule`) | Adds a configurable response delay for frontend development |
 | Serializer | Per-controller, via the serialize decorator | Reduces the response to only the DTO's exposed fields |
 
@@ -29,7 +29,7 @@ The canonical way to control response shape. The decorator is applied at control
 
 ## Logging
 
-Logs one line per request (`METHOD path status ms`) through a dedicated `HTTP` logger context. Failures are logged on the error path and **rethrown untouched** — the interceptor observes, it never swallows or reshapes; turning an error into a response body is the exception filter's job.
+Logs one line (`METHOD path status ms`) through a dedicated `HTTP` logger context **only when the handler pipeline fails** — successful requests produce no log line, keeping the output to what needs attention. Guards run before interceptors, so a request rejected by an auth or throttler guard never reaches the handler and is **not** logged here either. The error's stack accompanies the line, since the exception filter hides internal-error details from the response and leaves the log as the only diagnostic trace. The error is **rethrown untouched** — the interceptor observes, it never swallows or reshapes; turning an error into a response body is the exception filter's job.
 
 ## Artificial Delay
 

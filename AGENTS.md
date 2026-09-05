@@ -186,7 +186,7 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 
 `applyGlobalConfig()` (called from `main.ts`, not `AppModule`) applies the rest of the global pipeline:
 
-- the **response-wrapping interceptor** (`{ "data": ... }` envelope) and the **logging interceptor** (`METHOD path status ms`);
+- the **response-wrapping interceptor** (`{ "data": ... }` envelope) and the **logging interceptor** (`METHOD path status ms`, only when the handler pipeline fails — guard rejections run earlier and are not logged);
 - the **global exception filter**;
 - the global **`ValidationPipe`** with `transform: true`, `whitelist: true`, and `errorHttpStatusCode: 422` — DTO validation failures return **422**, not 400;
 - CORS.
