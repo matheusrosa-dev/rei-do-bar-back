@@ -63,7 +63,7 @@ Either way, the comment says which source was used and why it stops where it doe
 
 The seed entrypoint bootstraps a Prisma client directly (outside NestJS DI) and runs domain seed functions in order. It has to build the driver adapter itself, reading the connection string from the environment: the datasource carries no `url`, so a client constructed without an adapter has nowhere to connect. **Seed functions must be idempotent** — check for existing records and only insert what is missing. When the check compares seed data against rows already in the database, match on the **business key** (a `Set` of names/keys), never on array position: an index-based comparison against a `findMany` result is only correct when the table is empty or fully seeded, and silently duplicates or collides on any partial state. Where the name alone is not unique in the seed data, the key composes the fields that tell the rows apart — and editing one of those fields in the database makes the row miss the `Set` and be inserted again, so compose the key from the fields an operator is least likely to change.
 
-Seeding is **gated by `NODE_ENV`**: what the app needs in order to boot — the runtime settings and the catalog's categories — always runs, while the demo dataset (products included) runs only in development. Three scripts expose this:
+Seeding is **gated by `NODE_ENV`**: what the app needs in order to boot — the runtime settings and the catalog's category groups and categories — always runs, while the demo dataset (products included) runs only in development. Three scripts expose this:
 
 | Script | Behavior |
 |---|---|
@@ -78,10 +78,11 @@ A new seed that inserts demo/fixture data belongs behind the development gate; o
 Order matters, because each seed re-queries what the previous ones wrote (no seed returns data to the next):
 
 1. `seedSettings` — always.
-2. `resetDemoData` — only in development with `SEED_RESET=true`, which is what `seed:reset` sets (it aborts outside development). Deletes the demo tables in reverse-FK order, catalog included so stock returns to its catalog value; settings survive. **The wipe runs before anything the bootstrap step writes**: it deletes categories, so seeding them ahead of it would leave the product seed resolving its category names against an empty table.
+2. `seedCategoryGroups` — always, and necessarily **before** `seedCategories`: every category belongs to a group, and the category seed resolves its group by name and throws when it is missing.
 3. `seedCategories` — always. Categories are bootstrap data, not demo data: the catalog's spine ships with the app, its products do not.
-4. Everything below the development gate runs only when there is **no customer in the database**. That single guard covers the whole demo block: it is what makes a rerun a no-op instead of a second copy of the dataset — and, if a run fails halfway, what makes `seed:reset` the way back to a clean dataset.
-5. `seedProducts` → `seedCustomers` → `seedDeliveryPersons` → `seedCoupons` → `seedOrders` → `seedInventory` → `seedNotifications`.
+4. `resetDemoData` — only in development with `SEED_RESET=true`, which is what `seed:reset` sets (it aborts outside development). Deletes the demo tables in reverse-FK order, products included so stock returns to its catalog value on the reseed; the bootstrap rows survive — settings, category groups and categories are never wiped. **The wipe runs after the bootstrap seeds**, which is why those three are no-ops on a reset run instead of reinserting what they already wrote.
+5. Everything below the development gate runs only when there is **no customer in the database**. That single guard covers the whole demo block: it is what makes a rerun a no-op instead of a second copy of the dataset — and, if a run fails halfway, what makes `seed:reset` the way back to a clean dataset.
+6. `seedProducts` → `seedCustomers` → `seedDeliveryPersons` → `seedCoupons` → `seedOrders` → `seedInventory` → `seedNotifications`.
 
 The settings seed is **create-only**: it inserts the keys that have no row and never touches one that exists, so values an operator edited through the admin survive every rerun — which is also why a setting's shipped state is a property of its own entry rather than a later activation pass. Every monetary key ships **active**, since the store cannot quote a cart or pay a delivery without one; every text and phone key ships **inactive**, including the two "store closed" messages — active, either of them blocks order creation.
 

@@ -44,9 +44,9 @@ For the stable API contract (response envelope, error response shape, the error-
 After finishing **all** edits in a task:
 
 1. Run `npm run lint` and `npm run typecheck` in the terminal. Fix every reported lint and type error before proceeding.
-2. Launch an **independent subagent** with the `/review-changes` command as the prompt (`.claude/commands/review-changes.md`), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
+2. Launch an **independent subagent** with the `/review-changes` command as the prompt (`.claude/commands/review-changes.md`), running it on **Sonnet 5** (`model: sonnet`), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
 3. Fix **all Critical and Warning** issues from the report, then re-run `npm run lint` and `npm run typecheck` to confirm no new issues were introduced.
-4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md`) with the same list of changed files to audit the affected documentation.
+4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md`) on **Sonnet 5** (`model: sonnet`) with the same list of changed files to audit the affected documentation.
 
 > **Review severity levels.** **Critical** = broken contract, bug, security risk, or a violation of a structural project convention. **Warning** = style inconsistency, a pattern applied incompletely, or a decision that will accrue debt. **Suggestion** = optional improvement with no immediate impact.
 

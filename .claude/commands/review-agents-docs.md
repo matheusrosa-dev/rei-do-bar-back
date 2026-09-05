@@ -1,6 +1,7 @@
 ---
 description: "Audit the AGENTS.md docs for the directories of changed files against the real code. Use when: docs may be stale after a change, new patterns/conventions/dependencies were added, the structure changed, or docs are out of sync with the codebase. Triggers: review AGENTS.md, audit docs, update documentation, check if docs are outdated."
 argument-hint: "Required: one or more files that were changed (e.g. src/apps/store/me/me.service.ts src/apps/store/me/dtos/add-address.dto.ts)"
+model: claude-sonnet-5
 ---
 
 # Review AGENTS.md Documentation
