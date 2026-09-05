@@ -115,6 +115,8 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminInventory | `INSUFFICIENT_STOCK` | `ADMIN_INVENTORY_001` |
 | adminInventory | `PRODUCT_NOT_FOUND` | `ADMIN_INVENTORY_002` |
 | adminInventory | `DUPLICATE_PRODUCT` | `ADMIN_INVENTORY_003` |
+| adminInventory | `MOVEMENT_NOT_FOUND` | `ADMIN_INVENTORY_004` |
+| adminInventory | `MOVEMENT_NOT_EDITABLE` | `ADMIN_INVENTORY_005` |
 | adminCoupons | `COUPON_NOT_FOUND` | `ADMIN_COUPONS_001` |
 | adminCoupons | `COUPON_ALREADY_EXISTS` | `ADMIN_COUPONS_002` |
 | adminCoupons | `COUPON_START_NOT_EDITABLE` | `ADMIN_COUPONS_004` |

@@ -7,6 +7,7 @@ import {
   DecrementInventoryDto,
   FindAllMovementsDto,
   IncrementInventoryDto,
+  UpdateMovementBodyDto,
 } from "./dtos";
 
 type MovementProduct = {
@@ -34,26 +35,44 @@ export class AdminInventoryService {
       where.products = { some: { productId: { in: dto.productIds } } };
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.inventoryMovement.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        include: {
-          order: true,
-          products: {
-            include: {
-              product: true,
+    const [items, total, lastDisqualifyingMovement] =
+      await this.prisma.$transaction([
+        this.prisma.inventoryMovement.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          include: {
+            order: true,
+            products: {
+              include: {
+                product: true,
+              },
             },
           },
-        },
-      }),
-      this.prisma.inventoryMovement.count({ where }),
-    ]);
+        }),
+        this.prisma.inventoryMovement.count({ where }),
+        this.prisma.inventoryMovement.findFirst({
+          where: {
+            origin: {
+              in: [
+                InventoryMovementOrigin.ORDER_CREATION,
+                InventoryMovementOrigin.ADMIN_REMOVAL,
+              ],
+            },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          select: { createdAt: true },
+        }),
+      ]);
 
     return {
-      items,
+      items: items.map((item) => ({
+        ...item,
+        editable:
+          item.origin === InventoryMovementOrigin.ADMIN_RESTOCK &&
+          this.isRestockStillEditable(item, lastDisqualifyingMovement),
+      })),
       meta: {
         total,
         page,
@@ -145,6 +164,179 @@ export class AdminInventoryService {
     });
   }
 
+  async updateRestockMovement(
+    movementId: string,
+    { movementProducts }: UpdateMovementBodyDto,
+  ) {
+    const productIds = movementProducts.map((product) => product.productId);
+
+    this.assertUniqueMovementProducts(productIds);
+
+    await this.prisma.$transaction(async (tx) => {
+      const movement = await this.loadEditableRestockMovement(tx, movementId);
+
+      const quantityDeltaByProductId = new Map<string, number>();
+
+      for (const previousProduct of movement.products) {
+        quantityDeltaByProductId.set(
+          previousProduct.productId,
+          -previousProduct.quantity,
+        );
+      }
+
+      for (const movementProduct of movementProducts) {
+        const previousDelta =
+          quantityDeltaByProductId.get(movementProduct.productId) ?? 0;
+
+        quantityDeltaByProductId.set(
+          movementProduct.productId,
+          previousDelta + movementProduct.quantity,
+        );
+      }
+
+      const sortedDeltas = [...quantityDeltaByProductId].sort(
+        ([firstProductId], [secondProductId]) =>
+          firstProductId.localeCompare(secondProductId),
+      );
+
+      for (const [productId, delta] of sortedDeltas) {
+        await this.applyStockDelta(tx, productId, delta);
+      }
+
+      await tx.inventoryMovementProduct.deleteMany({
+        where: { inventoryMovementId: movementId },
+      });
+
+      await tx.inventoryMovementProduct.createMany({
+        data: movementProducts.map((movementProduct) => ({
+          inventoryMovementId: movementId,
+          productId: movementProduct.productId,
+          quantity: movementProduct.quantity,
+          price: Math.round(
+            movementProduct.totalCost / movementProduct.quantity,
+          ),
+        })),
+      });
+    });
+  }
+
+  async revertRestockMovement(movementId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const movement = await this.loadEditableRestockMovement(tx, movementId);
+
+      for (const movementProduct of movement.products) {
+        await this.applyStockDelta(
+          tx,
+          movementProduct.productId,
+          -movementProduct.quantity,
+        );
+      }
+
+      await tx.inventoryMovement.delete({ where: { id: movementId } });
+    });
+  }
+
+  private isRestockStillEditable(
+    movement: { createdAt: Date },
+    lastDisqualifyingMovement: { createdAt: Date } | null,
+  ): boolean {
+    if (!lastDisqualifyingMovement) return true;
+
+    return (
+      movement.createdAt.getTime() >
+      lastDisqualifyingMovement.createdAt.getTime()
+    );
+  }
+
+  private async loadEditableRestockMovement(
+    tx: Prisma.TransactionClient,
+    movementId: string,
+  ) {
+    // Bloqueia a linha da movimentação para serializar edições e reversões
+    // concorrentes: a alteração de estoque é derivada das linhas lidas aqui, e
+    // duas escritas simultâneas aplicariam o mesmo efeito duas vezes.
+    await tx.$queryRaw`SELECT id FROM inventories WHERE id = ${movementId} FOR UPDATE`;
+
+    const movement = await tx.inventoryMovement.findUnique({
+      where: { id: movementId },
+      // A ordem fixa por produto mantém determinística a ordem em que as linhas
+      // de `product` são travadas, evitando deadlock entre escritas concorrentes
+      // que tocam os mesmos produtos.
+      include: { products: { orderBy: { productId: "asc" } } },
+    });
+
+    if (!movement) {
+      throw new AppException(
+        AppException.errorCodes.adminInventory.MOVEMENT_NOT_FOUND,
+        "Movimentação de estoque não encontrada.",
+        AppException.HttpStatus.NOT_FOUND,
+      );
+    }
+
+    if (movement.origin !== InventoryMovementOrigin.ADMIN_RESTOCK) {
+      throw this.buildMovementNotEditableError();
+    }
+
+    const lastDisqualifyingMovement = await tx.inventoryMovement.findFirst({
+      where: {
+        origin: {
+          in: [
+            InventoryMovementOrigin.ORDER_CREATION,
+            InventoryMovementOrigin.ADMIN_REMOVAL,
+          ],
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { createdAt: true },
+    });
+
+    if (!this.isRestockStillEditable(movement, lastDisqualifyingMovement)) {
+      throw this.buildMovementNotEditableError();
+    }
+
+    return movement;
+  }
+
+  private async applyStockDelta(
+    tx: Prisma.TransactionClient,
+    productId: string,
+    delta: number,
+  ) {
+    if (delta === 0) return;
+
+    const where: Prisma.ProductWhereInput = {
+      id: productId,
+      deletedAt: null,
+    };
+
+    if (delta < 0) {
+      where.stockQuantity = { gte: -delta };
+    }
+
+    const { count } = await tx.product.updateMany({
+      where,
+      data: {
+        stockQuantity: { increment: delta },
+      },
+    });
+
+    if (count === 0) {
+      throw await this.buildStockMutationError(
+        tx,
+        productId,
+        "Estoque insuficiente para ajustar esta reposição.",
+      );
+    }
+  }
+
+  private buildMovementNotEditableError() {
+    return new AppException(
+      AppException.errorCodes.adminInventory.MOVEMENT_NOT_EDITABLE,
+      "Esta movimentação de estoque não pode ser alterada.",
+      AppException.HttpStatus.BAD_REQUEST,
+    );
+  }
+
   private async registerInventoryMovement(
     tx: Prisma.TransactionClient,
     props: {
@@ -189,6 +381,7 @@ export class AdminInventoryService {
   private async buildStockMutationError(
     tx: Prisma.TransactionClient,
     productId: string,
+    insufficientStockMessage = "Estoque insuficiente para realizar a remoção.",
   ): Promise<AppException> {
     const product = await tx.product.findFirst({
       where: { id: productId, deletedAt: null },
@@ -204,7 +397,7 @@ export class AdminInventoryService {
 
     return new AppException(
       AppException.errorCodes.adminInventory.INSUFFICIENT_STOCK,
-      "Estoque insuficiente para realizar a remoção.",
+      insufficientStockMessage,
       AppException.HttpStatus.BAD_REQUEST,
     );
   }

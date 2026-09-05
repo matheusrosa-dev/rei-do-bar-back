@@ -9,7 +9,7 @@ import {
   ValidateNested,
 } from "class-validator";
 
-class MovementProductDto {
+export class RestockMovementProductDto {
   @IsUUID()
   productId!: string;
 
@@ -26,6 +26,6 @@ export class IncrementInventoryDto {
   @IsArray()
   @ArrayNotEmpty()
   @ValidateNested({ each: true })
-  @Type(() => MovementProductDto)
-  movementProducts!: MovementProductDto[];
+  @Type(() => RestockMovementProductDto)
+  movementProducts!: RestockMovementProductDto[];
 }

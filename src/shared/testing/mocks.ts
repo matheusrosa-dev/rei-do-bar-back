@@ -117,8 +117,18 @@ export const prismaMock = {
     findMany: jest.fn(),
     deleteMany: jest.fn(),
   },
+  inventoryMovement: {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    findUnique: jest.fn(),
+    count: jest.fn(),
+    create: jest.fn(),
+    delete: jest.fn(),
+  },
   inventoryMovementProduct: {
     findMany: jest.fn(),
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 

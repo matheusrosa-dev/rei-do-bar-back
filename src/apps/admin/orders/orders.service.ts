@@ -487,9 +487,12 @@ export class AdminOrdersService {
       },
     });
 
+    const totals = computeOrderTotals(updatedOrder!);
+
     return {
       ...updatedOrder!,
-      ...computeOrderTotals(updatedOrder!),
+      ...totals,
+      netRevenue: this.computeNetRevenue(updatedOrder!, totals.total),
     };
   }
 
@@ -527,10 +530,27 @@ export class AdminOrdersService {
   }
 
   private calculateOrdersTotals<T extends OrderWithItems>(orders: T[]) {
-    return orders.map((order) => ({
-      ...order,
-      ...computeOrderTotals(order),
-    }));
+    return orders.map((order) => {
+      const totals = computeOrderTotals(order);
+
+      return {
+        ...order,
+        ...totals,
+        netRevenue: this.computeNetRevenue(order, totals.total),
+      };
+    });
+  }
+
+  private computeNetRevenue(
+    order: Pick<
+      Order,
+      "deliveryFee" | "deliveryPersonBonus" | "deliveryPersonIsVolunteer"
+    >,
+    total: number,
+  ) {
+    return order.deliveryPersonIsVolunteer
+      ? total
+      : total - order.deliveryFee - order.deliveryPersonBonus;
   }
 
   private canMoveOrder(from: OrderStatus, to: OrderStatus) {

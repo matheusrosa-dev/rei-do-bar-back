@@ -5,12 +5,42 @@ import { uniqueDigits } from "./helpers";
 export const DEMO_DELIVERY_PERSON_PASSWORD = "entregador123";
 
 const deliveryPersons = [
-  { name: "Anderson Ramos", hasPassword: true, isActive: true },
-  { name: "Bruna Siqueira", hasPassword: true, isActive: true },
-  { name: "Cleber Antunes", hasPassword: true, isActive: true },
-  { name: "Douglas Prado", hasPassword: true, isActive: true },
-  { name: "Elaine Tavares", hasPassword: false, isActive: true },
-  { name: "Fábio Marinho", hasPassword: false, isActive: false },
+  {
+    name: "Anderson Ramos",
+    hasPassword: true,
+    isActive: true,
+    isVolunteer: false,
+  },
+  {
+    name: "Bruna Siqueira",
+    hasPassword: true,
+    isActive: true,
+    isVolunteer: true,
+  },
+  {
+    name: "Cleber Antunes",
+    hasPassword: true,
+    isActive: true,
+    isVolunteer: false,
+  },
+  {
+    name: "Douglas Prado",
+    hasPassword: true,
+    isActive: true,
+    isVolunteer: false,
+  },
+  {
+    name: "Elaine Tavares",
+    hasPassword: false,
+    isActive: true,
+    isVolunteer: true,
+  },
+  {
+    name: "Fábio Marinho",
+    hasPassword: false,
+    isActive: false,
+    isVolunteer: false,
+  },
 ];
 
 export async function seedDeliveryPersons(prisma: PrismaClient) {
@@ -27,6 +57,7 @@ export async function seedDeliveryPersons(prisma: PrismaClient) {
     cpf: uniqueDigits(11, usedCpfs),
     hashedPassword: deliveryPerson.hasPassword ? hashedPassword : null,
     isActive: deliveryPerson.isActive,
+    isVolunteer: deliveryPerson.isVolunteer,
   }));
 
   await prisma.deliveryPerson.createMany({ data });

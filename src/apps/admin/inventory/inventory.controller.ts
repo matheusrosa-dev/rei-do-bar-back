@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+} from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 
 import { AdminInventoryService } from "./inventory.service";
@@ -6,6 +15,8 @@ import {
   DecrementInventoryDto,
   FindAllMovementsDto,
   IncrementInventoryDto,
+  MovementParamsDto,
+  UpdateMovementBodyDto,
 } from "./dtos";
 
 @Controller("admin/inventory")
@@ -16,6 +27,19 @@ export class AdminInventoryController {
   @Get("movements")
   listMovements(@Query() dto: FindAllMovementsDto) {
     return this.adminInventoryService.listMovements(dto);
+  }
+
+  @Put("movements/:movementId")
+  updateRestockMovement(
+    @Param() { movementId }: MovementParamsDto,
+    @Body() body: UpdateMovementBodyDto,
+  ) {
+    return this.adminInventoryService.updateRestockMovement(movementId, body);
+  }
+
+  @Delete("movements/:movementId")
+  revertRestockMovement(@Param() { movementId }: MovementParamsDto) {
+    return this.adminInventoryService.revertRestockMovement(movementId);
   }
 
   @Post("increment")

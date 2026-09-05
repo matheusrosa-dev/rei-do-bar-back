@@ -62,6 +62,8 @@ type SeedOrder = {
   status: OrderStatus;
   statusReason: string | null;
   deliveryFee: number;
+  deliveryPersonBonus: number;
+  deliveryPersonIsVolunteer: boolean;
   couponId: string | null;
   couponCode: string | null;
   couponDiscount: number;
@@ -159,6 +161,7 @@ export async function seedOrders(prisma: PrismaClient) {
     couponUsages,
     welcomeSetting,
     minOrderSetting,
+    deliveryPersonBonusSetting,
   ] = await Promise.all([
     prisma.customer.findMany({
       where: {
@@ -206,6 +209,9 @@ export async function seedOrders(prisma: PrismaClient) {
     }),
     prisma.setting.findUnique({ where: { key: SettingKey.WELCOME_COUPON } }),
     prisma.setting.findUnique({ where: { key: SettingKey.MIN_ORDER_VALUE } }),
+    prisma.setting.findUnique({
+      where: { key: SettingKey.DELIVERY_PERSON_BONUS },
+    }),
   ]);
 
   const welcomeDiscountValue = welcomeSetting?.isActive
@@ -216,12 +222,23 @@ export async function seedOrders(prisma: PrismaClient) {
     ? Number(minOrderSetting.value)
     : 0;
 
+  const deliveryPersonBonusValue = deliveryPersonBonusSetting?.isActive
+    ? Number(deliveryPersonBonusSetting.value)
+    : 0;
+
   const deliveryPersonIds = deliveryPersons.map(
     (deliveryPerson) => deliveryPerson.id,
   );
 
   const deliveryPersonWeights = deliveryPersonIds.map((_, index) =>
     Math.max(deliveryPersonIds.length - index, 1),
+  );
+
+  const isVolunteerByDeliveryPersonId = new Map(
+    deliveryPersons.map((deliveryPerson) => [
+      deliveryPerson.id,
+      deliveryPerson.isVolunteer,
+    ]),
   );
 
   // Os usos já gravados pelo seed de cupons contam para o limite e para a regra
@@ -368,6 +385,12 @@ export async function seedOrders(prisma: PrismaClient) {
         });
       }
 
+      const deliveryPersonId = shippedAt
+        ? chance.weighted(deliveryPersonIds, deliveryPersonWeights)
+        : null;
+
+      // Espelha o snapshot de bônus/voluntariado feito em OrdersService.updateOrderStatus
+      // (e updateOrderDeliveryPerson) no momento em que um entregador é atribuído
       orders.push({
         id: orderId,
         customerId: customer.id,
@@ -375,14 +398,16 @@ export async function seedOrders(prisma: PrismaClient) {
         status: isCancelled ? OrderStatus.CANCELLED : OrderStatus.DELIVERED,
         statusReason: isCancelled ? cancellationReason() : null,
         deliveryFee,
+        deliveryPersonBonus: deliveryPersonId ? deliveryPersonBonusValue : 0,
+        deliveryPersonIsVolunteer: deliveryPersonId
+          ? (isVolunteerByDeliveryPersonId.get(deliveryPersonId) ?? false)
+          : false,
         couponId: coupon?.id ?? null,
         couponCode:
           coupon?.code ?? (isWelcomeCoupon ? WELCOME_COUPON_CODE : null),
         couponDiscount,
         paymentType: buildPaymentType(),
-        deliveryPersonId: shippedAt
-          ? chance.weighted(deliveryPersonIds, deliveryPersonWeights)
-          : null,
+        deliveryPersonId,
         shippedAt,
         deliveredAt,
         cancelledAt,
@@ -435,6 +460,10 @@ export async function seedOrders(prisma: PrismaClient) {
           )
         : null;
 
+    const deliveryPersonId = shippedAt
+      ? chance.weighted(deliveryPersonIds, deliveryPersonWeights)
+      : null;
+
     orders.push({
       id: orderId,
       customerId: customer.id,
@@ -442,13 +471,15 @@ export async function seedOrders(prisma: PrismaClient) {
       status,
       statusReason: null,
       deliveryFee: CURRENT_DELIVERY_FEE,
+      deliveryPersonBonus: deliveryPersonId ? deliveryPersonBonusValue : 0,
+      deliveryPersonIsVolunteer: deliveryPersonId
+        ? (isVolunteerByDeliveryPersonId.get(deliveryPersonId) ?? false)
+        : false,
       couponId: null,
       couponCode: null,
       couponDiscount: 0,
       paymentType: buildPaymentType(),
-      deliveryPersonId: shippedAt
-        ? chance.weighted(deliveryPersonIds, deliveryPersonWeights)
-        : null,
+      deliveryPersonId,
       shippedAt,
       deliveredAt: null,
       cancelledAt: null,

@@ -19,6 +19,7 @@ const makeOrder = (overrides?: Partial<Record<string, unknown>>) => ({
   statusReason: null,
   deliveryFee: 500,
   deliveryPersonBonus: 0,
+  deliveryPersonIsVolunteer: false,
   couponDiscount: 0,
   deliveryPersonId: null,
   shippedAt: null,
@@ -131,7 +132,33 @@ describe("AdminOrdersService", () => {
       expect(board[OrderStatus.PENDING]).toHaveLength(1);
       expect(board[OrderStatus.SHIPPED]).toHaveLength(1);
       expect(board[OrderStatus.SHIPPED][0]).toEqual(
-        expect.objectContaining({ id: "shipped-order-id", total: 3500 }),
+        expect.objectContaining({
+          id: "shipped-order-id",
+          total: 3500,
+          netRevenue: 3000,
+        }),
+      );
+    });
+
+    it("should not discount the delivery fee or bonus from net revenue for a volunteer delivery person", async () => {
+      const volunteerOrder = makeOrder({
+        status: OrderStatus.DELIVERED,
+        deliveryPersonBonus: 200,
+        deliveryPersonIsVolunteer: true,
+      });
+
+      prismaMock.order.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([volunteerOrder])
+        .mockResolvedValueOnce([]);
+
+      const board = await service.listOrdersManagement();
+
+      // Voluntário não cobra taxa nem bônus do entregador — o "custo" que a
+      // loja deixou de pagar não pode voltar a descontar do net revenue.
+      expect(board[OrderStatus.DELIVERED][0]).toEqual(
+        expect.objectContaining({ total: 3500, netRevenue: 3500 }),
       );
     });
   });
@@ -285,7 +312,7 @@ describe("AdminOrdersService", () => {
         isVolunteer: true,
       });
 
-      await service.updateOrderDeliveryPerson(ORDER_ID, {
+      const result = await service.updateOrderDeliveryPerson(ORDER_ID, {
         deliveryPersonId: "another-delivery-person-id",
       });
 
@@ -303,6 +330,11 @@ describe("AdminOrdersService", () => {
       // A reatribuição devolve o pedido, não o board — e não pode reordenar a
       // fila de quem já está na rua.
       expect(prismaMock.order.findMany).not.toHaveBeenCalled();
+      // O retorno vem da releitura pós-escrita, não do que foi enviado ao
+      // updateMany — netRevenue é derivado do total mais o snapshot atual.
+      expect(result).toEqual(
+        expect.objectContaining({ total: 3500, netRevenue: 2800 }),
+      );
     });
   });
 });
