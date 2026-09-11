@@ -134,12 +134,14 @@ model CartItem {
 }
 
 model CategoryGroup {
-  id         String   @id @default(uuid())
-  name       String   @unique
-  sortOrder  Int      @map("sort_order")
-  isActive   Boolean  @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  allProductsImageUrl String   @map("all_products_image_url")
+  promotionsImageUrl  String   @map("promotions_image_url")
+  sortOrder           Int      @map("sort_order")
+  isActive            Boolean  @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   categories Category[]
 

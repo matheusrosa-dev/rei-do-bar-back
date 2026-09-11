@@ -6,7 +6,7 @@ export const categories = [
     pluralName: "Cervejas",
     sortOrder: 1,
     imageUrl:
-      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/beer.png",
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/cervejas.png",
     categoryGroup: "Bebidas",
   },
   {
@@ -14,7 +14,7 @@ export const categories = [
     pluralName: "Vinhos",
     sortOrder: 2,
     imageUrl:
-      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/wine.png",
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/vinhos.png",
     categoryGroup: "Bebidas",
   },
   {
@@ -22,7 +22,7 @@ export const categories = [
     pluralName: "Destilados",
     sortOrder: 3,
     imageUrl:
-      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/spirit.png",
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/destilados.png",
     categoryGroup: "Bebidas",
   },
   {
@@ -30,7 +30,7 @@ export const categories = [
     pluralName: "Energéticos",
     sortOrder: 4,
     imageUrl:
-      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/energy.png",
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/energeticos.png",
     categoryGroup: "Bebidas",
   },
   {
@@ -38,7 +38,7 @@ export const categories = [
     pluralName: "Refrigerantes",
     sortOrder: 5,
     imageUrl:
-      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/soda.png",
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/refrigerantes.png",
     categoryGroup: "Bebidas",
   },
 ];

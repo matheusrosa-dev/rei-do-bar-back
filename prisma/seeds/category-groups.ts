@@ -4,6 +4,18 @@ export const categoryGroups = [
   {
     name: "Bebidas",
     sortOrder: 1,
+    allProductsImageUrl:
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/bebidas.png",
+    promotionsImageUrl:
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/bebidas-promocao.png",
+  },
+  {
+    name: "Petiscos",
+    sortOrder: 2,
+    allProductsImageUrl:
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/petiscos.png",
+    promotionsImageUrl:
+      "https://vugdpvueifusbgzkzroh.supabase.co/storage/v1/object/public/categories/petiscos.png",
   },
 ];
 
@@ -27,6 +39,8 @@ export async function seedCategoryGroups(prisma: PrismaClient) {
   await prisma.categoryGroup.createMany({
     data: nonExistingCategoryGroups.map((categoryGroup) => ({
       name: categoryGroup.name,
+      allProductsImageUrl: categoryGroup.allProductsImageUrl,
+      promotionsImageUrl: categoryGroup.promotionsImageUrl,
       isActive: true,
       sortOrder: categoryGroup.sortOrder,
     })),

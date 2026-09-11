@@ -26,6 +26,8 @@ export async function resetDemoData(prisma: PrismaClient) {
   await prisma.deliveryPerson.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.product.deleteMany();
+  await prisma.category.deleteMany();
+  await prisma.categoryGroup.deleteMany();
 
   console.log("Demo data reset.");
 }
