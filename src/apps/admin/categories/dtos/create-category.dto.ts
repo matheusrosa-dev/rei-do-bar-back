@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsUrl } from "class-validator";
+import { IsNotEmpty, IsString, IsUrl, IsUUID } from "class-validator";
 
 export class CreateCategoryDto {
   @IsString()
@@ -11,4 +11,7 @@ export class CreateCategoryDto {
 
   @IsUrl()
   imageUrl!: string;
+
+  @IsUUID()
+  categoryGroupId!: string;
 }

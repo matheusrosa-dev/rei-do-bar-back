@@ -7,16 +7,14 @@ import {
   Patch,
   Post,
   Put,
-  Query,
 } from "@nestjs/common";
 import { AdminAuth } from "@shared/decorators/admin-auth.decorator";
 import { AdminCategoriesService } from "./categories.service";
 import {
   CreateCategoryDto,
   DeleteCategoryDto,
-  FindAllCategory,
+  FindOneCategoryDto,
   ToggleStatusCategoryDto,
-  UpdateCategoriesOrderDto,
   UpdateCategoryBodyDto,
   UpdateCategoryParamsDto,
 } from "./dtos";
@@ -27,18 +25,13 @@ export class AdminCategoriesController {
   constructor(private readonly categoriesService: AdminCategoriesService) {}
 
   @Get()
-  findAll(@Query() dto: FindAllCategory) {
-    return this.categoriesService.findAll(dto);
+  findAll() {
+    return this.categoriesService.findAll();
   }
 
-  @Get("sort-order")
-  findAllToSort() {
-    return this.categoriesService.findAllToSort();
-  }
-
-  @Put("sort-order")
-  updateCategoriesOrder(@Body() dto: UpdateCategoriesOrderDto) {
-    return this.categoriesService.updateCategoriesOrder(dto);
+  @Get(":categoryId")
+  findOne(@Param() { categoryId }: FindOneCategoryDto) {
+    return this.categoriesService.findOne(categoryId);
   }
 
   @Post()

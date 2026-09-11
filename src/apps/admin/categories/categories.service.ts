@@ -2,12 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { AppException } from "@shared/exceptions/app.exception";
 import { Prisma } from "@shared/database/prisma/generated/client";
-import {
-  CreateCategoryDto,
-  FindAllCategory,
-  UpdateCategoriesOrderDto,
-  UpdateCategoryBodyDto,
-} from "./dtos";
+import { CreateCategoryDto, UpdateCategoryBodyDto } from "./dtos";
 import {
   isRecordNotFound,
   isUniqueConstraintViolation,
@@ -17,11 +12,8 @@ import {
 export class AdminCategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(dto: FindAllCategory) {
+  async findAll() {
     const categories = await this.prisma.category.findMany({
-      where: {
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         _count: {
@@ -42,48 +34,41 @@ export class AdminCategoriesService {
     });
   }
 
-  async findAllToSort() {
-    const categories = await this.prisma.category.findMany({
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+  async findOne(categoryId: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      include: {
+        categoryGroup: true,
+        _count: {
+          select: {
+            products: { where: { deletedAt: null } },
+          },
+        },
+      },
     });
 
-    return categories;
-  }
-
-  async updateCategoriesOrder(dto: UpdateCategoriesOrderDto) {
-    const existingCategories = await this.prisma.category.findMany({
-      select: { id: true },
-    });
-
-    const existingIds = new Set(existingCategories.map((p) => p.id));
-    const isValid =
-      dto.orderedIds.length === existingIds.size &&
-      new Set(dto.orderedIds).size === dto.orderedIds.length &&
-      dto.orderedIds.every((id) => existingIds.has(id));
-
-    if (!isValid) {
+    if (!category) {
       throw new AppException(
-        AppException.errorCodes.adminCategories.INVALID_CATEGORIES_ORDER,
-        "Lista de categorias inválida.",
-        AppException.HttpStatus.BAD_REQUEST,
+        AppException.errorCodes.adminCategories.CATEGORY_NOT_FOUND,
+        "Categoria não encontrada.",
+        AppException.HttpStatus.NOT_FOUND,
       );
     }
 
-    await this.prisma.$transaction(
-      dto.orderedIds.map((id, index) =>
-        this.prisma.category.update({
-          where: { id },
-          data: { sortOrder: index + 1 },
-        }),
-      ),
-    );
+    const { _count, ...rest } = category;
 
-    return this.findAllToSort();
+    return {
+      ...rest,
+      productsCount: _count.products,
+    };
   }
 
   async createCategory(dto: CreateCategoryDto) {
+    await this.ensureCategoryGroupExists(dto.categoryGroupId);
+
     try {
       const last = await this.prisma.category.findFirst({
+        where: { categoryGroupId: dto.categoryGroupId },
         orderBy: { sortOrder: "desc" },
         select: { sortOrder: true },
       });
@@ -95,6 +80,7 @@ export class AdminCategoriesService {
           isActive: false,
           sortOrder: (last?.sortOrder ?? 0) + 1,
           imageUrl: dto.imageUrl,
+          categoryGroup: { connect: { id: dto.categoryGroupId } },
         },
       });
     } catch (error) {
@@ -111,13 +97,11 @@ export class AdminCategoriesService {
   }
 
   async updateCategory(categoryId: string, dto: UpdateCategoryBodyDto) {
-    const category = await this.updateCategoryOrThrow(categoryId, {
+    return this.updateCategoryOrThrow(categoryId, {
       name: dto.name,
       pluralName: dto.pluralName,
       imageUrl: dto.imageUrl,
     });
-
-    return category;
   }
 
   async activateCategory(categoryId: string) {
@@ -125,21 +109,7 @@ export class AdminCategoriesService {
   }
 
   async deactivateCategory(categoryId: string) {
-    const category = await this.updateCategoryOrThrow(categoryId, {
-      isActive: false,
-      products: {
-        updateMany: {
-          where: {
-            isActive: true,
-          },
-          data: {
-            isActive: false,
-          },
-        },
-      },
-    });
-
-    return category;
+    return this.updateCategoryOrThrow(categoryId, { isActive: false });
   }
 
   async removeCategory(categoryId: string) {
@@ -171,12 +141,28 @@ export class AdminCategoriesService {
     }
   }
 
+  private async ensureCategoryGroupExists(categoryGroupId: string) {
+    const categoryGroup = await this.prisma.categoryGroup.findUnique({
+      where: { id: categoryGroupId },
+      select: { id: true },
+    });
+
+    if (!categoryGroup) {
+      throw new AppException(
+        AppException.errorCodes.adminCategories.INVALID_CATEGORY_GROUP,
+        "Grupo de categorias não encontrado.",
+        AppException.HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   private async updateCategoryOrThrow(
     categoryId: string,
     data: Prisma.CategoryUpdateInput,
+    tx: Prisma.TransactionClient = this.prisma,
   ) {
     try {
-      return await this.prisma.category.update({
+      return await tx.category.update({
         where: { id: categoryId },
         data,
       });
