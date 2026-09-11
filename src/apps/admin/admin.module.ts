@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AdminProductsModule } from "./products/products.module";
 import { AdminCategoriesModule } from "./categories/categories.module";
+import { AdminCategoryGroupsModule } from "./category-groups/category-groups.module";
 import { AdminCustomersModule } from "./customers/customers.module";
 import { AdminOrdersModule } from "./orders/orders.module";
 import { AdminSettingsModule } from "./settings/settings.module";
@@ -14,6 +15,7 @@ import { AdminDashboardModule } from "./dashboard/dashboard.module";
   imports: [
     AdminProductsModule,
     AdminCategoriesModule,
+    AdminCategoryGroupsModule,
     AdminCustomersModule,
     AdminOrdersModule,
     AdminSettingsModule,
