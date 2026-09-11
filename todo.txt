@@ -6,7 +6,7 @@ implementar retornável
 implementar sistema de XP
 melhorar estrutura do arquivo app.exception.ts
 mover tela de cupons para o navbar e jogar o perfil pro header
-implementar combos
+mudar todos os arquivos .md para ptbr
 
 Em produção:
 substituir placeholders nos arquivos lgpd
@@ -16,6 +16,4 @@ gerar migration unica de init
 
 Importante:
 corrigir o menu na barra de navegação no android
-
-adicionar taxa de maquininha nos pedidos
-mudar todos os arquivos .md para ptbr
+implementar combos
