@@ -143,7 +143,7 @@ function buildDeliveryFee(createdAt: Date, now: Date) {
 
 function buildPaymentType() {
   return chance.weighted(
-    [PaymentType.PIX, PaymentType.CARD, PaymentType.CASH],
+    [PaymentType.PIX, PaymentType.CREDIT_CARD, PaymentType.DEBIT_CARD],
     [5, 3, 2],
   );
 }

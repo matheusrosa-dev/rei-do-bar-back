@@ -401,8 +401,8 @@ enum CouponDiscountType {
 }
 
 enum PaymentType {
-  CASH
-  CARD
+  CREDIT_CARD
+  DEBIT_CARD
   PIX
 }
 

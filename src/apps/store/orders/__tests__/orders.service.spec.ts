@@ -77,7 +77,7 @@ describe("OrdersService", () => {
   });
 
   describe("createOrder", () => {
-    const dto = { paymentType: PaymentType.CASH };
+    const dto = { paymentType: PaymentType.PIX };
 
     beforeEach(() => {
       prismaMock.order.findFirst.mockResolvedValue({
@@ -161,7 +161,7 @@ describe("OrdersService", () => {
           couponId: null,
           couponCode: null,
           couponDiscount: 0,
-          paymentType: PaymentType.CASH,
+          paymentType: PaymentType.PIX,
           items: {
             createMany: {
               data: [
