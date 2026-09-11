@@ -33,22 +33,17 @@ export class AdminProductsController {
       return this.productsService.findAllSimple();
     }
 
-    return this.productsService.findAll(dto);
-  }
-
-  @Get("sort-order")
-  findAllToSort() {
-    return this.productsService.findAllToSort();
-  }
-
-  @Put("sort-order")
-  updateProductsOrder(@Body() dto: UpdateProductsOrderDto) {
-    return this.productsService.updateProductsOrder(dto);
+    return this.productsService.findAll();
   }
 
   @Get(":productId")
   findById(@Param() { productId }: FindByIdDto) {
     return this.productsService.findById(productId);
+  }
+
+  @Put("sort-order")
+  updateProductsOrder(@Body() dto: UpdateProductsOrderDto) {
+    return this.productsService.updateProductsOrder(dto);
   }
 
   @Put(":productId")
