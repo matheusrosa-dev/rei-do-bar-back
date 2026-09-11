@@ -14,7 +14,7 @@ Every successful response is wrapped as:
 
 Passthrough rules: a falsy body, or a body that already contains a `data` key, is returned unchanged (no double-wrapping). When a controller applies a response DTO, the serialized DTO is what ends up inside `data`.
 
-A mutation returns the resource it changed, not a collection: the store's `POST /orders` and `PUT /orders/:orderId/cancel` answer only the created or cancelled order (serialized with the same DTO as the list's rows). The order list, `GET /orders`, is paginated — see the Pagination Contract below.
+A mutation returns the resource it changed, not a collection: the store's `POST /orders` and `PUT /orders/:orderId/cancel` answer only the created or cancelled order (serialized with the same DTO as the list's rows). The order list, `GET /orders`, is paginated — see the Pagination Contract below. The two admin reorder endpoints are the exception: each mutates a whole sequence, so it answers with that reordered set (never paginated). `PUT /admin/category-groups/sort-order` reorders the whole category tree in a single call (the groups, and the categories inside each group — never the group a category belongs to), so it answers with the full group listing, categories embedded; categories have no reorder endpoint of their own. `PUT /admin/products/sort-order` reorders the products of every group in one call (never moving a product between groups) and answers with the full product listing — the catalog tree of every group with its products embedded.
 
 ## Error Response Shape
 
@@ -103,11 +103,17 @@ Codes are namespaced by domain on the application exception's static registry. A
 | adminProducts | `PRODUCT_NOT_FOUND` | `ADMIN_PRODUCTS_002` |
 | adminProducts | `INVALID_CATEGORY` | `ADMIN_PRODUCTS_003` |
 | adminProducts | `CATEGORY_INACTIVE` | `ADMIN_PRODUCTS_004` |
-| adminProducts | `INVALID_PRODUCTS_ORDER` | `ADMIN_PRODUCTS_005` |
+| adminProducts | `INVALID_CATEGORY_GROUPS_ORDER` | `ADMIN_PRODUCTS_005` |
+| adminProducts | `INVALID_PRODUCTS_ORDER` | `ADMIN_PRODUCTS_006` |
 | adminCategories | `CATEGORY_NOT_FOUND` | `ADMIN_CATEGORIES_001` |
 | adminCategories | `CATEGORY_HAS_PRODUCTS` | `ADMIN_CATEGORIES_002` |
 | adminCategories | `CATEGORY_ALREADY_EXISTS` | `ADMIN_CATEGORIES_003` |
-| adminCategories | `INVALID_CATEGORIES_ORDER` | `ADMIN_CATEGORIES_004` |
+| adminCategories | `INVALID_CATEGORY_GROUP` | `ADMIN_CATEGORIES_005` |
+| adminCategoryGroups | `CATEGORY_GROUP_NOT_FOUND` | `ADMIN_CATEGORY_GROUPS_001` |
+| adminCategoryGroups | `CATEGORY_GROUP_ALREADY_EXISTS` | `ADMIN_CATEGORY_GROUPS_002` |
+| adminCategoryGroups | `CATEGORY_GROUP_HAS_CATEGORIES` | `ADMIN_CATEGORY_GROUPS_003` |
+| adminCategoryGroups | `INVALID_CATEGORY_GROUPS_ORDER` | `ADMIN_CATEGORY_GROUPS_004` |
+| adminCategoryGroups | `INVALID_CATEGORIES_ORDER` | `ADMIN_CATEGORY_GROUPS_005` |
 | adminCustomers | `CUSTOMER_NOT_FOUND` | `ADMIN_CUSTOMERS_001` |
 | adminCustomers | `CUSTOMER_HAS_ORDERS` | `ADMIN_CUSTOMERS_002` |
 | adminOrders | `ORDER_NOT_FOUND` | `ADMIN_ORDERS_001` |
@@ -164,9 +170,11 @@ The response is a normalized page:
 }
 ```
 
-**Exceptions**: the admin categories and settings listings are not paginated — they return a flat array with no `meta`. No admin dashboard endpoint is a listing (see "Admin Dashboard Readings" below): none carries `meta` or a top-level array, and none accepts a pagination param.
+**Exceptions**: the admin categories, category groups, and settings listings are not paginated — they return a flat array with no `meta`. No admin dashboard endpoint is a listing (see "Admin Dashboard Readings" below): none carries `meta` or a top-level array, and none accepts a pagination param.
 
-**Store surface**: the store's `GET /orders` is the one non-admin listing on this contract. It returns the same normalized page for the calling customer's own orders, but accepts **only `page` and `limit`** (same defaults and range) — no `searchTerm`, `sortKey`, `sortDirection`, or `simple`. Rows are newest-first (`createdAt desc`, then `orderNumber desc` as the unique tiebreaker), and paging is deterministic the same way.
+**Store surface**: the store's `GET /orders` is the one **paginated** non-admin listing on this contract. It returns the same normalized page for the calling customer's own orders, but accepts **only `page` and `limit`** (same defaults and range) — no `searchTerm`, `sortKey`, `sortDirection`, or `simple`. Rows are newest-first (`createdAt desc`, then `orderNumber desc` as the unique tiebreaker), and paging is deterministic the same way.
+
+The store's other listings are **unpaginated by design** and return a flat array with no `meta`: `GET /products/catalog` (a nested structure, always complete) and `GET /products/search` (a flat product array for the whole match set, no `page`/`limit`).
 
 ---
 
@@ -206,6 +214,19 @@ The credential is **not** rate-limited per IP (unlike the admin one), since the 
 
 ---
 
+## Catalog Reserved Identifiers
+
+The store catalog endpoint uses **reserved string identifiers** for pseudo-categories. Real categories are UUID strings; these are opaque sentinels with fixed values and must never conflict with actual category database rows:
+
+| Context | Value | Meaning | Image Source | Usage |
+|---|---|---|---|---|
+| Category ID | `"Todos"` | All products of a group (pseudo-category) | Category group's `allProductsImageUrl` | `GET /products/catalog` response only; injected at the start of each group's `categories` array |
+| Category ID | `"Promoções"` | Products with `compareAtPrice !== null` (pseudo-category) | Category group's `promotionsImageUrl` | `GET /products/catalog` response only; omitted if the group has no promotions; injected at the start of each group's `categories` array after `"Todos"` |
+
+Clients must treat these as opaque, read-only values. A real category id is always a UUID, so the two pseudo ids can never collide with one. The **name** is the fragile one: nothing in the admin surface rejects a real category called `"Promoções"`, so it is a convention, not an enforced constraint — creating one would be indistinguishable from the pseudo-category in the response. Both pseudo-categories carry `imageUrl` as a non-null string sourced from the parent category group's dedicated image fields.
+
+---
+
 ## Delivery App Credential
 
 **Every route under `/delivery-persons/` requires a fixed HTTP Basic credential**, sent as `x-delivery-person-authorization: Basic <base64(username:password)>` — the delivery app's counterpart to the store one, with its own username/password pair. It identifies the *application*, not the entregador, and it is additive to whatever token the route also requires: an authenticated call carries `x-delivery-person-authorization` **and** `Authorization: Bearer <opaque token>` at once. It does not ride `Authorization` because that header already carries the delivery token.
@@ -224,7 +245,7 @@ The session is **additive, not exclusive**. The current-session decorator always
 
 The raw `token` is attached only on the two routes that consume a refresh token: `/auth/refresh` and `/auth/logout`.
 
-**A store route can run with no session at all — but never with no credential.** Three routes require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id), `GET /categories`, and `GET /settings`. All three still require `x-store-authorization` (see above). Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
+**A store route can run with no session at all — but never with no credential.** Two routes require no `x-device-id` and no token: `POST /auth/sync-device-id` (it mints the device id) and `GET /settings`. Both still require `x-store-authorization` (see above). Every other store route — the product catalog included, since its listing is cart-aware — answers **403** without a valid UUID in `x-device-id`.
 
 The **delivery app is a separate audience** and shares none of this session machinery. It sends no `x-device-id` and no customer JWT; it carries its own app credential (`x-delivery-person-authorization`, see above) plus an opaque bearer token minted by `POST /delivery-persons/auth/login`, which its guard resolves to a delivery-person id on its own request property. The *pattern* is the store's — a fixed app credential under a non-`Authorization` header, additive to the session credential — but every value in it differs. Its routes live under `/delivery-persons/` and never take an id in the path.
 

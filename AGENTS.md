@@ -46,7 +46,7 @@ After finishing **all** edits in a task:
 1. Run `npm run lint` and `npm run typecheck` in the terminal. Fix every reported lint and type error before proceeding.
 2. Launch an **independent subagent** with the `/review-changes` command as the prompt (`.claude/commands/review-changes.md`), running it on **Sonnet 5** (`model: sonnet`), passing the list of every file changed and a short description of what was implemented. Wait for the full report.
 3. Fix **all Critical and Warning** issues from the report, then re-run `npm run lint` and `npm run typecheck` to confirm no new issues were introduced.
-4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md`) on **Sonnet 5** (`model: sonnet`) with the same list of changed files to audit the affected documentation.
+4. Run the `/review-agents-docs` command (`.claude/commands/review-agents-docs.md`) on **Haiku 4.5** (`model: haiku`) with the same list of changed files — it audits **and updates** the affected documentation on its own, no approval step.
 
 > **Review severity levels.** **Critical** = broken contract, bug, security risk, or a violation of a structural project convention. **Warning** = style inconsistency, a pattern applied incompletely, or a decision that will accrue debt. **Suggestion** = optional improvement with no immediate impact.
 
@@ -82,6 +82,7 @@ Deviations from the plain default worth knowing:
 │   ├── apps/                    # Feature modules, grouped by consumer audience (one directory per app)
 │   │   ├── admin/               # Admin backoffice (HTTP Basic Auth) — container + sub-modules, one AGENTS.md each
 │   │   │   ├── categories/
+│   │   │   ├── category-groups/
 │   │   │   ├── coupons/
 │   │   │   ├── customers/
 │   │   │   ├── dashboard/
@@ -97,7 +98,6 @@ Deviations from the plain default worth knowing:
 │   │   └── store/               # Customer-facing app — container + sub-modules
 │   │       ├── auth/
 │   │       ├── cart/
-│   │       ├── categories/
 │   │       ├── coupons/
 │   │       ├── customers/
 │   │       ├── me/
@@ -178,7 +178,7 @@ Prices and fees are stored as **integers in cents** (e.g. `price: 1500` = R$15,0
 |---|---|---|
 | Delay interceptor | `APP_INTERCEPTOR` (global) | Adds the artificial delay from `API_DELAY`; no-ops when the value is 0 |
 
-**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. The store and delivery composites are **leveled**, and the lowest level of each (`basic`) is that app's app-wide Basic credential — `x-store-authorization` for the customer app, `x-delivery-person-authorization` for the delivery app. Both surfaces have session-less routes (store categories and settings, delivery login), but neither has a credential-less one. See `src/shared/guards/AGENTS.md`.
+**No guard is registered globally.** Authentication is opt-in per route: each audience has a composite decorator (`StoreAuth` for the customer app, `AdminAuth`, `DeliveryPersonAuth`) applied on the controller or handler, and a route without one is genuinely unauthenticated. The store and delivery composites are **leveled**, and the lowest level of each (`basic`) is that app's app-wide Basic credential — `x-store-authorization` for the customer app, `x-delivery-person-authorization` for the delivery app. Both surfaces have session-less routes (store settings, delivery login), but neither has a credential-less one. See `src/shared/guards/AGENTS.md`.
 
 `ThrottlerModule` is also registered in `AppModule` (via `forRootAsync`, reading the `rateLimit` config namespace), but its guards are **not** global — they are applied per route. The throttler is global in the DI sense (it provides the storage), while rate limiting is opt-in per endpoint through the throttler guards.
 
