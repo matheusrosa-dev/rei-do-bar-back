@@ -1,12 +1,12 @@
 ---
 description: "Audit the AGENTS.md docs for the directories of changed files against the real code. Use when: docs may be stale after a change, new patterns/conventions/dependencies were added, the structure changed, or docs are out of sync with the codebase. Triggers: review AGENTS.md, audit docs, update documentation, check if docs are outdated."
 argument-hint: "Required: one or more files that were changed (e.g. src/apps/store/me/me.service.ts src/apps/store/me/dtos/add-address.dto.ts)"
-model: claude-sonnet-5
+model: claude-haiku-4-5-20251001
 ---
 
 # Review AGENTS.md Documentation
 
-Run as a **read-only subagent**. Audit only the `AGENTS.md` files of the directories derived from the provided files. **Do not apply any change without explicit user approval.**
+Run as an **autonomous subagent**. Audit only the `AGENTS.md` files of the directories derived from the provided files, then **apply the corrections yourself**. Do not ask for approval and do not hand the edits back to the calling agent — you own the documentation changes end to end.
 
 ## Scope
 
@@ -28,7 +28,10 @@ Classify and report each separately:
 - **Missing** — consistently present in the code, but not documented.
 - **Imprecise** — documented differently from what the code actually does.
 
-### Step 5 — Report
+### Step 5 — Apply the corrections
+Edit each affected `AGENTS.md` directly, fixing every Stale, Missing, and Imprecise item found. Change **only** the documentation files of the derived directories — never touch source code, and never touch an `AGENTS.md` outside that list.
+
+### Step 6 — Report what was applied
 Per `AGENTS.md`:
 
 ```
@@ -47,8 +50,7 @@ Per `AGENTS.md`:
 - [confirm if everything checks out]
 ```
 
-### Step 6 — Apply (only after approval)
-After presenting the report, ask whether to apply the changes. If confirmed, apply **only** the confirmed changes — nothing more.
+Each item states what was found and how it was fixed in the file.
 
 ## Writing Style (when applying updates)
 
@@ -63,4 +65,5 @@ After presenting the report, ask whether to apply the changes. If confirmed, app
 
 ## Constraints
 - DO NOT include `AGENTS.md` files outside the derived directories.
-- DO NOT apply updates without explicit user confirmation after the report.
+- DO NOT modify any file that is not an `AGENTS.md` of a derived directory.
+- DO NOT ask for approval — apply the corrections and report them.
