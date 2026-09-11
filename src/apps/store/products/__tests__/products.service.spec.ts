@@ -1,15 +1,80 @@
-/** biome-ignore-all lint/suspicious/noExplicitAny: <some mocks has to be any> */
+/** biome-ignore-all lint/suspicious/noExplicitAny: <private methods are reached through an any cast> */
 import { Test, TestingModule } from "@nestjs/testing";
 import { ProductsService } from "../products.service";
 import { PrismaService } from "@shared/database/prisma/prisma.service";
 import { prismaMock } from "@shared/testing/mocks";
-import {
-  AnonymousCustomerFactory,
-  CartFactory,
-  CartItemFactory,
-  CustomerFactory,
-  ProductFactory,
-} from "@shared/testing/factories";
+import { ProductFactory } from "@shared/testing/factories";
+import type { ICurrentSession } from "@shared/types/jwt";
+
+type ProductProps = {
+  id?: string;
+  name?: string;
+  description?: string;
+  compareAtPrice?: number | null;
+  stockQuantity: number;
+  sortOrder?: number;
+};
+
+const buildProduct = (props: ProductProps) => {
+  const product = ProductFactory.createOne(props);
+
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    compareAtPrice: product.compareAtPrice,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    stockQuantity: product.stockQuantity,
+    sortOrder: product.sortOrder,
+  };
+};
+
+type CatalogProduct = ReturnType<typeof buildProduct>;
+
+const buildCategory = (id: string, products: CatalogProduct[]) => ({
+  id,
+  name: `categoria-${id}`,
+  pluralName: `categorias-${id}`,
+  imageUrl: `https://cdn.test/${id}.png`,
+  products,
+});
+
+const buildCategoryGroup = (
+  id: string,
+  categories: ReturnType<typeof buildCategory>[],
+) => ({
+  id,
+  name: `grupo-${id}`,
+  allProductsImageUrl: `https://cdn.test/${id}-todos.png`,
+  promotionsImageUrl: `https://cdn.test/${id}-promocoes.png`,
+  categories,
+});
+
+const idsOf = (items: { id: string }[]) => items.map(({ id }) => id);
+
+type EnrichedProduct = {
+  id: string;
+  quantityInCart: number;
+  remainingStock: number | null;
+};
+
+const productsOf = (category: { products: { id: string }[] }) =>
+  category.products as EnrichedProduct[];
+
+const anonymousSession: ICurrentSession = { deviceId: "device-123" };
+const customerSession: ICurrentSession = { customerId: "customer-123" };
+
+const mockCart = (items: { productId: string; quantity: number }[] | null) => {
+  const owner = items === null ? null : { cart: { items } };
+  prismaMock.anonymousCustomer.findUnique.mockResolvedValue(owner);
+  prismaMock.customer.findFirst.mockResolvedValue(owner);
+};
+
+const sessionCases = [
+  { label: "anonymous session", session: anonymousSession },
+  { label: "customer session", session: customerSession },
+];
 
 describe("ProductsService", () => {
   let service: ProductsService;
@@ -23,370 +88,403 @@ describe("ProductsService", () => {
     }).compile();
 
     service = module.get<ProductsService>(ProductsService);
+
+    prismaMock.categoryGroup.findMany.mockResolvedValue([]);
+    prismaMock.product.findMany.mockResolvedValue([]);
+    mockCart([]);
   });
 
   it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
-  describe("findBestSellers", () => {
-    const sessionVariants = [
-      {
-        label: "anonymous customer",
-        session: { deviceId: "device-123" },
-        mockWithCart: (value: any) =>
-          prismaMock.anonymousCustomer.findUnique.mockResolvedValue(value),
-        customerWithEmptyCart: AnonymousCustomerFactory.createOne({
-          cart: CartFactory.createOne({ items: [] }),
+  describe("findCatalog", () => {
+    it("should query only active groups, categories and non-deleted products, ordered by sortOrder then id", async () => {
+      await service.findCatalog(anonymousSession);
+
+      expect(prismaMock.categoryGroup.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { isActive: true },
+          orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+          select: expect.objectContaining({
+            categories: expect.objectContaining({
+              where: { isActive: true },
+              orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+              select: expect.objectContaining({
+                products: expect.objectContaining({
+                  where: { isActive: true, deletedAt: null },
+                  orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+                }),
+              }),
+            }),
+          }),
         }),
-      },
-      {
-        label: "customer",
-        session: { customerId: "customer-123" },
-        mockWithCart: (value: any) =>
-          prismaMock.customer.findFirst.mockResolvedValue(value),
-        customerWithEmptyCart: CustomerFactory.createOne({
-          cart: CartFactory.createOne({ items: [] }),
-        }),
-      },
-    ];
-
-    describe.each(sessionVariants)("$label", ({
-      session,
-      mockWithCart,
-      customerWithEmptyCart,
-    }) => {
-      it("should call calculateQuantityInCart with cart items", async () => {
-        const products = ProductFactory.createMany(2, { stockQuantity: 20 });
-
-        const calculateQuantityInCartSpy = jest.spyOn(
-          service as any,
-          "calculateQuantityInCart",
-        );
-
-        const cartItem = CartItemFactory.createOne({
-          quantity: 2,
-          product: products[0],
-        });
-        const cart = CartFactory.createOne({
-          items: [cartItem],
-        });
-
-        prismaMock.product.findMany.mockResolvedValue(products);
-        mockWithCart({ id: "customer-id", cart });
-
-        await service.findBestSellers(session);
-
-        expect(calculateQuantityInCartSpy).toHaveBeenCalledWith(cart.items);
-      });
-
-      it("should call findAnonymousOrCustomerWithCart with session", async () => {
-        const products = ProductFactory.createMany(2, { stockQuantity: 20 });
-
-        const findAnonymousOrCustomerWithCartSpy = jest.spyOn(
-          service as any,
-          "findAnonymousOrCustomerWithCart",
-        );
-
-        prismaMock.product.findMany.mockResolvedValue(products);
-        mockWithCart(customerWithEmptyCart);
-
-        await service.findBestSellers(session);
-
-        expect(findAnonymousOrCustomerWithCartSpy).toHaveBeenCalledWith(
-          session,
-        );
-      });
-
-      describe("quantityInCart", () => {
-        it("should return products with quantityInCart=1 for products in anonymous customer cart", async () => {
-          const products = ProductFactory.createMany(2, { stockQuantity: 20 });
-
-          const cartItem = CartItemFactory.createOne({
-            quantity: 1,
-            product: products[0],
-          });
-          const cart = CartFactory.createOne({
-            items: [cartItem],
-          });
-
-          prismaMock.product.findMany.mockResolvedValue(products);
-          mockWithCart({ id: "customer-id", cart });
-
-          const result = await service.findBestSellers(session);
-
-          expect(result[0].quantityInCart).toBe(1);
-          expect(result[1].quantityInCart).toBe(0);
-
-          expect(result[0].remainingStock).toBeNull();
-          expect(result[1].remainingStock).toBeNull();
-        });
-
-        it("should return products with quantityInCart=0 when cart is empty", async () => {
-          const products = ProductFactory.createOne({ stockQuantity: 20 });
-
-          prismaMock.product.findMany.mockResolvedValue([products]);
-          mockWithCart(customerWithEmptyCart);
-
-          const result = await service.findBestSellers(session);
-
-          expect(result[0].quantityInCart).toBe(0);
-          expect(result[0].remainingStock).toBeNull();
-        });
-
-        it("should return products with quantityInCart=0 when customer is not found", async () => {
-          const products = ProductFactory.createOne({ stockQuantity: 20 });
-
-          prismaMock.product.findMany.mockResolvedValue([products]);
-          mockWithCart(null);
-
-          const result = await service.findBestSellers(session);
-
-          expect(result[0].quantityInCart).toBe(0);
-          expect(result[0].remainingStock).toBeNull();
-        });
-      });
-
-      describe("remainingStock", () => {
-        it("should return products without remainingStock when stockQuantity is greater than 10", async () => {
-          const product = ProductFactory.createOne({ stockQuantity: 11 });
-
-          prismaMock.product.findMany.mockResolvedValue([product]);
-          mockWithCart(customerWithEmptyCart);
-
-          const result = await service.findBestSellers(session);
-
-          expect(result[0].remainingStock).toBeNull();
-          expect(result[0].quantityInCart).toBe(0);
-        });
-
-        it("should return products with remainingStock when stockQuantity is 10 or less", async () => {
-          const product = ProductFactory.createOne({ stockQuantity: 5 });
-
-          prismaMock.product.findMany.mockResolvedValue([product]);
-          mockWithCart(customerWithEmptyCart);
-
-          const result = await service.findBestSellers(session);
-
-          expect(result[0].remainingStock).toBe(5);
-          expect(result[0].quantityInCart).toBe(0);
-        });
-      });
-
-      describe("category filtering", () => {
-        it("should filter products by category when category is provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { category: "Bebidas" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.objectContaining({
-                category: { name: "Bebidas" },
-              }),
-            }),
-          );
-        });
-
-        it("should filter by compareAtPrice not null when category is Promoção", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { category: "Promoção" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.objectContaining({
-                compareAtPrice: { not: null },
-              }),
-            }),
-          );
-        });
-
-        it("should not filter by category name when category is Promoção", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { category: "Promoção" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.not.objectContaining({
-                category: expect.anything(),
-              }),
-            }),
-          );
-        });
-
-        it("should not filter by category when category is not provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session);
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.objectContaining({
-                deletedAt: null,
-                isActive: true,
-              }),
-            }),
-          );
-        });
-      });
-
-      describe("searchTerm filtering", () => {
-        it("should filter by name, description, and category name when searchTerm is provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session, { searchTerm: "burger" });
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.objectContaining({
-                OR: [
-                  { name: { contains: "burger", mode: "insensitive" } },
-                  { description: { contains: "burger", mode: "insensitive" } },
-                  {
-                    category: {
-                      name: { contains: "burger", mode: "insensitive" },
-                    },
-                  },
-                ],
-              }),
-            }),
-          );
-        });
-
-        it("should not include OR clause when searchTerm is not provided", async () => {
-          prismaMock.product.findMany.mockResolvedValue([]);
-          mockWithCart(customerWithEmptyCart);
-
-          await service.findBestSellers(session);
-
-          expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-              where: expect.not.objectContaining({ OR: expect.anything() }),
-            }),
-          );
-        });
-      });
-
-      it("should select compareAtPrice from products", async () => {
-        prismaMock.product.findMany.mockResolvedValue([]);
-        mockWithCart(customerWithEmptyCart);
-
-        await service.findBestSellers(session);
-
-        expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({
-            select: expect.objectContaining({
-              compareAtPrice: true,
-            }),
-          }),
-        );
-      });
-
-      it("should return compareAtPrice in the result", async () => {
-        const compareAtPrice = 2000;
-        const product = ProductFactory.createOne({
-          stockQuantity: 20,
-          compareAtPrice,
-        });
-
-        prismaMock.product.findMany.mockResolvedValue([product]);
-        mockWithCart(customerWithEmptyCart);
-
-        const result = await service.findBestSellers(session);
-
-        expect(result[0].compareAtPrice).toBe(compareAtPrice);
-      });
-
-      it("should sort products by sortOrder ascending", async () => {
-        prismaMock.product.findMany.mockResolvedValue([]);
-        mockWithCart(customerWithEmptyCart);
-
-        await service.findBestSellers(session);
-
-        expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({
-            orderBy: { sortOrder: "asc" },
-          }),
-        );
-      });
-
-      it("should query only active products", async () => {
-        prismaMock.product.findMany.mockResolvedValue([]);
-        mockWithCart(null);
-
-        await service.findBestSellers(session);
-
-        expect(prismaMock.product.findMany).toHaveBeenCalledWith(
-          expect.objectContaining({
-            where: expect.objectContaining({
-              isActive: true,
-            }),
-          }),
-        );
-      });
-    });
-
-    it("should return quantityInCart=0 when the found record has no cart", async () => {
-      const product = ProductFactory.createOne({ stockQuantity: 20 });
-
-      prismaMock.product.findMany.mockResolvedValue([product]);
-      prismaMock.customer.findFirst.mockResolvedValue({
-        id: "customer-id",
-        cart: null,
-      });
-
-      const result = await service.findBestSellers({
-        customerId: "customer-123",
-      });
-
-      expect(result[0].quantityInCart).toBe(0);
-    });
-
-    it("should combine category and searchTerm filters when both are provided", async () => {
-      prismaMock.product.findMany.mockResolvedValue([]);
-      prismaMock.customer.findFirst.mockResolvedValue(null);
-
-      await service.findBestSellers(
-        { customerId: "customer-123" },
-        { category: "Bebidas", searchTerm: "burger" },
       );
+    });
+
+    it("should return an empty array when no group is found", async () => {
+      prismaMock.categoryGroup.findMany.mockResolvedValue([]);
+
+      await expect(service.findCatalog(anonymousSession)).resolves.toEqual([]);
+    });
+
+    it("should prepend the 'Todos' pseudo-category carrying the group's allProductsImageUrl and every product of the group", async () => {
+      const first = buildProduct({
+        id: "p-1",
+        stockQuantity: 50,
+        sortOrder: 1,
+      });
+      const second = buildProduct({
+        id: "p-2",
+        stockQuantity: 50,
+        sortOrder: 2,
+      });
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [first]),
+        buildCategory("c-2", [second]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(categoryGroup.categories[0]).toEqual(
+        expect.objectContaining({
+          id: "Todos",
+          name: "Todos",
+          pluralName: "Todos",
+          imageUrl: group.allProductsImageUrl,
+        }),
+      );
+      expect(idsOf(categoryGroup.categories[0].products)).toEqual([
+        "p-1",
+        "p-2",
+      ]);
+    });
+
+    it("should append the real categories after the pseudo-categories", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories)).toEqual(["Todos", "c-1", "c-2"]);
+    });
+
+    it("should repeat the whole enriched product in the real category and in the pseudo-categories", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({
+            id: "p-1",
+            stockQuantity: 4,
+            sortOrder: 1,
+            compareAtPrice: 2000,
+          }),
+        ]),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+      mockCart([{ productId: "p-1", quantity: 2 }]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+      const [all, promotions, realCategory] = categoryGroup.categories;
+      const enriched = {
+        ...group.categories[0].products[0],
+        quantityInCart: 2,
+        remainingStock: 4,
+      };
+
+      expect(productsOf(realCategory)).toEqual([enriched]);
+      expect(productsOf(all)[0]).toEqual(enriched);
+      expect(productsOf(promotions)).toEqual([enriched]);
+    });
+
+    it("should add a 'Promoções' pseudo-category with the group's promotionsImageUrl holding only products with a compareAtPrice", async () => {
+      const promotion = buildProduct({
+        id: "p-1",
+        stockQuantity: 50,
+        sortOrder: 1,
+        compareAtPrice: 2000,
+      });
+      const regular = buildProduct({
+        id: "p-2",
+        stockQuantity: 50,
+        sortOrder: 2,
+      });
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [promotion]),
+        buildCategory("c-2", [regular]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(categoryGroup.categories[1]).toEqual(
+        expect.objectContaining({
+          id: "Promoções",
+          name: "Promoções",
+          pluralName: "Promoções",
+          imageUrl: group.promotionsImageUrl,
+        }),
+      );
+      expect(idsOf(categoryGroup.categories[1].products)).toEqual(["p-1"]);
+    });
+
+    it("should omit 'Promoções' when no product of the group has a compareAtPrice", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories)).toEqual(["Todos", "c-1", "c-2"]);
+    });
+
+    it("should return only 'Todos' when the group has a single non-empty category, even if it has promotions", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({
+            id: "p-1",
+            stockQuantity: 50,
+            sortOrder: 1,
+            compareAtPrice: 2000,
+          }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories)).toEqual(["Todos"]);
+      expect(idsOf(categoryGroup.categories[0].products)).toEqual(["p-1"]);
+    });
+
+    it("should order the products of 'Todos' by their group-scoped sortOrder, crossing category boundaries", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+          buildProduct({ id: "p-3", stockQuantity: 50, sortOrder: 3 }),
+        ]),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+          buildProduct({ id: "p-4", stockQuantity: 50, sortOrder: 4 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories[0].products)).toEqual([
+        "p-1",
+        "p-2",
+        "p-3",
+        "p-4",
+      ]);
+    });
+
+    it("should fall back to the id when two products share the same sortOrder", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-b", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-a", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories[0].products)).toEqual([
+        "p-a",
+        "p-b",
+      ]);
+    });
+
+    it("should omit categories without products", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+        buildCategory("c-empty", []),
+        buildCategory("c-2", [
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(categoryGroup.categories)).toEqual(["Todos", "c-1", "c-2"]);
+    });
+
+    it("should omit groups whose categories are all empty, without building pseudo-categories for them", async () => {
+      const emptyGroup = buildCategoryGroup("g-empty", [
+        buildCategory("c-empty", []),
+      ]);
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([emptyGroup, group]);
+
+      const result = await service.findCatalog(anonymousSession);
+
+      expect(idsOf(result)).toEqual(["g-1"]);
+    });
+
+    it("should omit groups without any category", async () => {
+      prismaMock.categoryGroup.findMany.mockResolvedValue([
+        buildCategoryGroup("g-empty", []),
+      ]);
+
+      await expect(service.findCatalog(anonymousSession)).resolves.toEqual([]);
+    });
+
+    it.each(
+      sessionCases,
+    )("should enrich each product with the quantity already in the cart of the $label", async ({
+      session,
+    }) => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+          buildProduct({ id: "p-2", stockQuantity: 50, sortOrder: 2 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+      mockCart([{ productId: "p-1", quantity: 4 }]);
+
+      const [categoryGroup] = await service.findCatalog(session);
+      const [first, second] = productsOf(categoryGroup.categories[0]);
+
+      expect(first.quantityInCart).toBe(4);
+      expect(second.quantityInCart).toBe(0);
+    });
+
+    it("should expose remainingStock only at or below the low-stock threshold", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 3, sortOrder: 1 }),
+          buildProduct({ id: "p-2", stockQuantity: 10, sortOrder: 2 }),
+          buildProduct({ id: "p-3", stockQuantity: 11, sortOrder: 3 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+      const [low, threshold, plenty] = productsOf(categoryGroup.categories[0]);
+
+      expect(low.remainingStock).toBe(3);
+      expect(threshold.remainingStock).toBe(10);
+      expect(plenty.remainingStock).toBeNull();
+    });
+
+    it("should degrade to an empty cart when the session owner is not found", async () => {
+      const group = buildCategoryGroup("g-1", [
+        buildCategory("c-1", [
+          buildProduct({ id: "p-1", stockQuantity: 50, sortOrder: 1 }),
+        ]),
+      ]);
+      prismaMock.categoryGroup.findMany.mockResolvedValue([group]);
+      mockCart(null);
+
+      const [categoryGroup] = await service.findCatalog(anonymousSession);
+
+      expect(productsOf(categoryGroup.categories[0])[0].quantityInCart).toBe(0);
+    });
+  });
+
+  describe("search", () => {
+    it("should match the term against the product and its category, filtering out inactive and deleted records", async () => {
+      await service.search(anonymousSession, { searchTerm: "cerveja" });
+
+      const term = { contains: "cerveja", mode: "insensitive" };
 
       expect(prismaMock.product.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({
-            category: { name: "Bebidas" },
+          where: {
+            isActive: true,
+            deletedAt: null,
+            category: { isActive: true, categoryGroup: { isActive: true } },
             OR: [
-              { name: { contains: "burger", mode: "insensitive" } },
-              { description: { contains: "burger", mode: "insensitive" } },
-              {
-                category: {
-                  name: { contains: "burger", mode: "insensitive" },
-                },
-              },
+              { name: term },
+              { description: term },
+              { category: { name: term } },
+              { category: { pluralName: term } },
             ],
-          }),
+          },
+          orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
         }),
       );
     });
 
-    it("should return remainingStock when stockQuantity is exactly 10", async () => {
-      const product = ProductFactory.createOne({ stockQuantity: 10 });
+    it("should return an empty array when nothing matches", async () => {
+      prismaMock.product.findMany.mockResolvedValue([]);
 
-      prismaMock.product.findMany.mockResolvedValue([product]);
-      prismaMock.customer.findFirst.mockResolvedValue(null);
+      await expect(
+        service.search(anonymousSession, { searchTerm: "cerveja" }),
+      ).resolves.toEqual([]);
+    });
 
-      const result = await service.findBestSellers({
-        customerId: "customer-123",
+    it("should return a flat list of enriched products", async () => {
+      prismaMock.product.findMany.mockResolvedValue([
+        buildProduct({ id: "p-1", stockQuantity: 3 }),
+        buildProduct({ id: "p-2", stockQuantity: 11 }),
+      ]);
+      mockCart([{ productId: "p-1", quantity: 2 }]);
+
+      const result = await service.search(anonymousSession, {
+        searchTerm: "cerveja",
       });
 
-      expect(result[0].remainingStock).toBe(10);
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: "p-1",
+          quantityInCart: 2,
+          remainingStock: 3,
+        }),
+        expect.objectContaining({
+          id: "p-2",
+          quantityInCart: 0,
+          remainingStock: null,
+        }),
+      ]);
+    });
+
+    it("should read the cart of the customer, not of a device, when the session is authenticated", async () => {
+      await service.search(customerSession, { searchTerm: "cerveja" });
+
+      expect(prismaMock.customer.findFirst).toHaveBeenCalled();
+      expect(prismaMock.anonymousCustomer.findUnique).not.toHaveBeenCalled();
+    });
+
+    it("should degrade to an empty cart when the session owner is not found", async () => {
+      prismaMock.product.findMany.mockResolvedValue([
+        buildProduct({ id: "p-1", stockQuantity: 3 }),
+      ]);
+      mockCart(null);
+
+      const result = await service.search(anonymousSession, {
+        searchTerm: "cerveja",
+      });
+
+      expect(result[0].quantityInCart).toBe(0);
     });
   });
 
@@ -421,15 +519,12 @@ describe("ProductsService", () => {
     it("should query customer with cart items when customerId is present in session", async () => {
       const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
       prismaMock.customer.findFirst.mockResolvedValue(null);
-      const sessionWithCustomerId = { customerId: "customer-123" };
 
-      await (service as any).findAnonymousOrCustomerWithCart(
-        sessionWithCustomerId,
-      );
+      await (service as any).findAnonymousOrCustomerWithCart(customerSession);
 
       expect(findFirstSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: sessionWithCustomerId.customerId },
+          where: { id: customerSession.customerId },
           select: {
             cart: {
               select: {
@@ -443,7 +538,7 @@ describe("ProductsService", () => {
       );
     });
 
-    it("should query customer (not anonymous) when session has both deviceId and customerId", () => {
+    it("should query customer (not anonymous) when session has both deviceId and customerId", async () => {
       const findFirstSpy = jest.spyOn(prismaMock.customer, "findFirst");
       prismaMock.customer.findFirst.mockResolvedValue(null);
       const session = {
@@ -451,7 +546,7 @@ describe("ProductsService", () => {
         customerId: "customer-123",
       };
 
-      (service as any).findAnonymousOrCustomerWithCart(session);
+      await (service as any).findAnonymousOrCustomerWithCart(session);
 
       expect(findFirstSpy).toHaveBeenCalledWith(
         expect.objectContaining({

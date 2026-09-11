@@ -69,6 +69,9 @@ export const prismaMock = {
   category: {
     findMany: jest.fn(),
   },
+  categoryGroup: {
+    findMany: jest.fn(),
+  },
   deliveryPerson: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
@@ -146,10 +149,6 @@ export const authServiceMock = {
 
 export const categoriesServiceMock = {
   findAll: jest.fn(),
-};
-
-export const productsServiceMock = {
-  findBestSellers: jest.fn(),
 };
 
 export const settingsServiceMock = {

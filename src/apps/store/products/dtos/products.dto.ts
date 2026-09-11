@@ -1,6 +1,6 @@
-import { Expose } from "class-transformer";
+import { Expose, Type } from "class-transformer";
 
-export class ProductsDto {
+class Product {
   @Expose()
   id!: string;
 
@@ -24,4 +24,28 @@ export class ProductsDto {
 
   @Expose()
   remainingStock!: number | null;
+}
+
+export class ProductsDto extends Product {
+  @Expose()
+  @Type(() => Category)
+  categories!: Category[];
+}
+
+class Category {
+  @Expose()
+  id!: string;
+
+  @Expose()
+  name!: string;
+
+  @Expose()
+  pluralName!: string;
+
+  @Expose()
+  imageUrl!: string;
+
+  @Expose()
+  @Type(() => Product)
+  products!: Product[];
 }

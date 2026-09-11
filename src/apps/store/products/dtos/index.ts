@@ -1,2 +1,2 @@
 export { ProductsDto } from "./products.dto";
-export { FindBestSellersDto } from "./find-best-sellers.dto";
+export { SearchProductsDto } from "./search-products.dto";
