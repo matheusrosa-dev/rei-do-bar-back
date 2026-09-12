@@ -32,3 +32,6 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/rei-do-bar-back:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
